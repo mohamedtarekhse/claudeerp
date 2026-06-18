@@ -298,13 +298,23 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 
 /* ── RESPONSIVE ── */
 @media(max-width:768px){
-  .mod-sidebar{transform:translateX(-100%);transition:transform .25s;}
-  [dir="rtl"] .mod-sidebar{transform:translateX(100%);}
+  #menuBtn { display: flex !important; }
+  .shell-search-wrap { display: none; }
+  .mod-sidebar{transform:translateX(-100%);transition:transform .25s; box-shadow: 2px 0 10px rgba(0,0,0,0.1);}
+  [dir="rtl"] .mod-sidebar{transform:translateX(100%); box-shadow: -2px 0 10px rgba(0,0,0,0.1);}
   .mod-sidebar.open{transform:translateX(0);}
-  .mod-content{margin-left:0;}
+  .mod-content{margin-left:0; padding: 10px;}
   [dir="rtl"] .mod-content{margin-right:0;}
-  .kpi-grid{grid-template-columns:repeat(2,1fr);}
+  .kpi-grid{grid-template-columns:1fr 1fr;}
   .chart-grid{grid-template-columns:1fr;}
+  .tab-item { padding: 0 12px; font-size: 12px; }
+  .obj-header { padding: 14px 16px; }
+  .md-master { width: 100%; min-width: 100%; border-right: none; }
+}
+@media(max-width:480px){
+  .kpi-grid{grid-template-columns:1fr;}
+  .shell-brand .shell-name { display: none; }
+  .obj-kv { gap: 10px; }
 }
 
 /* ── AI ASSISTANT PANEL ── */

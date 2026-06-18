@@ -2244,3 +2244,19 @@ renderAll();
 const certAlerts = DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring').length;
 document.getElementById('notifBadge').textContent = certAlerts + DATA.leaveRequests.filter(l=>l.status==='pending').length;
 setTimeout(()=> showToast('Welcome to AMICI ERP · All 4 modules live','success'), 700);
+
+/* ── MOBILE MENU TOGGLE ── */
+const menuBtn = document.getElementById('menuBtn');
+if (menuBtn) {
+  menuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const sidebar = document.querySelector('.mod-sidebar');
+    if (sidebar) sidebar.classList.toggle('open');
+  });
+}
+document.addEventListener('click', (e) => {
+  const sidebar = document.querySelector('.mod-sidebar');
+  if (sidebar && sidebar.classList.contains('open') && !sidebar.contains(e.target) && e.target !== menuBtn && !menuBtn.contains(e.target)) {
+    sidebar.classList.remove('open');
+  }
+});

@@ -2260,3 +2260,32 @@ document.addEventListener('click', (e) => {
     sidebar.classList.remove('open');
   }
 });
+
+/* ── EXPOSE TO GLOBAL SCOPE FOR INLINE ONCLICK ── */
+window.toggleLang = toggleLang;
+window.switchModule = switchModule;
+window.switchSection = switchSection;
+window.sortBy = sortBy;
+window.closeModal = closeModal;
+window.closeDropdown = closeDropdown;
+window.selectEmployee = selectEmployee;
+window.openNewEmployeeModal = openNewEmployeeModal;
+window.submitNewEmployee = submitNewEmployee;
+window.selectCRMItem = selectCRMItem;
+window.openNewAccountModal = openNewAccountModal;
+window.submitNewAccount = submitNewAccount;
+window.selectCertItem = selectCertItem;
+window.openNewCertModal = openNewCertModal;
+window.submitNewCert = submitNewCert;
+window.selectPOItem = selectPOItem;
+window.approvePO = approvePO;
+window.selectSupplierItem = selectSupplierItem;
+window.openNewPOModal = openNewPOModal;
+window.submitNewPO = submitNewPO;
+window.toggleAIPanel = toggleAIPanel;
+window.saveAPIKey = saveAPIKey;
+window.clearAPIKey = clearAPIKey;
+window.confirmAction = confirmAction;
+window.dismissAction = dismissAction;
+window.sendChip = sendChip;
+if (typeof sendAIMessage !== 'undefined') window.sendAIMessage = sendAIMessage;

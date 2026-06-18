@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMICI ERP</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- SHELL BAR -->
+<header class="shell" id="shell">
+  <div class="shell-brand">
+    <div class="shell-logo">AM</div>
+    <span class="shell-name">AMICI</span>
+  </div>
+  <div class="shell-divider"></div>
+  <div class="shell-search-wrap">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <input class="shell-search" id="shellSearch" placeholder="Search..." type="text">
+  </div>
+  <div class="shell-right">
+    <button class="lang-btn" id="langBtn" onclick="toggleLang()">عر</button>
+    <button class="shell-btn ai-btn" id="aiBtn" title="AMICI AI Assistant">✦</button>
+    <button class="shell-btn" id="notifBtn" title="Notifications" style="position:relative;">
+      <i class="fa-regular fa-bell"></i>
+      <span class="notif-badge" id="notifBadge">3</span>
+    </button>
+    <div class="shell-avatar" id="userBtn" title="User">KA</div>
+  </div>
+</header>
+
+<!-- AI ASSISTANT PANEL -->
+<div class="ai-panel" id="aiPanel">
+  <div class="ai-panel-head">
+    <div style="width:32px;height:32px;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">✦</div>
+    <div style="flex:1;">
+      <div class="ai-panel-title">AMICI AI Assistant</div>
+      <div class="ai-panel-sub">Powered by Google Gemini · OpenRouter</div>
+    </div>
+    <button class="ai-close" onclick="toggleAIPanel()">×</button>
+  </div>
+  <div class="ai-key-bar" id="aiKeyBar">
+    <input class="ai-key-input" id="aiKeyInput" type="password" placeholder="Paste OpenRouter API key (sk-or-…)">
+    <button class="ai-key-btn" onclick="saveAPIKey()">Save</button>
+  </div>
+  <div class="ai-messages" id="aiMessages"></div>
+  <div class="ai-chips" id="aiChips"></div>
+  <div class="ai-input-bar">
+    <textarea class="ai-textarea" id="aiInput" placeholder="Ask anything about AMICI data…" rows="1"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAIMessage();}"
+      oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'"></textarea>
+    <button class="ai-send" id="aiSend" onclick="sendAIMessage()" title="Send">
+      <i class="fa-solid fa-paper-plane"></i>
+    </button>
+  </div>
+</div>
+
+<!-- MODULE TAB BAR -->
+<nav class="tab-bar" id="tabBar"></nav>
+
+<!-- APP BODY -->
+<div class="app-body">
+  <aside class="mod-sidebar" id="modSidebar"></aside>
+  <main class="mod-content" id="modContent"></main>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalBox"></div>
+</div>
+
+<!-- DROPDOWN -->
+<div class="dropdown" id="dropdown"></div>
+
+<script type="module" src="/main.js"></script>
+</body>
+</html>

@@ -2441,3 +2441,110 @@ window.confirmAction = confirmAction;
 window.dismissAction = dismissAction;
 window.sendChip = sendChip;
 if (typeof sendAIMessage !== 'undefined') window.sendAIMessage = sendAIMessage;window.deleteRecord = deleteRecord; window.editRecord = editRecord;
+
+/* ── ROUTING & RENDER ENGINE RESTORED ── */
+
+function renderSidebar(){
+  let html='';
+  if(state.module==='hr') html=typeof renderHRSidebar !== 'undefined' ? renderHRSidebar() : '';
+  else if(state.module==='crm') html=typeof renderCRMSidebar !== 'undefined' ? renderCRMSidebar() : '';
+  else if(state.module==='certificates') html=typeof renderCertSidebar !== 'undefined' ? renderCertSidebar() : '';
+  else if(state.module==='supply') html=typeof renderSCSidebar !== 'undefined' ? renderSCSidebar() : '';
+  const modSidebar = document.getElementById('modSidebar');
+  if(modSidebar) modSidebar.innerHTML=html;
+}
+
+function renderContent(){
+  let html='';
+  if(state.module==='hr'){
+    if(state.section==='allEmployees'||state.section==='newHires') html=typeof renderAllEmployees !== 'undefined' ? renderAllEmployees() : '';
+    else if(state.section==='leaveRequests') html=typeof renderLeaveRequests !== 'undefined' ? renderLeaveRequests() : '';
+    else html=typeof renderHRStub !== 'undefined' ? renderHRStub(state.section.replace(/([A-Z])/g,' $1').trim()) : '';
+  }
+  else if(state.module==='crm'){
+    if(state.section==='crmLeads') html=typeof renderCRMLeads !== 'undefined' ? renderCRMLeads() : (typeof renderAllAccounts !== 'undefined' ? renderAllAccounts() : '');
+    else if(state.section==='crmDeals') html=typeof renderCRMDeals !== 'undefined' ? renderCRMDeals() : (typeof renderAllAccounts !== 'undefined' ? renderAllAccounts() : '');
+    else if(state.section==='myTasks') html=typeof renderCRMTasks !== 'undefined' ? renderCRMTasks() : (typeof renderAllAccounts !== 'undefined' ? renderAllAccounts() : '');
+    else if(state.section==='fieldServiceLogs') html=typeof renderCRMFieldServiceLogs !== 'undefined' ? renderCRMFieldServiceLogs() : (typeof renderAllAccounts !== 'undefined' ? renderAllAccounts() : '');
+    else if(state.section==='partnersJVs'){ state.filters.type='JV Partner'; html=typeof renderAllAccounts !== 'undefined' ? renderAllAccounts() : ''; }
+    else html=typeof renderAllAccounts !== 'undefined' ? renderAllAccounts() : '';
+  }
+  else if(state.module==='supply'){
+    if(state.section==='allPOs') html=typeof renderAllPOs !== 'undefined' ? renderAllPOs() : '';
+    else if(state.section==='allSuppliers') html=typeof renderAllSuppliers !== 'undefined' ? renderAllSuppliers() : '';
+    else if(state.section==='inventoryItems') html=typeof renderInventory !== 'undefined' ? renderInventory() : '<p>Inventory</p>';
+    else if(state.section==='warehouses') html=typeof renderWarehouseCapacity !== 'undefined' ? renderWarehouseCapacity() : '<p>Warehouses</p>';
+    else if(state.section==='scSettings') html=typeof renderSCSettings !== 'undefined' ? renderSCSettings() : '<p>Settings</p>';
+    else html=typeof renderSCDashboard !== 'undefined' ? renderSCDashboard() : '<p>Dashboard</p>';
+  }
+  else if(state.module==='certificates'){
+    html=typeof renderCertificates !== 'undefined' ? renderCertificates() : '<p>Certs</p>';
+  }
+  const modContent = document.getElementById('modContent');
+  if(modContent) modContent.innerHTML=html;
+}
+
+function renderAll(){
+  if(typeof renderSidebar !== 'undefined') renderSidebar();
+  if(typeof renderContent !== 'undefined') renderContent();
+  if(typeof renderAIMessages !== 'undefined') renderAIMessages();
+}
+
+function rerenderSection(){
+  if(typeof renderContent !== 'undefined') renderContent();
+}
+
+function renderCRMFieldServiceLogs() {
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Field Service Logs</h2>
+    <button class="btn btn-primary" onclick="openNewFSLModal()">+ Log New Service</button>
+  </div>
+  <table class="data-table">
+    <thead><tr><th>Log ID</th><th>Client Name</th><th>Engineer</th><th>Date</th><th>Status</th></tr></thead>
+    <tbody>`;
+  const logs = DATA.fieldServiceLogs || [];
+  logs.forEach(l => {
+    html += `<tr>
+      <td>${l.id}</td><td>${l.client_name}</td><td>${l.engineer_name}</td><td>${l.date}</td>
+      <td><span class="status-pill status-${l.status.toLowerCase()}">${l.status}</span></td>
+    </tr>`;
+  });
+  if(logs.length===0) html += `<tr><td colspan="5" style="text-align:center">No logs found</td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+function openNewFSLModal() {
+  const body = `<div style="display:flex;flex-direction:column;gap:12px">
+    <input type="text" id="fsl-client" class="filter-input" placeholder="Client Name">
+    <input type="text" id="fsl-engineer" class="filter-input" placeholder="Engineer Name">
+    <input type="date" id="fsl-date" class="filter-input" value="${new Date().toISOString().split('T')[0]}">
+    <textarea id="fsl-desc" class="filter-input" placeholder="Job Description"></textarea>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewFSL()">Save Log</button>`;
+  openModal('New Field Service Log', body, footer);
+}
+
+function submitNewFSL() {
+  const newLog = {
+    id: 'FSL-' + Date.now(),
+    client_name: document.getElementById('fsl-client').value,
+    engineer_name: document.getElementById('fsl-engineer').value,
+    date: document.getElementById('fsl-date').value,
+    job_description: document.getElementById('fsl-desc').value,
+    status: 'Completed'
+  };
+  if(!DATA.fieldServiceLogs) DATA.fieldServiceLogs = [];
+  DATA.fieldServiceLogs.push(newLog);
+  if (typeof supabase !== 'undefined' && supabase) supabase.from('crm_field_service_logs').insert(newLog).then();
+  closeModal();
+  showToast('Service log added', 'success');
+  rerenderSection();
+}
+
+// Restore global exports
+window.openNewFSLModal = openNewFSLModal;
+window.submitNewFSL = submitNewFSL;
+window.renderContent = renderContent;
+window.rerenderSection = rerenderSection;
+

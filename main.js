@@ -68,7 +68,32 @@ function toggleLang(){
 /* ═══════════════════════════════════════════════
    DATA — HR MODULE (Oil & Gas / AMICI)
 ═══════════════════════════════════════════════ */
-const DATA = {
+let DATA = {
+  leads: [
+    {id:'LD-001', name:'Acme Corp', email:'info@acme.com', phone:'+1 555-0198', status:'New', source:'Website'}
+  ],
+  deals: [
+    {id:'DL-001', title:'Acme SaaS Deal', lead_id:'LD-001', account_id:null, value:15000, stage:'Prospecting', expected_close_date:'2026-08-01'}
+  ],
+  tasks: [
+    {id:'TSK-001', description:'Follow up with Acme', due_date:'2026-06-25', status:'pending', assigned_to:'EMP-001', related_lead_id:'LD-001', related_deal_id:null}
+  ],
+  attendance: [
+    {id:'ATT-001', employee_id:'EMP-001', date:new Date().toISOString().split('T')[0], status:'Present', check_in_time:'08:00', check_out_time:null}
+  ],
+  expenses: [
+    {id:'EXP-001', employee_id:'EMP-001', date:'2026-06-15', amount:250, category:'Travel', description:'Flight to site', status:'Pending'}
+  ],
+  salarySlips: [
+    {id:'SAL-001', employee_id:'EMP-001', month:6, year:2026, base_pay:5000, allowances:1000, deductions:500, net_pay:5500, status:'Paid'}
+  ],
+  invoices: [
+    {id:'INV-001', type:'Sales', party_name:'Acme Corp', date:'2026-06-01', due_date:'2026-06-30', total_amount:15000, status:'Unpaid'},
+    {id:'PINV-001', type:'Purchase', party_name:'DrillTech Supplies', date:'2026-06-10', due_date:'2026-07-10', total_amount:4500, status:'Unpaid'}
+  ],
+  payments: [
+    {id:'PAY-001', invoice_id:'INV-001', date:'2026-06-15', amount:5000, payment_method:'Bank Transfer'}
+  ],
   employees: [
     {id:'EMP-001',firstName:'Khalid',lastName:'Al-Rashidi',name:'Khalid Al-Rashidi',dept:'Drilling',position:'Senior Drilling Engineer',email:'k.alrashidi@amici.com',phone:'+968 9100 1001',status:'active',empType:'Full-time',site:'Block 15 – Rig Alpha',rotation:'28/28',crew:'Offshore',startDate:'2018-03-10',manager:'EMP-010',salaryBand:'G6',costCenter:'CC-DRL-001',nationality:'Omani',visa:'N/A',h2sLevel:'Level 3',medFit:true,medExpiry:'2025-12-01',workPermit:'N/A',
       leave:{annual:{used:8,total:30},sick:{used:2,total:15},remote:{used:4,total:10},training:{used:5,total:10}},
@@ -225,6 +250,13 @@ function statusPill(status){
 function sortIcon(col){ if(state.sortCol!==col) return '<i class="fa-solid fa-sort sort-icon"></i>'; return state.sortDir==='asc'?'<i class="fa-solid fa-sort-up sort-icon"></i>':'<i class="fa-solid fa-sort-down sort-icon"></i>';}
 function sortedCls(col){ return state.sortCol===col?'sorted':''; }
 function sortBy(col){ if(state.sortCol===col){state.sortDir=state.sortDir==='asc'?'desc':'asc';}else{state.sortCol=col;state.sortDir='asc';} rerenderSection(); }
+function autoResizeTextarea(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,100)+'px'; }
+function closeToast(button){
+  const toast = button.closest('.toast');
+  if(!toast) return;
+  toast.classList.add('is-exiting');
+  setTimeout(()=>toast.remove(),200);
+}
 
 /* ═══════════════════════════════════════════════
    TOAST
@@ -233,8 +265,9 @@ function showToast(msg, type='info'){
   const div=document.createElement('div');
   div.className=`toast ${type}`;
   const icons={success:'fa-check-circle',error:'fa-circle-xmark',warning:'fa-triangle-exclamation',info:'fa-circle-info'};
-  div.innerHTML=`<i class="fa-solid ${icons[type]||icons.info}" style="font-size:15px;color:var(--${type==='info'?'blue':type==='success'?'success':type==='error'?'error':'warning'});"></i><span>${msg}</span><button class="toast-close" onclick="this.parentElement.remove()">×</button>`;
+  div.innerHTML=`<i class="fa-solid ${icons[type]||icons.info}" style="font-size:15px;color:var(--${type==='info'?'blue':type==='success'?'success':type==='error'?'error':'warning'});"></i><span>${msg}</span><button class="toast-close" type="button" aria-label="Dismiss notification" data-action="close-toast">×</button>`;
   $('#toastContainer').appendChild(div);
+  setTimeout(()=>{ if(div.isConnected) div.classList.add('is-exiting'); },3800);
   setTimeout(()=>div.remove(),4000);
 }
 
@@ -242,7 +275,7 @@ function showToast(msg, type='info'){
    MODAL
 ═══════════════════════════════════════════════ */
 function openModal(title, body, footer){
-  $('#modalBox').innerHTML=`<div class="modal-header"><h3>${title}</h3><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body">${body}</div><div class="modal-footer">${footer}</div>`;
+  $('#modalBox').innerHTML=`<div class="modal-header"><h3>${title}</h3><button class="modal-close" type="button" aria-label="Close dialog" data-action="close-modal">×</button></div><div class="modal-body">${body}</div><div class="modal-footer">${footer}</div>`;
   $('#modalOverlay').classList.add('open');
 }
 function closeModal(){ $('#modalOverlay').classList.remove('open'); }
@@ -272,6 +305,7 @@ const MODULES = [
   {id:'crm',icon:'fa-handshake',labelKey:'crm'},
   {id:'certificates',icon:'fa-certificate',labelKey:'certificates'},
   {id:'supply',icon:'fa-truck',labelKey:'supplyChain'},
+  {id:'fin',icon:'fa-file-invoice-dollar',labelKey:'finance'},
 ];
 
 function renderTabBar(){
@@ -284,7 +318,7 @@ function renderTabBar(){
 function switchModule(mod){
   destroyCharts();
   state.module=mod;
-  state.section=mod==='hr'?'allEmployees':mod==='crm'?'allAccounts':mod==='certificates'?'allCerts':'scDashboard';
+  state.section=mod==='hr'?'allEmployees':mod==='crm'?'allAccounts':mod==='certificates'?'allCerts':mod==='fin'?'finDashboard':'scDashboard';
   state.selectedId=null;
   state.filters={};
   state.sortCol=null;
@@ -313,6 +347,7 @@ function renderHRSidebar(){
       {id:'performanceCycle',icon:'fa-chart-line',label:t('performanceCycle')},
       {id:'trainingHSE',icon:'fa-hard-hat',label:t('trainingHSE')},
       {id:'compensation',icon:'fa-money-bill-wave',label:t('compensation')},
+      {id:'expenseClaims',icon:'fa-file-invoice-dollar',label:'Expense Claims'},
       {id:'orgUnits',icon:'fa-sitemap',label:t('orgUnits')},
     ]},
     {group:'Admin', items:[
@@ -553,11 +588,12 @@ function openNewEmployeeModal(){
   openModal(t('newEmployee'), body, footer);
 }
 
-function submitNewEmployee(){
+async function submitNewEmployee(){
   const fn=$('#ne-fname').value.trim(),ln=$('#ne-lname').value.trim();
   if(!fn||!ln){ showToast('First and last name are required','error'); return; }
   const newId='EMP-'+String(DATA.employees.length+1).padStart(3,'0');
-  DATA.employees.push({
+  
+  const newEmp = {
     id:newId,firstName:fn,lastName:ln,name:fn+' '+ln,
     dept:$('#ne-dept').value,position:$('#ne-position').value||'TBD',
     email:$('#ne-email').value,phone:$('#ne-phone').value,
@@ -568,7 +604,27 @@ function submitNewEmployee(){
     medFit:false,medExpiry:null,visa:'N/A',workPermit:'N/A',
     manager:null,costCenter:'TBD',leave:{annual:{used:0,total:15},sick:{used:0,total:10},remote:{used:0,total:5},training:{used:0,total:10}},
     skills:[],hseCerts:[],history:[{date:$('#ne-start').value,event:'Joined AMICI'}]
-  });
+  };
+
+  if (supabase) {
+    const { error } = await supabase.from('employees').insert({
+      id: newEmp.id, first_name: newEmp.firstName, last_name: newEmp.lastName,
+      department: newEmp.dept, position_title: newEmp.position,
+      email: newEmp.email, phone: newEmp.phone, status: newEmp.status,
+      emp_type: newEmp.empType, site: newEmp.site, start_date: newEmp.startDate,
+      salary_band: newEmp.salaryBand, nationality: newEmp.nationality
+    });
+    if (error) { showToast('Error saving to DB','error'); return; }
+    
+    // Also insert default leave
+    for (const [type, bal] of Object.entries(newEmp.leave)) {
+      await supabase.from('employee_leave_balances').insert({
+        employee_id: newEmp.id, leave_type: type, used: bal.used, total: bal.total
+      });
+    }
+  }
+
+  DATA.employees.push(newEmp);
   closeModal();
   state.selectedId=newId;
   showToast(`${fn} ${ln} added successfully`,'success');
@@ -758,6 +814,8 @@ function renderCRMSidebar(){
   const overdueCount = 2;
   const sections=[
     {group:null,items:[
+      {id:'crmLeads',icon:'fa-users-viewfinder',label:'Leads'},
+      {id:'crmDeals',icon:'fa-kanban',label:'Deals Pipeline'},
       {id:'allAccounts',icon:'fa-building',label:t('allAccounts')},
       {id:'myFavorites',icon:'fa-star',label:t('myFavorites')},
       {id:'openContracts',icon:'fa-file-signature',label:t('openContracts'),badge:openContracts,badgeCls:'blue'},
@@ -969,12 +1027,22 @@ function openNewAccountModal(){
   openModal(t('newAccount'),body,footer);
 }
 
-function submitNewAccount(){
+async function submitNewAccount(){
   const name=$('#na-name').value.trim();
   if(!name){showToast('Account name is required','error');return;}
   const newId='ACC-'+String(DATA.accounts.length+1).padStart(3,'0');
-  DATA.accounts.push({id:newId,name,type:$('#na-type').value,country:$('#na-country').value,region:$('#na-region').value,blockRef:$('#na-block').value||'N/A',owner:$('#na-owner').value,status:'active',contractValue:parseInt($('#na-value').value)||0,rating:$('#na-rating').value,openOpps:0,contacts:[],opps:[],activities:[{type:'Created',date:new Date().toISOString().split('T')[0],desc:'Account created in AMICI ERP'}]});
-  DATA.allOpps=DATA.accounts.flatMap(a=>a.opps||[]).map(o=>{const acc=DATA.accounts.find(a=>a.opps&&a.opps.some(op=>op.id===o.id));return{...o,accountName:acc?acc.name:'—',accountId:acc?acc.id:'—'};});
+  
+  const newAcc = {id:newId,name,industry:$('#na-type').value,tier:$('#na-region').value,manager_id:$('#na-owner').value,status:'active',revenue:parseInt($('#na-value').value)||0,last_contact:new Date().toISOString().split('T')[0]};
+  
+  if (supabase) {
+    const { error } = await supabase.from('crm_accounts').insert(newAcc);
+    if (error) { showToast('Error saving account','error'); return; }
+  }
+
+  // Fallback to match UI logic
+  const uiAcc = {id:newId,name,type:newAcc.industry,country:'',region:newAcc.tier,blockRef:'N/A',owner:newAcc.manager_id,status:newAcc.status,contractValue:newAcc.revenue,rating:'Warm',openOpps:0,contacts:[],opps:[],activities:[{type:'Created',date:newAcc.last_contact,desc:'Account created'}]};
+  DATA.accounts.push(uiAcc);
+  if(DATA.accounts.flatMap) DATA.allOpps=DATA.accounts.flatMap(a=>a.opps||[]).map(o=>{const acc=DATA.accounts.find(a=>a.opps&&a.opps.some(op=>op.id===o.id));return{...o,accountName:acc?acc.name:'-',accountId:acc?acc.id:'-'};});
   closeModal();state.selectedId=newId;showToast(name+' added successfully','success');rerenderSection();
 }
 
@@ -1598,7 +1666,7 @@ function renderSupplierDetail(s){
 
   let html=`<div class="obj-header">
     <div class="obj-header-top">
-      <div class="avatar" style="width:52px;height:52px;font-size:18px;background:${avatarColor(s.name)}">${initials(s.name)}</div>
+      <div class="avatar" style="width:48px;height:48px;font-size:16px;background:${avatarColor(s.name)}">${initials(s.name)}</div>
       <div style="flex:1;"><h2>${s.name}</h2><div class="obj-sub">${s.category} · ${s.country} · ${s.region}</div></div>
       <span style="color:#f5a623;font-size:16px;">${stars}</span>
     </div>
@@ -1770,6 +1838,7 @@ function renderSidebar(){
   else if(state.module==='crm') html=renderCRMSidebar();
   else if(state.module==='certificates') html=renderCertSidebar();
   else if(state.module==='supply') html=renderSCSidebar();
+  else if(state.module==='fin') html=renderFinSidebar();
   $('#modSidebar').innerHTML=html;
 }
 
@@ -1778,10 +1847,16 @@ function renderContent(){
   if(state.module==='hr'){
     if(state.section==='allEmployees'||state.section==='newHires') html=renderAllEmployees();
     else if(state.section==='leaveRequests') html=renderLeaveRequests();
+    else if(state.section==='timesheets') html=renderHRAttendance();
+    else if(state.section==='expenseClaims') html=renderHRExpenses();
+    else if(state.section==='compensation') html=renderHRPayroll();
     else html=renderHRStub(state.section.replace(/([A-Z])/g,' $1').trim());
   }
   else if(state.module==='crm'){
-    if(state.section==='partnersJVs'){ state.filters.type='JV Partner'; html=renderAllAccounts(); }
+    if(state.section==='crmLeads') html=renderCRMLeads();
+    else if(state.section==='crmDeals') html=renderCRMDeals();
+    else if(state.section==='myTasks') html=renderCRMTasks();
+    else if(state.section==='partnersJVs'){ state.filters.type='JV Partner'; html=renderAllAccounts(); }
     else html=renderAllAccounts();
   }
   else if(state.module==='certificates'){
@@ -1830,7 +1905,7 @@ $('#notifBtn').addEventListener('click',e=>{
   if(activeDropdown===$('#notifBtn')){ closeDropdown(); return; }
   let html=`<div class="dropdown-header">${t('notifications')}</div>`;
   DATA.notifications.forEach(n=>{ html+=`<div class="dropdown-item"><i class="fa-solid ${n.icon}" style="color:${n.color};"></i><div><div style="font-size:13px;">${n.text}</div><div style="font-size:11px;color:var(--text-sec);margin-top:1px;">${n.time}</div></div></div>`; });
-  html+=`<div style="padding:8px 14px;border-top:1px solid var(--border);text-align:center;"><a style="font-size:12px;color:var(--blue);cursor:pointer;" onclick="closeDropdown();$('#notifBadge').style.display='none';showToast('All notifications cleared','success')">Mark all read</a></div>`;
+  html+=`<div style="padding:8px 14px;border-top:1px solid var(--border);text-align:center;"><button type="button" class="btn btn-ghost btn-sm" data-action="mark-all-read">Mark all read</button></div>`;
   openDropdown($('#notifBtn'),html);
 });
 
@@ -1843,8 +1918,8 @@ $('#userBtn').addEventListener('click',e=>{
     <div><div style="font-size:14px;font-weight:600;">Khalid Al-Rashidi</div><div style="font-size:12px;color:var(--text-sec);">k.alrashidi@amici.com</div></div>
   </div>
   <div class="dropdown-header" style="font-size:11px;padding:8px 14px 4px;">Switch Role (Demo)</div>
-  ${roles.map(r=>`<div class="dropdown-item" onclick="showToast('Role: ${r}','info');closeDropdown()"><i class="fa-solid fa-user-tag"></i>${r}</div>`).join('')}
-  <div style="border-top:1px solid var(--border);"><div class="dropdown-item" style="color:var(--error);" onclick="showToast('Signed out','success');closeDropdown()"><i class="fa-solid fa-right-from-bracket" style="color:var(--error);"></i>Sign Out</div></div>`;
+  ${roles.map(r=>`<button type="button" class="dropdown-item" data-action="select-role" data-role="${r}" style="width:100%;border:none;background:transparent;"><i class="fa-solid fa-user-tag"></i>${r}</button>`).join('')}
+  <div style="border-top:1px solid var(--border);"><button type="button" class="dropdown-item" style="color:var(--error);width:100%;border:none;background:transparent;" data-action="sign-out"><i class="fa-solid fa-right-from-bracket" style="color:var(--error);"></i>Sign Out</button></div>`;
   openDropdown($('#userBtn'),html);
 });
 
@@ -2056,6 +2131,17 @@ function toggleAIPanel(){
 }
 
 $('#aiBtn').addEventListener('click', e=>{ e.stopPropagation(); toggleAIPanel(); });
+$('#aiCloseBtn').addEventListener('click', ()=>toggleAIPanel());
+$('#langBtn').addEventListener('click', toggleLang);
+$('#aiKeySaveBtn').addEventListener('click', saveAPIKey);
+$('#aiSend').addEventListener('click', sendAIMessage);
+$('#aiInput').addEventListener('input', e=>autoResizeTextarea(e.target));
+$('#aiInput').addEventListener('keydown', e=>{
+  if(e.key==='Enter' && !e.shiftKey){
+    e.preventDefault();
+    sendAIMessage();
+  }
+});
 
 /* ── API KEY ── */
 function saveAPIKey(){
@@ -2063,15 +2149,15 @@ function saveAPIKey(){
   if(!key.startsWith('sk-or-')){ showToast('Key must start with sk-or-','error'); return; }
   sessionStorage.setItem('amici_or_key', key);
   $('#aiKeyBar').innerHTML = `<span class="ai-key-saved"><i class="fa-solid fa-check-circle"></i> API key saved for this session</span>
-    <button class="ai-key-btn" style="background:var(--text-sec)" onclick="clearAPIKey()">Change</button>`;
+    <button class="ai-key-btn" type="button" style="background:var(--text-sec)" data-action="clear-api-key">Change</button>`;
   showToast('OpenRouter key saved','success');
   $('#aiInput').focus();
 }
 
 function clearAPIKey(){
   sessionStorage.removeItem('amici_or_key');
-  $('#aiKeyBar').innerHTML = `<input class="ai-key-input" id="aiKeyInput" type="password" placeholder="Paste OpenRouter API key (sk-or-…)">
-    <button class="ai-key-btn" onclick="saveAPIKey()">Save</button>`;
+  $('#aiKeyBar').innerHTML = `<input class="ai-key-input" id="aiKeyInput" type="password" placeholder="Paste OpenRouter API key (sk-or-…)" autocomplete="off">
+    <button class="ai-key-btn" type="button" data-action="save-api-key">Save</button>`;
   $('#aiKeyBar').style.display='flex';
 }
 
@@ -2095,7 +2181,7 @@ function renderAIMessages(){
       'Approve PO-2025-007',
       'Navigate to certificate management',
       'Which accounts are rated Hot?'
-    ].map(q=>`<button class="ai-chip" onclick="sendChip('${q}')">${q}</button>`).join('');
+    ].map(q=>`<button class="ai-chip" type="button" data-action="send-chip" data-chip="${q}">${q}</button>`).join('');
     return;
   }
 
@@ -2116,10 +2202,10 @@ function renderAIMessages(){
       actionCard = `<div class="ai-action-card">
         <div class="ai-action-card-title"><i class="fa-solid fa-bolt"></i> Proposed Action</div>
         <div style="font-size:12px;color:var(--text);margin-bottom:4px;">${action.confirm_message||'Execute this action?'}</div>
-        <button class="ai-action-btn confirm" onclick="confirmAction(${i})">
+        <button class="ai-action-btn confirm" type="button" data-action="confirm-ai-action" data-index="${i}">
           <i class="fa-solid fa-check"></i> Confirm & Execute
         </button>
-        <button class="ai-action-btn" style="background:var(--text-sec);margin-left:4px;" onclick="dismissAction(${i})">
+        <button class="ai-action-btn" type="button" style="background:var(--text-sec);margin-left:4px;" data-action="dismiss-ai-action" data-index="${i}">
           Dismiss
         </button>
       </div>`;
@@ -2164,8 +2250,35 @@ function dismissAction(idx){
 /* ── SEND MESSAGE ── */
 function sendChip(text){
   $('#aiInput').value = text;
+  autoResizeTextarea($('#aiInput'));
   sendAIMessage();
 }
+
+document.addEventListener('click', e=>{
+  const actionEl = e.target.closest('[data-action]');
+  if(!actionEl) return;
+  const { action, index, chip, role } = actionEl.dataset;
+  if(action === 'close-toast') return closeToast(actionEl);
+  if(action === 'close-modal') return closeModal();
+  if(action === 'mark-all-read'){
+    closeDropdown();
+    $('#notifBadge').style.display='none';
+    return showToast('All notifications cleared','success');
+  }
+  if(action === 'select-role'){
+    showToast(`Role: ${role}`,'info');
+    return closeDropdown();
+  }
+  if(action === 'sign-out'){
+    showToast('Signed out','success');
+    return closeDropdown();
+  }
+  if(action === 'clear-api-key') return clearAPIKey();
+  if(action === 'save-api-key') return saveAPIKey();
+  if(action === 'send-chip') return sendChip(chip);
+  if(action === 'confirm-ai-action') return confirmAction(Number(index));
+  if(action === 'dismiss-ai-action') return dismissAction(Number(index));
+});
 
 async function sendAIMessage(){
   const input = $('#aiInput');
@@ -2239,13 +2352,219 @@ document.addEventListener('click', e=>{
     // don't close — user may be clicking in the app while panel is open
   }
 });
-renderAll();
-// Update notification badge with live cert alert count
-const certAlerts = DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring').length;
-document.getElementById('notifBadge').textContent = certAlerts + DATA.leaveRequests.filter(l=>l.status==='pending').length;
-setTimeout(()=> showToast('Welcome to AMICI ERP · All 4 modules live','success'), 700);
+/* ── DATA FETCHING (SUPABASE) ── */
+async function loadData() {
+  if (!supabase) return; // Fallback to mock data if no supabase client
+  try {
+    // 1. Fetch Employees
+    const { data: emps, error: eErr } = await supabase.from('employees').select('*, employee_skills(*), employee_leave_balances(*), employee_history(*), employee_hse_certs(*)');
+    if (eErr) throw eErr;
+    if (emps && emps.length > 0) {
+      DATA.employees = emps.map(emp => ({
+        id: emp.id,
+        firstName: emp.first_name,
+        lastName: emp.last_name,
+        name: emp.full_name || (emp.first_name + ' ' + emp.last_name),
+        dept: emp.department,
+        position: emp.position_title,
+        email: emp.email,
+        phone: emp.phone,
+        status: emp.status,
+        empType: emp.emp_type,
+        site: emp.site,
+        rotation: emp.rotation,
+        crew: emp.crew,
+        startDate: emp.start_date,
+        manager: emp.manager_id,
+        salaryBand: emp.salary_band,
+        costCenter: emp.cost_center,
+        nationality: emp.nationality,
+        visa: emp.visa,
+        h2sLevel: emp.h2s_level,
+        medFit: emp.med_fit,
+        medExpiry: emp.med_expiry,
+        workPermit: emp.work_permit,
+        skills: emp.employee_skills || [],
+        hseCerts: emp.employee_hse_certs || [],
+        history: emp.employee_history || [],
+        leave: (emp.employee_leave_balances || []).reduce((acc, lb) => {
+          acc[lb.leave_type] = { used: lb.used, total: lb.total };
+          return acc;
+        }, {})
+      }));
+    }
 
-/* ── MOBILE MENU TOGGLE ── */
+    // 2. Fetch Inventory
+    const { data: inv, error: iErr } = await supabase.from('inventory').select('*');
+    if (!iErr && inv && inv.length > 0) {
+      DATA.inventory = inv.map(i => ({
+        id: i.id, name: i.item_name, category: i.category, stock: i.stock_level, min: i.min_stock, unit: i.unit, location: i.location
+      }));
+    }
+
+    // 3. Fetch Purchase Orders
+    const { data: pos, error: pErr } = await supabase.from('purchase_orders').select('*');
+    if (!pErr && pos && pos.length > 0) {
+      DATA.purchaseOrders = pos.map(po => ({
+        id: po.id, vendor: po.vendor, amount: po.amount, status: po.status, date: po.created_date, deliveryDate: po.delivery_date, createdBy: po.created_by
+      }));
+    }
+
+    // 4. Fetch CRM Accounts
+    const { data: accs, error: aErr } = await supabase.from('crm_accounts').select('*');
+    if (!aErr && accs && accs.length > 0) {
+      DATA.accounts = accs.map(a => ({
+        id: a.id, name: a.name, industry: a.industry, status: a.status, tier: a.tier, managerId: a.manager_id, revenue: a.revenue, lastContact: a.last_contact, nextAction: a.next_action
+      }));
+    }
+
+    // 5. Fetch Leave Requests
+    const { data: lreqs } = await supabase.from('leave_requests').select('*');
+    if (lreqs && lreqs.length > 0) {
+      DATA.leaveRequests = lreqs.map(lr => ({
+        id: lr.id, empId: lr.employee_id, type: lr.leave_type, start: lr.start_date, end: lr.end_date, status: lr.status
+      }));
+    }
+
+    // 6. Fetch standalone certificates
+    const { data: certs } = await supabase.from('certificates').select('*');
+    if (certs && certs.length > 0) {
+      DATA.certificates = certs.map(c => ({
+        id: c.id, empId: c.employee_id, type: c.cert_type, expiry: c.expiry_date, status: c.status
+      }));
+    }
+
+    // 7. Fetch CRM Leads
+    const { data: leads } = await supabase.from('crm_leads').select('*');
+    if (leads && leads.length > 0) {
+      DATA.leads = leads.map(l => ({
+        id: l.id, name: l.name, email: l.email, phone: l.phone, status: l.status, source: l.source
+      }));
+    }
+
+    // 8. Fetch CRM Deals
+    const { data: deals } = await supabase.from('crm_deals').select('*');
+    if (deals && deals.length > 0) {
+      DATA.deals = deals.map(d => ({
+        id: d.id, title: d.title, lead_id: d.lead_id, account_id: d.account_id, value: d.value, stage: d.stage, expected_close_date: d.expected_close_date
+      }));
+    }
+
+    // 9. Fetch CRM Tasks
+    const { data: tasks } = await supabase.from('crm_tasks').select('*');
+    if (tasks && tasks.length > 0) {
+      DATA.tasks = tasks.map(t => ({
+        id: t.id, description: t.description, due_date: t.due_date, status: t.status, assigned_to: t.assigned_to, related_lead_id: t.related_lead_id, related_deal_id: t.related_deal_id
+      }));
+    }
+    }
+
+    // 10. Fetch HR Attendance
+    const { data: att } = await supabase.from('hr_attendance').select('*');
+    if (att && att.length > 0) {
+      DATA.attendance = att.map(a => ({
+        id: a.id, employee_id: a.employee_id, date: a.date, status: a.status, check_in_time: a.check_in_time, check_out_time: a.check_out_time
+      }));
+    }
+
+    // 11. Fetch HR Expenses
+    const { data: exp } = await supabase.from('hr_expense_claims').select('*');
+    if (exp && exp.length > 0) {
+      DATA.expenses = exp.map(e => ({
+        id: e.id, employee_id: e.employee_id, date: e.date, amount: e.amount, category: e.category, description: e.description, status: e.status
+      }));
+    }
+
+    // 12. Fetch HR Salary Slips
+    const { data: sal } = await supabase.from('hr_salary_slips').select('*');
+    if (sal && sal.length > 0) {
+      DATA.salarySlips = sal.map(s => ({
+        id: s.id, employee_id: s.employee_id, month: s.month, year: s.year, base_pay: s.base_pay, allowances: s.allowances, deductions: s.deductions, net_pay: s.net_pay, status: s.status
+      }));
+    }
+    // 13. Fetch Finance Invoices
+    const { data: invs } = await supabase.from('fin_invoices').select('*');
+    if (invs && invs.length > 0) {
+      DATA.invoices = invs.map(i => ({
+        id: i.id, type: i.type, party_name: i.party_name, date: i.date, due_date: i.due_date, total_amount: i.total_amount, status: i.status
+      }));
+    }
+
+    // 14. Fetch Finance Payments
+    const { data: pays } = await supabase.from('fin_payments').select('*');
+    if (pays && pays.length > 0) {
+      DATA.payments = pays.map(p => ({
+        id: p.id, invoice_id: p.invoice_id, date: p.date, amount: p.amount, payment_method: p.payment_method
+      }));
+    }
+
+    console.log("Supabase data loaded successfully!");
+  } catch (err) {
+    console.error("Error loading data from Supabase:", err);
+    showToast("Error loading data from server. Using mock data.", "error");
+  }
+}
+
+/* ── INITIALIZATION & AUTH ── */
+async function initializeApp() {
+  await loadData();
+  renderAll();
+  const certAlerts = DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring').length;
+  const notifBadge = document.getElementById('notifBadge');
+  if (notifBadge) notifBadge.textContent = certAlerts + DATA.leaveRequests.filter(l=>l.status==='pending').length;
+  setTimeout(()=> showToast('Welcome to AMICI ERP · All modules live','success'), 700);
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  if (!supabase) {
+    // No supabase client, just run with mock data
+    document.getElementById('authOverlay').classList.add('hidden');
+    initializeApp();
+    return;
+  }
+
+  // Check existing session
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+    document.getElementById('authOverlay').classList.add('hidden');
+    initializeApp();
+  }
+
+  // Handle Auth state changes
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN') {
+      document.getElementById('authOverlay').classList.add('hidden');
+      initializeApp();
+    } else if (event === 'SIGNED_OUT') {
+      document.getElementById('authOverlay').classList.remove('hidden');
+      document.querySelector('.app-body').innerHTML = ''; // clear app body
+    }
+  });
+
+  // Login Button Handler
+  document.getElementById('authLoginBtn').addEventListener('click', async () => {
+    const email = document.getElementById('authEmail').value;
+    const password = document.getElementById('authPassword').value;
+    const errEl = document.getElementById('authError');
+    errEl.textContent = '';
+    
+    if (!email || !password) {
+      errEl.textContent = 'Please enter email and password';
+      return;
+    }
+    
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) errEl.textContent = error.message;
+  });
+
+  // Logout Button Handler
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      await supabase.auth.signOut();
+    });
+  }
+});
 const menuBtn = document.getElementById('menuBtn');
 if (menuBtn) {
   menuBtn.addEventListener('click', (e) => {
@@ -2261,7 +2580,510 @@ document.addEventListener('click', (e) => {
   }
 });
 
+/* ── CRM LEADS ── */
+function renderCRMLeads() {
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Leads</h2>
+    <button class="btn btn-primary" onclick="openNewLeadModal()">+ New Lead</button>
+  </div>
+  <table class="table">
+    <thead><tr><th>Lead Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Source</th></tr></thead>
+    <tbody>`;
+  DATA.leads.forEach(l => {
+    html+=`<tr style="cursor:pointer" onclick="alert('Lead details coming soon!')">
+      <td><strong>${l.name}</strong></td><td>${l.email||'-'}</td><td>${l.phone||'-'}</td>
+      <td><span class="status-pill status-${l.status.toLowerCase().replace(' ','-')}">${l.status}</span></td>
+      <td>${l.source||'-'}</td>
+    </tr>`;
+  });
+  if(DATA.leads.length===0) html+=`<tr><td colspan="5" style="text-align:center">No leads found.</td></tr>`;
+  html+=`</tbody></table></div>`;
+  return html;
+}
+
+function openNewLeadModal() {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="nl-name" placeholder="Lead Name" />
+    <input class="filter-input" id="nl-email" placeholder="Email" />
+    <input class="filter-input" id="nl-phone" placeholder="Phone" />
+    <select class="filter-select" id="nl-source">
+      <option value="Website">Website</option><option value="Referral">Referral</option><option value="Cold Call">Cold Call</option>
+    </select>
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewLead()">Save Lead</button>`;
+  openModal('New Lead', body, footer);
+}
+
+async function submitNewLead() {
+  const name=$('#nl-name').value.trim();
+  if(!name){showToast('Name is required','error');return;}
+  const newLead = { id:'LD-'+Date.now(), name, email:$('#nl-email').value, phone:$('#nl-phone').value, source:$('#nl-source').value, status:'New' };
+  
+  if (supabase) {
+    const { error } = await supabase.from('crm_leads').insert(newLead);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.leads.push(newLead);
+  closeModal(); showToast('Lead saved','success'); rerenderSection();
+}
+
+/* ── CRM DEALS KANBAN ── */
+function renderCRMDeals() {
+  const stages = ['Prospecting', 'Qualification', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost'];
+  let html=`<div class="fade-in" style="display:flex;flex-direction:column;height:100%">
+    <div class="filter-bar" style="justify-content:space-between">
+      <h2>Deals Pipeline</h2>
+      <button class="btn btn-primary" onclick="openNewDealModal()">+ New Deal</button>
+    </div>
+    <div style="display:flex;gap:16px;overflow-x:auto;flex:1;padding-bottom:16px;">`;
+  
+  stages.forEach(st => {
+    const deals = DATA.deals.filter(d => d.stage === st);
+    const totalVal = deals.reduce((sum,d)=>sum+parseFloat(d.value||0),0);
+    html+=`<div class="kanban-col" ondragover="event.preventDefault()" ondrop="dropDeal(event, '${st}')" style="flex:0 0 300px;background:#f8fafc;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <h3 style="font-size:14px;color:var(--text);">${st} <span style="color:var(--text-sec);font-weight:normal">(${deals.length})</span></h3>
+        <span style="font-size:13px;font-weight:600;color:var(--success)">$${totalVal.toLocaleString()}</span>
+      </div>`;
+    deals.forEach(d => {
+      html+=`<div class="kanban-card" draggable="true" ondragstart="dragStartDeal(event, '${d.id}')" style="background:#fff;padding:12px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);cursor:grab;border-left:4px solid var(--blue);">
+        <div style="font-weight:600;font-size:14px;margin-bottom:6px">${d.title}</div>
+        <div style="font-size:13px;color:var(--text-sec);margin-bottom:8px">$${parseFloat(d.value).toLocaleString()}</div>
+        <div style="font-size:11px;color:#888;">Close: ${d.expected_close_date||'N/A'}</div>
+      </div>`;
+    });
+    html+=`</div>`;
+  });
+
+  html+=`</div></div>`;
+  return html;
+}
+
+window.dragStartDeal = function(e, id) { e.dataTransfer.setData('text/plain', id); }
+window.dropDeal = async function(e, stage) {
+  const id = e.dataTransfer.getData('text/plain');
+  const deal = DATA.deals.find(d => d.id === id);
+  if(deal && deal.stage !== stage) {
+    deal.stage = stage;
+    if (supabase) await supabase.from('crm_deals').update({stage}).eq('id', id);
+    rerenderSection();
+  }
+}
+
+function openNewDealModal() {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="nd-title" placeholder="Deal Title" />
+    <input type="number" class="filter-input" id="nd-value" placeholder="Value ($)" />
+    <select class="filter-select" id="nd-stage">
+      <option value="Prospecting">Prospecting</option><option value="Qualification">Qualification</option><option value="Proposal">Proposal</option>
+    </select>
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewDeal()">Save Deal</button>`;
+  openModal('New Deal', body, footer);
+}
+
+async function submitNewDeal() {
+  const title=$('#nd-title').value.trim();
+  if(!title){showToast('Title required','error');return;}
+  const newDeal = { id:'DL-'+Date.now(), title, value:parseFloat($('#nd-value').value)||0, stage:$('#nd-stage').value, expected_close_date:new Date().toISOString().split('T')[0] };
+  
+  if (supabase) {
+    const { error } = await supabase.from('crm_deals').insert(newDeal);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.deals.push(newDeal);
+  closeModal(); showToast('Deal saved','success'); rerenderSection();
+}
+
+/* ── CRM TASKS ── */
+function renderCRMTasks() {
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>My Tasks</h2>
+    <button class="btn btn-primary" onclick="openNewTaskModal()">+ New Task</button>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px;">`;
+  
+  DATA.tasks.forEach(t => {
+    const isDone = t.status==='completed';
+    html+=`<div style="display:flex;align-items:center;gap:12px;background:#fff;padding:12px 16px;border-radius:6px;border:1px solid var(--border)">
+      <input type="checkbox" ${isDone?'checked':''} onchange="toggleTask('${t.id}', this.checked)" style="width:18px;height:18px;cursor:pointer;">
+      <div style="flex:1;text-decoration:${isDone?'line-through':'none'};color:${isDone?'var(--text-sec)':'var(--text)'};font-size:15px;">
+        ${t.description}
+      </div>
+      <div style="font-size:12px;color:${t.due_date < new Date().toISOString().split('T')[0] && !isDone ? 'var(--error)' : 'var(--text-sec)'}">
+        <i class="fa-regular fa-calendar"></i> ${t.due_date||'No date'}
+      </div>
+    </div>`;
+  });
+  if(DATA.tasks.length===0) html+=`<div style="text-align:center;padding:30px;color:var(--text-sec)">No tasks! You're all caught up.</div>`;
+  html+=`</div></div>`;
+  return html;
+}
+
+window.toggleTask = async function(id, isDone) {
+  const t = DATA.tasks.find(x=>x.id===id);
+  if(t) {
+    t.status = isDone ? 'completed' : 'pending';
+    if(supabase) await supabase.from('crm_tasks').update({status:t.status}).eq('id',id);
+    rerenderSection();
+  }
+}
+
+function openNewTaskModal() {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="nt-desc" placeholder="Task Description" />
+    <input type="date" class="filter-input" id="nt-due" />
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewTask()">Save Task</button>`;
+  openModal('New Task', body, footer);
+}
+
+async function submitNewTask() {
+  const desc=$('#nt-desc').value.trim();
+  if(!desc){showToast('Description required','error');return;}
+  const newTask = { id:'TSK-'+Date.now(), description:desc, due_date:$('#nt-due').value||null, status:'pending' };
+  
+  if (supabase) {
+    const { error } = await supabase.from('crm_tasks').insert(newTask);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.tasks.push(newTask);
+  closeModal(); showToast('Task added','success'); rerenderSection();
+}
+
+/* ── HR ATTENDANCE ── */
+function renderHRAttendance() {
+  const today = new Date().toISOString().split('T')[0];
+  const myAtt = DATA.attendance.find(a => a.employee_id === 'EMP-001' && a.date === today);
+  const checkedIn = myAtt && myAtt.check_in_time && !myAtt.check_out_time;
+  
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Attendance & Timesheets</h2>
+    <div>
+      ${!checkedIn ? `<button class="btn btn-primary" onclick="hrCheckIn()">Check In</button>` : `<button class="btn btn-danger" onclick="hrCheckOut()">Check Out</button>`}
+    </div>
+  </div>
+  <table class="table">
+    <thead><tr><th>Date</th><th>Employee ID</th><th>Status</th><th>Check In</th><th>Check Out</th></tr></thead>
+    <tbody>`;
+  DATA.attendance.slice().reverse().forEach(a => {
+    html+=`<tr>
+      <td>${a.date}</td><td>${a.employee_id}</td>
+      <td><span class="status-pill status-${a.status.toLowerCase().replace(' ','-')}">${a.status}</span></td>
+      <td>${a.check_in_time||'-'}</td><td>${a.check_out_time||'-'}</td>
+    </tr>`;
+  });
+  if(DATA.attendance.length===0) html+=`<tr><td colspan="5" style="text-align:center">No attendance records.</td></tr>`;
+  html+=`</tbody></table></div>`;
+  return html;
+}
+
+async function hrCheckIn() {
+  const today = new Date().toISOString().split('T')[0];
+  const time = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+  const rec = { id:'ATT-'+Date.now(), employee_id:'EMP-001', date:today, status:'Present', check_in_time:time, check_out_time:null };
+  
+  if (supabase) {
+    const { error } = await supabase.from('hr_attendance').insert(rec);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.attendance.push(rec);
+  showToast('Checked in successfully!','success'); rerenderSection();
+}
+
+async function hrCheckOut() {
+  const today = new Date().toISOString().split('T')[0];
+  const time = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+  const myAtt = DATA.attendance.find(a => a.employee_id === 'EMP-001' && a.date === today);
+  
+  if(myAtt) {
+    myAtt.check_out_time = time;
+    if(supabase) await supabase.from('hr_attendance').update({check_out_time:time}).eq('id', myAtt.id);
+    showToast('Checked out successfully!','success'); rerenderSection();
+  }
+}
+
+/* ── HR EXPENSES ── */
+function renderHRExpenses() {
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Expense Claims</h2>
+    <button class="btn btn-primary" onclick="openNewExpenseModal()">+ Submit Expense</button>
+  </div>
+  <table class="table">
+    <thead><tr><th>Date</th><th>Employee</th><th>Category</th><th>Amount</th><th>Status</th></tr></thead>
+    <tbody>`;
+  DATA.expenses.forEach(e => {
+    html+=`<tr style="cursor:pointer" onclick="alert('${e.description}')">
+      <td>${e.date}</td><td>${e.employee_id}</td><td>${e.category}</td><td>$${parseFloat(e.amount).toLocaleString()}</td>
+      <td><span class="status-pill status-${e.status.toLowerCase().replace(' ','-')}">${e.status}</span></td>
+    </tr>`;
+  });
+  if(DATA.expenses.length===0) html+=`<tr><td colspan="5" style="text-align:center">No expense claims.</td></tr>`;
+  html+=`</tbody></table></div>`;
+  return html;
+}
+
+function openNewExpenseModal() {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <input type="date" class="filter-input" id="nx-date" />
+    <select class="filter-select" id="nx-cat">
+      <option value="Travel">Travel</option><option value="Meals">Meals</option><option value="Supplies">Supplies</option>
+    </select>
+    <input type="number" class="filter-input" id="nx-amt" placeholder="Amount ($)" />
+    <input class="filter-input" id="nx-desc" placeholder="Description" />
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewExpense()">Submit Claim</button>`;
+  openModal('New Expense Claim', body, footer);
+}
+
+async function submitNewExpense() {
+  const amt=$('#nx-amt').value;
+  if(!amt){showToast('Amount required','error');return;}
+  const newExp = { id:'EXP-'+Date.now(), employee_id:'EMP-001', date:$('#nx-date').value||new Date().toISOString().split('T')[0], amount:parseFloat(amt), category:$('#nx-cat').value, description:$('#nx-desc').value, status:'Pending' };
+  
+  if (supabase) {
+    const { error } = await supabase.from('hr_expense_claims').insert(newExp);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.expenses.push(newExp);
+  closeModal(); showToast('Expense submitted','success'); rerenderSection();
+}
+
+/* ── HR PAYROLL ── */
+function renderHRPayroll() {
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Payroll & Compensation</h2>
+    <button class="btn btn-primary" onclick="openNewSalarySlipModal()">Generate Slip</button>
+  </div>
+  <table class="table">
+    <thead><tr><th>Period</th><th>Employee</th><th>Base Pay</th><th>Net Pay</th><th>Status</th></tr></thead>
+    <tbody>`;
+  DATA.salarySlips.forEach(s => {
+    html+=`<tr style="cursor:pointer" onclick="alert('Allowances: $${s.allowances} | Deductions: $${s.deductions}')">
+      <td>${s.month}/${s.year}</td><td>${s.employee_id}</td>
+      <td>$${parseFloat(s.base_pay).toLocaleString()}</td><td><strong>$${parseFloat(s.net_pay).toLocaleString()}</strong></td>
+      <td><span class="status-pill status-${s.status.toLowerCase().replace(' ','-')}">${s.status}</span></td>
+    </tr>`;
+  });
+  if(DATA.salarySlips.length===0) html+=`<tr><td colspan="5" style="text-align:center">No salary slips found.</td></tr>`;
+  html+=`</tbody></table></div>`;
+  return html;
+}
+
+function openNewSalarySlipModal() {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;gap:12px">
+      <input type="number" class="filter-input" id="ns-month" placeholder="Month (1-12)" min="1" max="12" value="${new Date().getMonth()+1}" style="flex:1" />
+      <input type="number" class="filter-input" id="ns-year" placeholder="Year" value="${new Date().getFullYear()}" style="flex:1" />
+    </div>
+    <select class="filter-select" id="ns-emp">
+      ${DATA.employees.map(e=>`<option value="${e.id}">${e.name} (${e.id})</option>`).join('')}
+    </select>
+    <input type="number" class="filter-input" id="ns-base" placeholder="Base Pay ($)" value="5000" />
+    <input type="number" class="filter-input" id="ns-allow" placeholder="Allowances ($)" value="1000" />
+    <input type="number" class="filter-input" id="ns-ded" placeholder="Deductions ($)" value="500" />
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewSalarySlip()">Generate</button>`;
+  openModal('Generate Salary Slip', body, footer);
+}
+
+async function submitNewSalarySlip() {
+  const base=parseFloat($('#ns-base').value)||0, allow=parseFloat($('#ns-allow').value)||0, ded=parseFloat($('#ns-ded').value)||0;
+  const newSlip = { id:'SAL-'+Date.now(), employee_id:$('#ns-emp').value, month:parseInt($('#ns-month').value), year:parseInt($('#ns-year').value), base_pay:base, allowances:allow, deductions:ded, net_pay:(base+allow-ded), status:'Draft' };
+  
+  if (supabase) {
+    const { error } = await supabase.from('hr_salary_slips').insert(newSlip);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.salarySlips.push(newSlip);
+  closeModal(); showToast('Salary Slip generated','success'); rerenderSection();
+}
+
+/* ── FINANCE MODULE ── */
+function renderFinSidebar() {
+  const overdueCount = DATA.invoices.filter(i=>i.status==='Overdue').length;
+  const sections=[
+    {group:null, items:[
+      {id:'finDashboard',icon:'fa-chart-pie',label:'Dashboard'},
+      {id:'finSales',icon:'fa-file-invoice-dollar',label:'Sales Invoices (A/R)'},
+      {id:'finPurchases',icon:'fa-file-invoice',label:'Purchase Invoices (A/P)'},
+      {id:'finPayments',icon:'fa-money-bill-transfer',label:'Payments'},
+    ]},
+    {group:'Admin', items:[
+      {id:'finSettings',icon:'fa-gear',label:'Settings'},
+    ]},
+  ];
+  let html='';
+  sections.forEach(s=>{
+    if(s.group) html+=`<div class="sidebar-group">${s.group}</div>`;
+    s.items.forEach(i=>{
+      html+=`<div class="sidebar-item ${state.section===i.id?'active':''}" onclick="switchSection('${i.id}')">
+        <i class="fa-solid ${i.icon}"></i><span style="flex:1">${i.label}</span>
+      </div>`;
+    });
+  });
+  return html;
+}
+
+function renderFinStub(name) {
+  return `<div class="fade-in" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-sec);font-size:18px;">
+    <i class="fa-solid fa-person-digging" style="margin-right:10px"></i> ${name} Module under construction
+  </div>`;
+}
+
+function renderFinDashboard() {
+  const totalReceivables = DATA.invoices.filter(i=>i.type==='Sales' && (i.status==='Unpaid'||i.status==='Overdue')).reduce((sum,i)=>sum+parseFloat(i.total_amount),0);
+  const totalPayables = DATA.invoices.filter(i=>i.type==='Purchase' && (i.status==='Unpaid'||i.status==='Overdue')).reduce((sum,i)=>sum+parseFloat(i.total_amount),0);
+  const totalCashIn = DATA.payments.filter(p=>DATA.invoices.find(i=>i.id===p.invoice_id)?.type==='Sales').reduce((sum,p)=>sum+parseFloat(p.amount),0);
+  const totalCashOut = DATA.payments.filter(p=>DATA.invoices.find(i=>i.id===p.invoice_id)?.type==='Purchase').reduce((sum,p)=>sum+parseFloat(p.amount),0);
+
+  return `<div class="fade-in">
+    <h2>Finance Dashboard</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:16px">
+      <div class="kpi-card" style="border-left:4px solid var(--primary)">
+        <div class="kpi-title">Total Receivables (A/R)</div>
+        <div class="kpi-value">$${totalReceivables.toLocaleString()}</div>
+      </div>
+      <div class="kpi-card" style="border-left:4px solid var(--danger)">
+        <div class="kpi-title">Total Payables (A/P)</div>
+        <div class="kpi-value">$${totalPayables.toLocaleString()}</div>
+      </div>
+      <div class="kpi-card" style="border-left:4px solid var(--success)">
+        <div class="kpi-title">Cash Inflow</div>
+        <div class="kpi-value">$${totalCashIn.toLocaleString()}</div>
+      </div>
+      <div class="kpi-card" style="border-left:4px solid var(--orange)">
+        <div class="kpi-title">Cash Outflow</div>
+        <div class="kpi-value">$${totalCashOut.toLocaleString()}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderFinInvoices(type) {
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>${type} Invoices</h2>
+    <button class="btn btn-primary" onclick="openNewInvoiceModal('${type}')">+ New ${type} Invoice</button>
+  </div>
+  <table class="table">
+    <thead><tr><th>ID</th><th>Party Name</th><th>Date</th><th>Due Date</th><th>Total Amount</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>`;
+  DATA.invoices.filter(i=>i.type===type).forEach(i => {
+    html+=`<tr style="cursor:pointer" onclick="alert('Details for ${i.id}')">
+      <td><strong>${i.id}</strong></td><td>${i.party_name}</td><td>${i.date}</td><td>${i.due_date||'-'}</td>
+      <td>$${parseFloat(i.total_amount).toLocaleString()}</td>
+      <td><span class="status-pill status-${i.status.toLowerCase().replace(' ','-')}">${i.status}</span></td>
+      <td>
+        ${(i.status==='Unpaid'||i.status==='Overdue') ? `<button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openNewPaymentModal('${i.id}')">Log Payment</button>` : ''}
+      </td>
+    </tr>`;
+  });
+  if(DATA.invoices.filter(i=>i.type===type).length===0) html+=`<tr><td colspan="7" style="text-align:center">No invoices found.</td></tr>`;
+  html+=`</tbody></table></div>`;
+  return html;
+}
+
+function openNewInvoiceModal(type) {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="ni-party" placeholder="${type==='Sales'?'Customer Name':'Supplier Name'}" />
+    <input type="date" class="filter-input" id="ni-due" placeholder="Due Date" />
+    <input type="number" class="filter-input" id="ni-amt" placeholder="Total Amount ($)" />
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewInvoice('${type}')">Save Invoice</button>`;
+  openModal(`New ${type} Invoice`, body, footer);
+}
+
+async function submitNewInvoice(type) {
+  const party=$('#ni-party').value.trim();
+  const amt=parseFloat($('#ni-amt').value);
+  if(!party||!amt){showToast('Party Name and Amount required','error');return;}
+  
+  const invPrefix = type==='Sales' ? 'INV-' : 'PINV-';
+  const newInv = { id:invPrefix+Date.now(), type, party_name:party, date:new Date().toISOString().split('T')[0], due_date:$('#ni-due').value||null, total_amount:amt, status:'Unpaid' };
+  
+  if (supabase) {
+    const { error } = await supabase.from('fin_invoices').insert(newInv);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.invoices.push(newInv);
+  closeModal(); showToast('Invoice saved','success'); rerenderSection();
+}
+
+function renderFinPayments() {
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Payments Ledger</h2>
+  </div>
+  <table class="table">
+    <thead><tr><th>ID</th><th>Invoice ID</th><th>Date</th><th>Amount</th><th>Method</th></tr></thead>
+    <tbody>`;
+  DATA.payments.forEach(p => {
+    html+=`<tr>
+      <td>${p.id}</td><td>${p.invoice_id}</td><td>${p.date}</td>
+      <td>$${parseFloat(p.amount).toLocaleString()}</td><td>${p.payment_method}</td>
+    </tr>`;
+  });
+  if(DATA.payments.length===0) html+=`<tr><td colspan="5" style="text-align:center">No payments recorded.</td></tr>`;
+  html+=`</tbody></table></div>`;
+  return html;
+}
+
+function openNewPaymentModal(invoiceId) {
+  const inv = DATA.invoices.find(i=>i.id===invoiceId);
+  const paidAlready = DATA.payments.filter(p=>p.invoice_id===invoiceId).reduce((s,p)=>s+parseFloat(p.amount),0);
+  const balance = Math.max(0, parseFloat(inv.total_amount) - paidAlready);
+
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <div><strong>Invoice:</strong> ${invoiceId}</div>
+    <div><strong>Balance Due:</strong> $${balance.toLocaleString()}</div>
+    <input type="number" class="filter-input" id="np-amt" placeholder="Amount to Pay ($)" value="${balance}" />
+    <select class="filter-select" id="np-method">
+      <option value="Bank Transfer">Bank Transfer</option><option value="Credit Card">Credit Card</option><option value="Cash">Cash</option>
+    </select>
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewPayment('${invoiceId}')">Log Payment</button>`;
+  openModal('Log Payment', body, footer);
+}
+
+async function submitNewPayment(invoiceId) {
+  const amt=parseFloat($('#np-amt').value);
+  if(!amt){showToast('Amount required','error');return;}
+  
+  const newPay = { id:'PAY-'+Date.now(), invoice_id:invoiceId, date:new Date().toISOString().split('T')[0], amount:amt, payment_method:$('#np-method').value };
+  
+  if (supabase) {
+    const { error } = await supabase.from('fin_payments').insert(newPay);
+    if (error) { showToast('Error saving payment','error'); return; }
+  }
+  DATA.payments.push(newPay);
+
+  // Update Invoice Status if fully paid
+  const inv = DATA.invoices.find(i=>i.id===invoiceId);
+  const totalPaid = DATA.payments.filter(p=>p.invoice_id===invoiceId).reduce((s,p)=>s+parseFloat(p.amount),0);
+  if(totalPaid >= parseFloat(inv.total_amount)) {
+    inv.status = 'Paid';
+    if(supabase) await supabase.from('fin_invoices').update({status:'Paid'}).eq('id', invoiceId);
+  }
+
+  closeModal(); showToast('Payment logged','success'); rerenderSection();
+}
+
 /* ── EXPOSE TO GLOBAL SCOPE FOR INLINE ONCLICK ── */
+window.openNewInvoiceModal = openNewInvoiceModal;
+window.submitNewInvoice = submitNewInvoice;
+window.openNewPaymentModal = openNewPaymentModal;
+window.submitNewPayment = submitNewPayment;
+window.hrCheckIn = hrCheckIn;
+window.hrCheckOut = hrCheckOut;
+window.openNewExpenseModal = openNewExpenseModal;
+window.submitNewExpense = submitNewExpense;
+window.openNewSalarySlipModal = openNewSalarySlipModal;
+window.submitNewSalarySlip = submitNewSalarySlip;
+window.openNewLeadModal = openNewLeadModal;
+window.submitNewLead = submitNewLead;
+window.openNewDealModal = openNewDealModal;
+window.submitNewDeal = submitNewDeal;
+window.openNewTaskModal = openNewTaskModal;
+window.submitNewTask = submitNewTask;
 window.toggleLang = toggleLang;
 window.switchModule = switchModule;
 window.switchSection = switchSection;

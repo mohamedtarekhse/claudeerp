@@ -215,7 +215,49 @@ async function runMigration() {
     }
   }
 
-  console.log("Migration Complete!");
+    if (DATA.expenses && DATA.expenses.length > 0) {
+      console.log('Inserting HR Expense Claims...');
+      const { error } = await supabase.from('hr_expense_claims').upsert(DATA.expenses, { onConflict: 'id' });
+      if (error) console.error('Error inserting hr_expense_claims:', error);
+    }
+    
+    if (DATA.salarySlips && DATA.salarySlips.length > 0) {
+      console.log('Inserting HR Salary Slips...');
+      const { error } = await supabase.from('hr_salary_slips').upsert(DATA.salarySlips, { onConflict: 'id' });
+      if (error) console.error('Error inserting hr_salary_slips:', error);
+    }
+
+    if (DATA.invoices && DATA.invoices.length > 0) {
+      console.log('Inserting Finance Invoices...');
+      const { error } = await supabase.from('fin_invoices').upsert(DATA.invoices, { onConflict: 'id' });
+      if (error) console.error('Error inserting fin_invoices:', error);
+    }
+
+    if (DATA.payments && DATA.payments.length > 0) {
+      console.log('Inserting Finance Payments...');
+      const { error } = await supabase.from('fin_payments').upsert(DATA.payments, { onConflict: 'id' });
+      if (error) console.error('Error inserting fin_payments:', error);
+    }
+    
+    if (DATA.suppliers && DATA.suppliers.length > 0) {
+      console.log('Inserting Suppliers...');
+      const { error } = await supabase.from('suppliers').upsert(DATA.suppliers, { onConflict: 'id' });
+      if (error) console.error('Error inserting suppliers:', error);
+    }
+    
+    if (DATA.warehouses && DATA.warehouses.length > 0) {
+      console.log('Inserting Warehouses...');
+      const { error } = await supabase.from('warehouses').upsert(DATA.warehouses, { onConflict: 'id' });
+      if (error) console.error('Error inserting warehouses:', error);
+    }
+    
+    if (DATA.orgUnits && DATA.orgUnits.length > 0) {
+      console.log('Inserting HR Org Units...');
+      const { error } = await supabase.from('hr_org_units').upsert(DATA.orgUnits, { onConflict: 'id' });
+      if (error) console.error('Error inserting hr_org_units:', error);
+    }
+
+    console.log('Data migration completed successfully!');
 }
 
 runMigration();

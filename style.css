@@ -193,10 +193,15 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 .data-table th:hover{color:var(--text);}
 .data-table th .sort-icon{margin-left:4px;font-size:9px;opacity:.35;}
 .data-table th.sorted .sort-icon{opacity:1;color:var(--blue);}
-.data-table td{padding:9px 12px;border-bottom:1px solid #f0f0f0;color:var(--text);}
-[dir="rtl"] .data-table td{text-align:right;}
-.data-table tbody tr:hover{background:#fafafa;cursor:pointer;}
-.data-table tbody tr.selected-row{background:var(--selected);}
+.data-table td, .table td {padding:9px 12px;border-bottom:1px solid #f0f0f0;color:var(--text);}
+[dir="rtl"] .data-table td, [dir="rtl"] .table td {text-align:right;}
+.data-table tbody tr:hover, .table tbody tr:hover {background:#fafafa;cursor:pointer;}
+.data-table tbody tr.selected-row, .table tbody tr.selected-row {background:var(--selected);}
+
+/* Alias table to data-table since we used class="table" in some places */
+.table { width:100%; border-collapse:collapse; font-size:13px; }
+.table th { padding:10px 12px; text-align:left; background:#fafafa; color:var(--text-sec); font-weight:600; border-bottom:1px solid var(--border); }
+[dir="rtl"] .table th { text-align:right; }
 
 /* ── BUTTONS ── */
 .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:4px;
@@ -207,18 +212,22 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 .btn-secondary:hover{background:#e0e0e0;}
 .btn-ghost{background:transparent;color:var(--blue);border:1px solid var(--blue);}
 .btn-ghost:hover{background:var(--blue-light);}
+.btn-outline{background:transparent;color:var(--text);border:1px solid var(--border);}
+.btn-outline:hover{background:#fafafa;}
+.btn-danger{background:var(--danger);color:white;}
+.btn-danger:hover{background:#b71c1c;}
 .btn-sm{padding:4px 10px;font-size:12px;}
 .btn-icon{width:30px;height:30px;padding:0;justify-content:center;border-radius:50%;}
 
 /* ── STATUS PILLS ── */
-.pill{display:inline-flex;align-items:center;gap:3px;padding:2px 9px;border-radius:10px;
+.pill, .status-pill {display:inline-flex;align-items:center;gap:3px;padding:2px 9px;border-radius:10px;
   font-size:11px;font-weight:700;white-space:nowrap;}
-.pill::before{content:'●';font-size:8px;}
-.pill-active,.pill-valid,.pill-approved,.pill-won{background:#e6f4ea;color:#1b5e20;}
-.pill-inactive,.pill-expired,.pill-cancelled{background:#ffebee;color:#b71c1c;}
-.pill-leave,.pill-expiring,.pill-pending{background:#fff3e0;color:#b35d00;}
-.pill-probation,.pill-renewal,.pill-draft,.pill-processing{background:#ede7f6;color:#4a148c;}
-.pill-blue,.pill-ordered,.pill-active-contract{background:#e3f2fd;color:#0d47a1;}
+.pill::before, .status-pill::before {content:'●';font-size:8px;}
+.pill-active,.pill-valid,.pill-approved,.pill-won,.status-paid,.status-present,.status-approved,.status-active,.pill-hot{background:#e6f4ea;color:#1b5e20;}
+.pill-inactive,.pill-expired,.pill-cancelled,.status-overdue,.status-absent,.status-rejected,.status-resigned,.pill-cold{background:#ffebee;color:#b71c1c;}
+.pill-leave,.pill-expiring,.pill-pending,.status-pending,.status-on-leave,.pill-warm{background:#fff3e0;color:#b35d00;}
+.pill-probation,.pill-renewal,.pill-draft,.pill-processing,.status-draft,.status-probation{background:#ede7f6;color:#4a148c;}
+.pill-blue,.pill-ordered,.pill-active-contract,.status-unpaid,.status-ordered{background:#e3f2fd;color:#0d47a1;}
 .pill-notice{background:#fce4ec;color:#880e4f;}
 
 /* ── SECTION CARD ── */
@@ -349,6 +358,29 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
   width:26px;height:26px;cursor:pointer;color:#fff;font-size:14px;
   display:flex;align-items:center;justify-content:center;transition:background var(--motion-fast) var(--ease-standard);}
 .ai-close:hover{background:rgba(255,255,255,.35);}
+
+/* ═══════════════════════════════════════════════
+   TOAST NOTIFICATIONS
+═══════════════════════════════════════════════ */
+#toast-container{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:10px;z-index:9999}
+.toast{padding:12px 20px;border-radius:6px;color:#fff;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.15);opacity:0;transform:translateY(20px);animation:toastIn 0.3s forwards}
+.toast-success{background:var(--success)}
+.toast-error{background:var(--error)}
+.toast-info{background:var(--blue)}
+@keyframes toastIn{to{opacity:1;transform:translateY(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateY(-20px)}}
+
+/* ═══════════════════════════════════════════════
+   PRINT STYLES
+═══════════════════════════════════════════════ */
+@media print {
+  .app-sidebar, .top-nav, .filter-bar, .modal-footer, .btn, #toast-container { display: none !important; }
+  .app-body { padding: 0 !important; background: white !important; }
+  .sec-card { box-shadow: none !important; border: 1px solid #000 !important; page-break-inside: avoid; }
+  .modal { position: absolute; top: 0; left: 0; width: 100%; box-shadow: none; padding: 0; }
+  body { background: white !important; }
+  .detail-tabs { display: none !important; }
+}
 
 .ai-key-bar{padding:8px 12px;border-bottom:1px solid var(--border);
   display:flex;gap:6px;align-items:center;background:#fafafa;}

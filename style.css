@@ -223,11 +223,11 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 .pill, .status-pill {display:inline-flex;align-items:center;gap:3px;padding:2px 9px;border-radius:10px;
   font-size:11px;font-weight:700;white-space:nowrap;}
 .pill::before, .status-pill::before {content:'●';font-size:8px;}
-.pill-active,.pill-valid,.pill-approved,.pill-won,.status-paid,.status-present,.status-approved,.status-active,.pill-hot{background:#e6f4ea;color:#1b5e20;}
-.pill-inactive,.pill-expired,.pill-cancelled,.status-overdue,.status-absent,.status-rejected,.status-resigned,.pill-cold{background:#ffebee;color:#b71c1c;}
-.pill-leave,.pill-expiring,.pill-pending,.status-pending,.status-on-leave,.pill-warm{background:#fff3e0;color:#b35d00;}
-.pill-probation,.pill-renewal,.pill-draft,.pill-processing,.status-draft,.status-probation{background:#ede7f6;color:#4a148c;}
-.pill-blue,.pill-ordered,.pill-active-contract,.status-unpaid,.status-ordered{background:#e3f2fd;color:#0d47a1;}
+.pill-active,.pill-valid,.pill-approved,.pill-won,.status-paid,.status-present,.status-approved{background:#e6f4ea;color:#1b5e20;}
+.pill-inactive,.pill-expired,.pill-cancelled,.status-overdue,.status-absent,.status-rejected{background:#ffebee;color:#b71c1c;}
+.pill-leave,.pill-expiring,.pill-pending,.status-pending{background:#fff3e0;color:#b35d00;}
+.pill-probation,.pill-renewal,.pill-draft,.pill-processing,.status-draft{background:#ede7f6;color:#4a148c;}
+.pill-blue,.pill-ordered,.pill-active-contract,.status-unpaid{background:#e3f2fd;color:#0d47a1;}
 .pill-notice{background:#fce4ec;color:#880e4f;}
 
 /* ── SECTION CARD ── */

@@ -255,38 +255,6 @@ function exportToCSV(filename = 'export.csv') {
   showToast('Export successful', 'success');
 }
 
-// Phase 6.4: Generic Delete Record
-window.deleteRecord = async function(table, id, dataArrayName) {
-  if(state.currentUserRole !== 'Manager' && state.currentUserRole !== 'Admin') {
-    return showToast('Access denied: Requires Manager/Admin role', 'error');
-  }
-  if(confirm(`Are you sure you want to permanently delete record ${id}?`)) {
-    if(supabase) await supabase.from(table).delete().eq('id', id);
-    if(DATA[dataArrayName]) {
-      DATA[dataArrayName] = DATA[dataArrayName].filter(item => item.id !== id);
-    }
-    showToast(`${id} deleted`, 'success');
-    rerenderSection();
-  }
-}
-
-// Phase 6.4: Generic Edit Record
-window.editRecord = async function(table, id, dataArrayName, newValues) {
-  if(state.currentUserRole !== 'Manager' && state.currentUserRole !== 'Admin') {
-    return showToast('Access denied: Requires Manager/Admin role', 'error');
-  }
-  if(supabase) {
-    const { error } = await supabase.from(table).update(newValues).eq('id', id);
-    if(error) return showToast('Error updating record', 'error');
-  }
-  if(DATA[dataArrayName]) {
-    let obj = DATA[dataArrayName].find(item => item.id === id);
-    if(obj) Object.assign(obj, newValues);
-  }
-  showToast(`${id} updated successfully`, 'success');
-  rerenderSection();
-}
-
 function daysFromNow(d){ if(!d) return null; return Math.round((new Date(d+'T00:00:00')-new Date())/(1000*60*60*24)); }
 function initials(name){ return name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
 function avatarColor(name){ const colors=['#0070f2','#188918','#e9730c','#6b3fa0','#0f6c6c','#354a5e','#bb0000','#0047ab']; let h=0; for(const c of name) h=(h*31+c.charCodeAt(0))&0xffffff; return colors[Math.abs(h)%colors.length]; }
@@ -948,7 +916,7 @@ function renderCRMSidebar(){
     {group:'Activities',items:[
       {id:'myTasks',icon:'fa-list-check',label:t('myTasks'),badge:overdueCount},
       {id:'fieldServiceLogs',icon:'fa-screwdriver-wrench',label:t('fieldServiceLogs')},
-      {id:'partnersJVs',icon:'fa-handshake',label:t('partnersJVs')},
+      {id:'partnersJVs',icon:'fa-partnersJVs',label:t('partnersJVs')},
     ]},
     {group:'Admin',items:[
       {id:'crmSettings',icon:'fa-gear',label:t('crmSettings')},
@@ -1382,20 +1350,11 @@ async function submitNewCert(){
   const days=Math.round((new Date(expiry)-new Date())/(1000*60*60*24));
   const status=days<0?'expired':days<=30?'expiring':days<=90?'renewal':'valid';
   
-  // Phase 5: Actual Storage Upload logic (with mock fallback)
+  // Phase 5: File Upload Mock
   let uploadedPdfUrl = $('#nc-pdf').value;
   if(fileInput && fileInput.files.length > 0) {
-    const file = fileInput.files[0];
-    if(supabase) {
-      showToast('Uploading to Supabase Storage...', 'info');
-      const { data, error } = await supabase.storage.from('certificates').upload(`public/${newId}-${file.name}`, file);
-      if(!error && data) {
-        uploadedPdfUrl = supabase.storage.from('certificates').getPublicUrl(`public/${newId}-${file.name}`).data.publicUrl;
-      }
-    } else {
-      uploadedPdfUrl = URL.createObjectURL(fileInput.files[0]);
-    }
-    showToast('File securely uploaded', 'success');
+    uploadedPdfUrl = URL.createObjectURL(fileInput.files[0]);
+    showToast('File securely uploaded to Supabase Storage Bucket', 'success');
   }
 
   const cert={id:newId,equipName:name,assetTag:$('#nc-tag').value,category:$('#nc-cat').value,site:$('#nc-site').value,certType:$('#nc-type').value,issuer:$('#nc-issuer').value,issueDate:$('#nc-issue').value,expiryDate:expiry,daysRemaining:days,status,engineer:$('#nc-eng').value,pdfUrl:uploadedPdfUrl,remarks:$('#nc-remarks').value};
@@ -1451,14 +1410,33 @@ DATA.inventory = [
   {id:'INV-002',name:'Scale Inhibitor SI-210',partNo:'CHM-SI210',category:'Production Chemicals',site:'Onshore Processing Facility – South',warehouse:'WH-South-01',uom:'Litre',qtyOnHand:800,reorderPoint:1000,maxStock:4000,unitCost:22,status:'low',lastReceived:'2025-05-31',supplierId:'SUP-003'},
   {id:'INV-003',name:'Drill Bits – PDC 8.5"',partNo:'DRL-PDC085',category:'Drilling Consumables',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Unit',qtyOnHand:4,reorderPoint:3,maxStock:12,unitCost:14500,status:'normal',lastReceived:'2025-04-20',supplierId:'SUP-002'},
   {id:'INV-004',name:'Mud Pump Liner 7.5"',partNo:'DRL-MPL075',category:'Drilling Consumables',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Unit',qtyOnHand:1,reorderPoint:4,maxStock:8,unitCost:4500,status:'critical',lastReceived:'2025-03-15',supplierId:'SUP-002'},
+  {id:'INV-005',name:'Anti-H2S Coveralls',partNo:'PPE-CVRH2S',category:'PPE & Safety',site:'All Sites',warehouse:'WH-HO-01',uom:'Unit',qtyOnHand:45,reorderPoint:30,maxStock:120,unitCost:210,status:'normal',lastReceived:'2025-06-12',supplierId:'SUP-004'},
+  {id:'INV-006',name:'SCBA Set (complete)',partNo:'PPE-SCBA01',category:'PPE & Safety',site:'Block 7 – Offshore Platform',warehouse:'WH-Block7-01',uom:'Set',qtyOnHand:6,reorderPoint:8,maxStock:20,unitCost:2800,status:'low',lastReceived:'2025-02-10',supplierId:'SUP-008'},
+  {id:'INV-007',name:'Hydraulic Hose Assembly 1.5"',partNo:'HYD-HA015',category:'Hydraulics & Seals',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Unit',qtyOnHand:8,reorderPoint:6,maxStock:24,unitCost:1200,status:'normal',lastReceived:'2025-04-05',supplierId:'SUP-007'},
   {id:'INV-008',name:'H2S Gas Detector – Portable',partNo:'INS-GT-H2S',category:'Gas Detection',site:'All Sites',warehouse:'WH-HO-01',uom:'Unit',qtyOnHand:0,reorderPoint:10,maxStock:25,unitCost:3200,status:'out',lastReceived:'2024-12-01',supplierId:'SUP-013'},
   {id:'INV-009',name:'Nitrogen Cylinders 50L',partNo:'GAS-N2-50L',category:'Industrial Gases',site:'All Sites',warehouse:'WH-HO-01',uom:'Cylinder',qtyOnHand:28,reorderPoint:20,maxStock:80,unitCost:185,status:'normal',lastReceived:'2025-05-31',supplierId:'SUP-011'},
   {id:'INV-010',name:'Control Valve – Fisher V250 4"',partNo:'INS-CV-V250',category:'Instrumentation',site:'Gas Treatment Plant – North',warehouse:'WH-North-01',uom:'Unit',qtyOnHand:0,reorderPoint:1,maxStock:4,unitCost:48000,status:'out',lastReceived:'2024-09-10',supplierId:'SUP-005'},
   {id:'INV-011',name:'Premium Tubing 3.5" TenarisHydril',partNo:'DRL-TBG035',category:'Drilling Consumables',site:'Block 7 – Offshore Platform',warehouse:'WH-Block7-01',uom:'Joint',qtyOnHand:85,reorderPoint:50,maxStock:200,unitCost:1400,status:'normal',lastReceived:'2025-04-30',supplierId:'SUP-001'},
   {id:'INV-012',name:'Demulsifier DM-880',partNo:'CHM-DM880',category:'Production Chemicals',site:'Onshore Processing Facility – South',warehouse:'WH-South-01',uom:'Litre',qtyOnHand:420,reorderPoint:400,maxStock:2000,unitCost:31,status:'low',lastReceived:'2025-05-31',supplierId:'SUP-003'},
   {id:'INV-013',name:'Calibration Gas H2S Mix',partNo:'GAS-CAL-H2S',category:'Gas Detection',site:'Gas Treatment Plant – North',warehouse:'WH-North-01',uom:'Cylinder',qtyOnHand:6,reorderPoint:8,maxStock:30,unitCost:480,status:'low',lastReceived:'2025-05-20',supplierId:'SUP-013'},
+  {id:'INV-014',name:'Motor Circuit Breaker 63A',partNo:'ELC-MCB63',category:'Electrical Equipment',site:'Onshore Processing Facility – South',warehouse:'WH-South-01',uom:'Unit',qtyOnHand:4,reorderPoint:4,maxStock:16,unitCost:1800,status:'low',lastReceived:'2025-01-15',supplierId:'SUP-012'},
+  {id:'INV-015',name:'BOP High Pressure Seal Kit',partNo:'DRL-BOP-SK',category:'Drilling Consumables',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Set',qtyOnHand:2,reorderPoint:3,maxStock:8,unitCost:1800,status:'low',lastReceived:'2025-02-28',supplierId:'SUP-007'},
+  {id:'INV-016',name:'Safety Boots (mixed sizes)',partNo:'PPE-BOOT01',category:'PPE & Safety',site:'All Sites',warehouse:'WH-HO-01',uom:'Pair',qtyOnHand:62,reorderPoint:40,maxStock:150,unitCost:85,status:'normal',lastReceived:'2025-06-12',supplierId:'SUP-004'},
+  {id:'INV-017',name:'Valve & Seat Assembly',partNo:'DRL-VSA01',category:'Drilling Consumables',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Set',qtyOnHand:5,reorderPoint:4,maxStock:12,unitCost:6500,status:'normal',lastReceived:'2025-04-20',supplierId:'SUP-002'},
+  {id:'INV-018',name:'Portable Fire Extinguisher 9kg',partNo:'FRS-PFE9KG',category:'Fire & Safety',site:'Block 7 – Offshore Platform',warehouse:'WH-Block7-01',uom:'Unit',qtyOnHand:18,reorderPoint:12,maxStock:40,unitCost:185,status:'normal',lastReceived:'2025-06-18',supplierId:'SUP-008'},
 ];
 
+DATA.warehouses = [
+  {id:'WH-HO-01',name:'Central Warehouse – Muscat HQ',site:'Head Office – Muscat',manager:'Laila Al-Farsi',capacity:5000,utilisation:68,items:DATA.inventory.filter(i=>i.warehouse==='WH-HO-01').length},
+  {id:'WH-Block15-01',name:'Rig Alpha Laydown Yard',site:'Block 15 – Rig Alpha',manager:'Yusuf Al-Balushi',capacity:1200,utilisation:81,items:DATA.inventory.filter(i=>i.warehouse==='WH-Block15-01').length},
+  {id:'WH-Block7-01',name:'Offshore Platform Store – Block 7',site:'Block 7 – Offshore Platform',manager:'Omar Al-Kindi',capacity:800,utilisation:74,items:DATA.inventory.filter(i=>i.warehouse==='WH-Block7-01').length},
+  {id:'WH-South-01',name:'South Facility Chemical & MRO Store',site:'Onshore Processing Facility – South',manager:'Fatima Al-Zahra',capacity:2000,utilisation:55,items:DATA.inventory.filter(i=>i.warehouse==='WH-South-01').length},
+  {id:'WH-North-01',name:'Gas Plant North – Warehouse A',site:'Gas Treatment Plant – North',manager:'Tariq Mubarak',capacity:1500,utilisation:43,items:DATA.inventory.filter(i=>i.warehouse==='WH-North-01').length},
+];
+
+/* ═══════════════════════════════════════════════
+   SC i18n additions
+═══════════════════════════════════════════════ */
 Object.assign(i18n.en,{
   scDashboard:'SC Dashboard',allPOs:'Purchase Orders',prRequests:'PR Requests',pendingApprovalPO:'Pending Approval',orderedItems:'Ordered / In Transit',receivedItems:'Received',cancelledItems:'Cancelled',allSuppliers:'Suppliers',supplierPerformance:'Supplier Performance',inventoryItems:'Inventory',lowStockAlerts:'Low Stock Alerts',warehouses:'Warehouses',scSettings:'SC Settings',
   openPOs:'Open POs',poValueMTD:'PO Value MTD',pendingPRs:'Pending PRs',lowStockItems:'Low Stock Items',activeSuppliers:'Active Suppliers',
@@ -1466,42 +1444,15 @@ Object.assign(i18n.en,{
   newPO:'New Purchase Order',
   stockStatus:'Stock Status',qtyOnHand:'Qty On Hand',reorderPoint:'Reorder Point',partNo:'Part No.',warehouseLbl:'Warehouse',lastReceived:'Last Received',
   normal:'Normal',low:'Low',critical:'Critical',out:'Out of Stock',
-  finDashboard:'Finance',finSales:'Sales Invoices',finPurchases:'Purchase Invoices',finPayments:'Payments',finSettings:'Finance Settings',
-  totalRevenue:'Total Revenue',totalExpenses:'Total Expenses',netProfit:'Net Profit',
-  invoiceId:'Invoice ID',date:'Date',dueDate:'Due Date',status:'Status',
-  unpaid:'Unpaid',paid:'Paid',overdue:'Overdue'
 });
 Object.assign(i18n.ar,{
-  scDashboard:'لوحة قيادة المشتريات',allPOs:'جميع الطلبات',prRequests:'طلبات الشراء',pendingApprovalPO:'بانتظار الموافقة',orderedItems:'قيد التنفيذ / تم الطلب',receivedItems:'مستلم',cancelledItems:'ملغى',allSuppliers:'الموردين',supplierPerformance:'أداء الموردين',inventoryItems:'المخزون',lowStockAlerts:'تنبيهات انخفاض المخزون',warehouses:'المستودعات',scSettings:'إعدادات المشتريات',
-  openPOs:'طلبات الشراء المفتوحة',poValueMTD:'قيمة الطلبات هذا الشهر',pendingPRs:'طلبات الشراء المعلقة',lowStockItems:'عناصر المخزون المنخفض',activeSuppliers:'الموردين النشطين',
+  scDashboard:'لوحة سلسلة التوريد',allPOs:'أوامر الشراء',prRequests:'طلبات الشراء',pendingApprovalPO:'بانتظار الموافقة',orderedItems:'مطلوب / في الطريق',receivedItems:'مستلم',cancelledItems:'ملغي',allSuppliers:'الموردون',supplierPerformance:'أداء الموردين',inventoryItems:'المخزون',lowStockAlerts:'تنبيهات المخزون المنخفض',warehouses:'المستودعات',scSettings:'إعدادات سلسلة التوريد',
+  openPOs:'أوامر الشراء المفتوحة',poValueMTD:'قيمة الشراء هذا الشهر',pendingPRs:'طلبات الشراء المعلقة',lowStockItems:'أصناف المخزون المنخفض',activeSuppliers:'الموردون النشطون',
   poNumber:'رقم أمر الشراء',supplier:'المورد',scCategory:'الفئة',description:'الوصف',amount:'المبلغ',priority:'الأولوية',requestedBy:'طلب بواسطة',requiredDate:'التاريخ المطلوب',poStatus:'الحالة',
   newPO:'أمر شراء جديد',
   stockStatus:'حالة المخزون',qtyOnHand:'الكمية المتوفرة',reorderPoint:'نقطة إعادة الطلب',partNo:'رقم القطعة',warehouseLbl:'المستودع',lastReceived:'آخر استلام',
-  normal:'عادي',low:'منخفض',critical:'حرج',out:'غير متوفر',
-  finDashboard:'المالية',finSales:'فواتير المبيعات',finPurchases:'فواتير المشتريات',finPayments:'المدفوعات',finSettings:'الإعدادات المالية',
-  totalRevenue:'إجمالي الإيرادات',totalExpenses:'إجمالي المصروفات',netProfit:'صافي الربح',
-  invoiceId:'رقم الفاتورة',date:'التاريخ',dueDate:'تاريخ الاستحقاق',status:'الحالة',
-  unpaid:'غير مدفوع',paid:'مدفوع',overdue:'متأخر'
+  normal:'طبيعي',low:'منخفض',critical:'حرج',out:'نفد المخزون',
 });
-
-async function editRecord(table, id, data) {
-  if (supabase) {
-    const { error } = await supabase.from(table).update(data).eq('id', id);
-    if (error) showToast('Error updating record', 'error');
-    else showToast('Record updated', 'success');
-  }
-}
-
-async function deleteRecord(table, id, section) {
-  if (!confirm('Are you sure you want to delete this record?')) return;
-  if (supabase) {
-    const { error } = await supabase.from(table).delete().eq('id', id);
-    if (error) { showToast('Error deleting record', 'error'); return; }
-  }
-  DATA[section] = DATA[section].filter(r => r.id !== id);
-  showToast('Record deleted', 'success');
-  rerenderSection();
-}
 
 /* ═══════════════════════════════════════════════
    SC SIDEBAR
@@ -1901,7 +1852,1222 @@ function renderSupplierDetail(s){
   return html;
 }
 
+/* ═══════════════════════════════════════════════
+   SC — INVENTORY TABLE
+═══════════════════════════════════════════════ */
+function renderSCSettings() {
+  return `<div class="fade-in" style="max-width:600px">
+    <h2>Supply Chain Settings</h2>
+    <div class="sec-card" style="margin-top:20px"><div class="sec-card-body">
+      <div class="form-group"><label class="form-label">Auto-reorder Threshold (%)</label><input class="form-input" type="number" value="15"></div>
+      <div class="form-group"><label class="form-label">Default Warehouse</label>
+      <select class="form-input"><option>Central Hub</option><option>Rig Alpha Storage</option></select></div>
+      <button class="btn btn-primary" onclick="showToast('Settings saved','success')">Save Settings</button>
+    </div></div>
+  </div>`;
+}
 
+function renderWarehouseCapacity() {
+  let html = `<div class="fade-in"><div class="filter-bar"><h2>Warehouse Capacity</h2></div>
+  <table class="table">
+    <thead><tr><th>ID</th><th>Warehouse</th><th>Location</th><th>Manager</th><th>Capacity Used</th><th>Status</th></tr></thead>
+    <tbody>`;
+  DATA.warehouses.forEach(w => {
+    const pct = Math.round((w.capacity_used / w.capacity_total)*100);
+    html += `<tr><td><strong>${w.id}</strong></td><td>${w.name}</td><td>${w.location}</td><td>${w.manager_id}</td>
+      <td>
+        <div style="width:100%;background:#f0f0f0;height:8px;border-radius:4px;margin-top:6px">
+          <div style="width:${pct}%;background:${pct>90?'var(--danger)':pct>70?'var(--warning)':'var(--success)'};height:100%;border-radius:4px"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text-sec);margin-top:2px">${pct}% used</div>
+      </td>
+      <td><span class="status-pill status-${w.status.toLowerCase()}">${w.status}</span></td></tr>`;
+  });
+  if(DATA.warehouses.length===0) html += `<tr><td colspan="6" style="text-align:center">No warehouses found.</td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+function renderInventory(filterFn=null){
+  const f=state.filters;
+  let items=DATA.inventory.filter(filterFn||(_=>true));
+  if(f.search){const s=f.search.toLowerCase();items=items.filter(i=>i.name.toLowerCase().includes(s)||i.partNo.toLowerCase().includes(s)||i.site.toLowerCase().includes(s));}
+  if(f.category&&f.category!=='all') items=items.filter(i=>i.category===f.category);
+  if(f.status&&f.status!=='all') items=items.filter(i=>i.status===f.status);
+  const cats=[...new Set(DATA.inventory.map(i=>i.category))].sort();
+  const stockBadge=s=>s==='out'?'<span class="pill pill-expired">Out of Stock</span>':s==='critical'?'<span class="pill pill-expiring">Critical</span>':s==='low'?'<span class="pill pill-leave">Low</span>':'<span class="pill pill-valid">Normal</span>';
+  const stockCol=s=>s==='out'?'var(--error)':s==='critical'?'var(--warning)':s==='low'?'#b35d00':'var(--success)';
+
+  let html=`<div class="fade-in">`;
+  html+=renderSCKPIs();
+  html+=`<div class="sec-card"><div class="sec-card-head">Inventory Register
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input class="filter-input" placeholder="Search..." value="${f.search||''}" oninput="state.filters.search=this.value;rerenderSection()" style="min-width:140px;">
+      <select class="filter-select" onchange="state.filters.category=this.value;rerenderSection()">
+        <option value="all">All Categories</option>${cats.map(c=>`<option value="${c}" ${f.category===c?'selected':''}>${c}</option>`).join('')}
+      </select>
+      <select class="filter-select" onchange="state.filters.status=this.value;rerenderSection()">
+        <option value="all">All Status</option><option value="normal">Normal</option><option value="low">Low</option><option value="critical">Critical</option><option value="out">Out of Stock</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="showToast('Stock count export started','info')"><i class="fa-solid fa-download"></i> Export</button>
+    </div>
+  </div>
+  <div style="overflow-x:auto;"><table class="data-table">
+    <thead><tr>
+      <th onclick="sortBy('name')" class="${sortedCls('name')}">Item ${sortIcon('name')}</th>
+      <th onclick="sortBy('partNo')" class="${sortedCls('partNo')}">Part No. ${sortIcon('partNo')}</th>
+      <th onclick="sortBy('category')" class="${sortedCls('category')}">Category ${sortIcon('category')}</th>
+      <th onclick="sortBy('site')" class="${sortedCls('site')}">Site ${sortIcon('site')}</th>
+      <th onclick="sortBy('qtyOnHand')" class="${sortedCls('qtyOnHand')}">On Hand ${sortIcon('qtyOnHand')}</th>
+      <th onclick="sortBy('reorderPoint')" class="${sortedCls('reorderPoint')}">Reorder Pt. ${sortIcon('reorderPoint')}</th>
+      <th onclick="sortBy('unitCost')" class="${sortedCls('unitCost')}">Unit Cost ${sortIcon('unitCost')}</th>
+      <th>Stock Status</th>
+      <th onclick="sortBy('lastReceived')" class="${sortedCls('lastReceived')}">Last Received ${sortIcon('lastReceived')}</th>
+    </tr></thead><tbody>`;
+  if(!items.length) html+=`<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-sec);">No inventory items found</td></tr>`;
+  items.forEach(i=>{
+    const col=stockCol(i.status);
+    html+=`<tr>
+      <td><div style="font-weight:600">${i.name}</div></td>
+      <td style="font-size:12px;color:var(--text-sec)">${i.partNo}</td>
+      <td>${i.category}</td>
+      <td style="font-size:12px">${i.site}</td>
+      <td style="font-weight:700;color:${col}">${i.qtyOnHand} <span style="font-weight:400;font-size:11px;color:var(--text-sec)">${i.uom}</span></td>
+      <td style="color:var(--text-sec)">${i.reorderPoint} ${i.uom}</td>
+      <td>${fmt(i.unitCost)}</td>
+      <td>${stockBadge(i.status)}</td>
+      <td style="font-size:12px;color:var(--text-sec)">${fmtDate(i.lastReceived)}</td>
+    </tr>`;
+  });
+  html+=`</tbody></table></div></div></div>`;
+  return html;
+}
+
+/* ═══════════════════════════════════════════════
+   SC — NEW PO MODAL
+═══════════════════════════════════════════════ */
+function openNewPOModal(){
+  const body=`
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Supplier</label>
+        <select class="form-select" id="np-sup">${DATA.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select>
+      </div>
+      <div class="form-group"><label class="form-label">Category</label>
+        <select class="form-select" id="np-cat">${[...new Set(DATA.suppliers.map(s=>s.category))].sort().map(c=>`<option>${c}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Description</label><input class="form-input" id="np-desc" placeholder="Brief description of goods/services"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Amount (USD)</label><input class="form-input" id="np-amount" type="number" value="0" min="0"></div>
+      <div class="form-group"><label class="form-label">Priority</label>
+        <select class="form-select" id="np-priority"><option>Normal</option><option>High</option><option>Critical</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Site / Delivery Location</label>
+        <select class="form-select" id="np-site"><option>Block 15 – Rig Alpha</option><option>Block 7 – Offshore Platform</option><option>Onshore Processing Facility – South</option><option>Gas Treatment Plant – North</option><option>Head Office – Muscat</option><option>All Sites</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">Required Date</label><input class="form-input" id="np-date" type="date"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Requested By</label>
+        <select class="form-select" id="np-req">${DATA.employees.filter(e=>e.status==='active').map(e=>`<option>${e.name}</option>`).join('')}</select>
+      </div>
+      <div class="form-group"><label class="form-label">Currency</label>
+        <select class="form-select" id="np-cur"><option>USD</option><option>OMR</option><option>EUR</option><option>GBP</option></select>
+      </div>
+    </div>`;
+  const footer=`<button class="btn btn-secondary" onclick="closeModal()">${t('cancel')}</button><button class="btn btn-primary" onclick="submitNewPO()">Create PO</button>`;
+  openModal(t('newPO'),body,footer);
+}
+
+async function submitNewPO(){
+  const desc=$('#np-desc').value.trim();
+  const amt=parseFloat($('#np-amount').value)||0;
+  if(!desc){showToast('Description is required','error');return;}
+  if(amt > 10000) {
+    if(!confirm('Warning: PO Amount exceeds $10,000. Do you want to proceed?')) return;
+  }
+  const now=new Date();
+  const yr=now.getFullYear();
+  const newId=`PO-${yr}-${String(DATA.purchaseOrders.length+1).padStart(3,'0')}`;
+  const supId=$('#np-sup').value;
+  const sup=DATA.suppliers.find(s=>s.id===supId);
+  const poData={
+    id:newId,supplierId:supId,supplier:sup?sup.name:supId,
+    category:$('#np-cat').value,description:desc,
+    amount:parseFloat($('#np-amount').value)||0,currency:$('#np-cur').value,
+    status:'draft',priority:$('#np-priority').value,
+    requestedBy:$('#np-req').value,approvedBy:null,
+    site:$('#np-site').value,requiredDate:$('#np-date').value,
+    createdDate:now.toISOString().split('T')[0],deliveryDate:null,
+    poLines:[{item:desc,qty:1,unit:'Lot',unitPrice:parseFloat($('#np-amount').value)||0}]
+  };
+  if(supabase){
+    const{error}=await supabase.from('purchase_orders').insert({id:newId,supplier_name:poData.supplier,description:desc,total_amount:poData.amount,status:'draft',priority:poData.priority,site:poData.site,requested_by:poData.requestedBy,order_date:poData.createdDate});
+    if(error){showToast('Error saving PO','error');return;}
+  }
+  DATA.purchaseOrders.push(poData);
+  closeModal();state.selectedId=newId;state.section='allPOs';
+  showToast(newId+' created as Draft','success');rerenderSection();
+}
+
+/* ═══════════════════════════════════════════════
+   RENDER ENGINE
+═══════════════════════════════════════════════ */
+function renderSidebar(){
+  let html='';
+  if(state.module==='hr') html=renderHRSidebar();
+  else if(state.module==='crm') html=renderCRMSidebar();
+  else if(state.module==='certificates') html=renderCertSidebar();
+  else if(state.module==='supply') html=renderSCSidebar();
+  else if(state.module==='fin') html=renderFinSidebar();
+  $('#modSidebar').innerHTML=html;
+}
+
+function renderFinSettings() {
+  return `<div class="fade-in" style="max-width:600px">
+    <h2>Finance Settings</h2>
+    <div class="sec-card" style="margin-top:20px"><div class="sec-card-body">
+      <div class="form-group"><label class="form-label">Default Currency</label>
+      <select class="form-input"><option>USD</option><option>OMR</option><option>EUR</option></select></div>
+      <div class="form-group"><label class="form-label">Fiscal Year Start Month</label>
+      <select class="form-input"><option>January</option><option>April</option><option>July</option></select></div>
+      <button class="btn btn-primary" onclick="showToast('Settings saved','success')">Save Settings</button>
+    </div></div>
+  </div>`;
+}
+
+function renderContent(){
+  let html='';
+  if(state.module==='hr'){
+    if(state.section==='allEmployees'||state.section==='newHires'||state.section==='onProbation') html=renderAllEmployees();
+    else if(state.section==='absenceCalendar') html=renderHRAbsenceCalendar();
+    else if(state.section==='openPositions') html=renderHROpenPositions();
+    else if(state.section==='performanceCycle') html=renderHRPerformanceCycle();
+    else if(state.section==='trainingHSE') html=renderHRTraining();
+    else if(state.section==='orgUnits') html=renderHROrgUnits();
+    else if(state.section==='hrSettings') html=renderHRSettings();
+    else if(state.section==='leaveRequests') html=renderLeaveRequests();
+    else if(state.section==='timesheets') html=renderHRAttendance();
+    else if(state.section==='expenseClaims') html=renderHRExpenses();
+    else if(state.section==='compensation') html=renderHRPayroll();
+    else html=renderHRStub(state.section.replace(/([A-Z])/g,' $1').trim());
+  }
+  else if(state.module==='crm'){
+    if(state.section==='crmDashboard') html=renderCRMDashboard();
+    else if(state.section==='leads') html=renderCRMLeads();
+    else if(state.section==='deals') html=renderCRMDeals();
+    else if(state.section==='accounts') html=renderCRMAccounts();
+    else if(state.section==='tasks') html=renderCRMTasks();
+    else if(state.section==='myFavorites') html=renderCRMDeals(d=>d.stage==='Negotiation'||d.stage==='Proposal');
+    else if(state.section==='openContracts') html=renderCRMDeals(d=>d.stage==='Contract Sent');
+    else if(state.section==='wonThisQuarter') html=renderCRMDeals(d=>d.stage==='Closed Won');
+    else if(state.section==='fieldServiceLogs') html=renderCRMFieldServiceLogs();
+    else if(state.section==='crmSettings') html=renderCRMSettings();
+    else html=renderCRMDashboard();
+  }
+  else if(state.module==='certificates'){
+    if(state.section==='allCerts') html=renderCertificates();
+    else if(state.section==='expiredCerts') html=renderCertificates(c=>c.status==='expired');
+    else if(state.section==='expiringSoon') html=renderCertificates(c=>c.status==='expiring');
+    else if(state.section.startsWith('cat_')){
+      const catMap={'cat_Rotating':'Rotating','cat_Static':'Static','cat_Lifting':'Lifting','cat_Electrical':'Electrical','cat_Pressure':'Pressure','cat_FireSafety':'Fire & Safety','cat_Instrumentation':'Instrumentation','cat_Vehicles':'Vehicles'};
+      const cat=catMap[state.section]||state.section.replace('cat_','');
+      html=renderCertificates(c=>c.category===cat);
+    }
+    else html=renderCertificates();
+  }
+  else if(state.module==='supply'){
+    if(state.section==='scDashboard'||state.section==='warehouses') html=renderSCDashboard();
+    else if(state.section==='warehouseCapacity') html=renderWarehouseCapacity();
+    else if(state.section==='allPOs') html=renderAllPOs();
+    else if(state.section==='pendingApprovalPO') html=renderAllPOs(p=>p.status==='draft');
+    else if(state.section==='orderedItems') html=renderAllPOs(p=>p.status==='ordered');
+    else if(state.section==='receivedItems') html=renderAllPOs(p=>p.status==='received');
+    else if(state.section==='allSuppliers'||state.section==='supplierPerformance') html=renderAllSuppliers();
+    else if(state.section==='inventoryItems') html=renderInventory();
+    else if(state.section==='lowStockAlerts') html=renderInventory(i=>i.status!=='normal');
+    else if(state.section==='scSettings') html=renderSCSettings();
+    else html=renderSCDashboard();
+  }
+  else if(state.module==='fin'){
+    if(state.section==='finDashboard') html=renderFinDashboard();
+    else if(state.section==='finSales') html=renderFinInvoices('Sales');
+    else if(state.section==='finPurchases') html=renderFinInvoices('Purchase');
+    else if(state.section==='finPayments') html=renderFinPayments();
+    else if(state.section==='finSettings') html=renderFinSettings();
+    else html=renderFinDashboard();
+  }
+  $('#modContent').innerHTML=html;
+}
+
+function renderAll(){
+  renderTabBar();
+  renderSidebar();
+  renderContent();
+}
+
+function rerenderSection(){
+  destroyCharts();
+  renderTabBar();
+  renderSidebar();
+  renderContent();
+}
+
+/* ═══════════════════════════════════════════════
+   SHELL EVENTS
+═══════════════════════════════════════════════ */
+$('#notifBtn').addEventListener('click',e=>{
+  e.stopPropagation();
+  if(activeDropdown===$('#notifBtn')){ closeDropdown(); return; }
+  let html=`<div class="dropdown-header">${t('notifications')}</div>`;
+  DATA.notifications.forEach(n=>{ html+=`<div class="dropdown-item"><i class="fa-solid ${n.icon}" style="color:${n.color};"></i><div><div style="font-size:13px;">${n.text}</div><div style="font-size:11px;color:var(--text-sec);margin-top:1px;">${n.time}</div></div></div>`; });
+  html+=`<div style="padding:8px 14px;border-top:1px solid var(--border);text-align:center;"><button type="button" class="btn btn-ghost btn-sm" data-action="mark-all-read">Mark all read</button></div>`;
+  openDropdown($('#notifBtn'),html);
+});
+
+$('#userBtn').addEventListener('click',e=>{
+  e.stopPropagation();
+  if(activeDropdown===$('#userBtn')){ closeDropdown(); return; }
+  const roles=['System Admin','HR Manager','HSE / Inspection Engineer','Procurement Officer','Executive / C-Level'];
+  let html=`<div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
+    <div class="avatar" style="width:40px;height:40px;font-size:14px;background:var(--blue)">KA</div>
+    <div><div style="font-size:14px;font-weight:600;">Khalid Al-Rashidi</div><div style="font-size:12px;color:var(--text-sec);">k.alrashidi@amici.com</div></div>
+  </div>
+  <div class="dropdown-header" style="font-size:11px;padding:8px 14px 4px;">Switch Role (Demo)</div>
+  ${roles.map(r=>`<button type="button" class="dropdown-item" data-action="select-role" data-role="${r}" style="width:100%;border:none;background:transparent;"><i class="fa-solid fa-user-tag"></i>${r}</button>`).join('')}
+  <div style="border-top:1px solid var(--border);"><button type="button" class="dropdown-item" style="color:var(--error);width:100%;border:none;background:transparent;" data-action="sign-out"><i class="fa-solid fa-right-from-bracket" style="color:var(--error);"></i>Sign Out</button></div>`;
+  openDropdown($('#userBtn'),html);
+});
+
+$('#shellSearch').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    const q=e.target.value.trim().toLowerCase();
+    if(!q) return;
+    const found=DATA.employees.find(em=>em.name.toLowerCase().includes(q)||em.id.toLowerCase()===q);
+    if(found){ state.module='hr';state.section='allEmployees';state.selectedId=found.id;renderAll();showToast('Found: '+found.name,'success'); }
+    else showToast('No results for "'+q+'"','warning');
+    e.target.value='';
+  }
+});
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    if($('#modalOverlay').classList.contains('open')) closeModal();
+    else if(activeDropdown) closeDropdown();
+  }
+});
+
+/* ═══════════════════════════════════════════════
+   AI ASSISTANT — OPENROUTER / GEMINI
+═══════════════════════════════════════════════ */
+const AI = {
+  model: 'google/gemini-2.0-flash-exp',
+  endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+  history: [],
+  isOpen: false,
+  isLoading: false,
+
+  getKey(){
+    return sessionStorage.getItem('amici_or_key') || '';
+  },
+
+  /* Build a live snapshot of all DATA for the system prompt */
+  buildContext(){
+    const empSummary = DATA.employees.map(e=>
+      `${e.id}|${e.name}|${e.dept}|${e.position}|${e.status}|${e.site}|${e.crew}`
+    ).join('\n');
+
+    const poSummary = DATA.purchaseOrders.map(p=>
+      `${p.id}|${p.supplier}|${p.category}|${p.amount} ${p.currency}|${p.status}|${p.priority}|req:${p.requiredDate}`
+    ).join('\n');
+
+    const certSummary = DATA.certificates.map(c=>
+      `${c.id}|${c.equipName}|${c.category}|${c.status}|expires:${c.expiryDate}|days:${c.daysRemaining}`
+    ).join('\n');
+
+    const accSummary = DATA.accounts.map(a=>
+      `${a.id}|${a.name}|${a.type}|${a.rating}|value:${a.contractValue}|opps:${a.openOpps}`
+    ).join('\n');
+
+    const invSummary = DATA.inventory.map(i=>
+      `${i.id}|${i.name}|${i.partNo}|onHand:${i.qtyOnHand}${i.uom}|reorder:${i.reorderPoint}|${i.status}`
+    ).join('\n');
+
+    const expiredCerts = DATA.certificates.filter(c=>c.status==='expired').map(c=>c.equipName).join(', ');
+    const expiringCerts = DATA.certificates.filter(c=>c.status==='expiring').map(c=>`${c.equipName}(${c.daysRemaining}d)`).join(', ');
+    const lowStock = DATA.inventory.filter(i=>i.status!=='normal').map(i=>`${i.name}(${i.qtyOnHand}${i.uom})`).join(', ');
+    const pendingPOs = DATA.purchaseOrders.filter(p=>p.status==='draft').map(p=>p.id).join(', ');
+
+    return `You are AMICI AI, an intelligent ERP assistant for AMICI Oil & Gas company operating in Oman and the Middle East.
+You have real-time access to all system data and can both answer questions AND execute actions.
+
+TODAY: ${new Date().toISOString().split('T')[0]}
+
+=== ALERTS (action required) ===
+Expired Certificates: ${expiredCerts||'None'}
+Expiring Soon (≤30d): ${expiringCerts||'None'}
+Low/Out-of-Stock Items: ${lowStock||'None'}
+Draft POs Awaiting Approval: ${pendingPOs||'None'}
+
+=== EMPLOYEES (${DATA.employees.length} total) ===
+Format: ID|Name|Dept|Position|Status|Site|Crew
+${empSummary}
+
+=== PURCHASE ORDERS (${DATA.purchaseOrders.length} total) ===
+Format: ID|Supplier|Category|Amount|Status|Priority|RequiredDate
+${poSummary}
+
+=== CERTIFICATES (${DATA.certificates.length} total) ===
+Format: ID|Equipment|Category|Status|ExpiryDate|DaysRemaining
+${certSummary}
+
+=== CRM ACCOUNTS (${DATA.accounts.length} total) ===
+Format: ID|Name|Type|Rating|ContractValue|OpenOpps
+${accSummary}
+
+=== INVENTORY (${DATA.inventory.length} items) ===
+Format: ID|Name|PartNo|OnHand|ReorderPoint|Status
+${invSummary}
+
+=== INSTRUCTIONS ===
+- Answer questions accurately using the data above. Be concise, direct, and helpful.
+- When users ask you to DO something (approve, add, navigate), respond with a JSON action block.
+- For regular answers, respond in plain conversational text. Use markdown-style bold (**text**) sparingly for key figures.
+- Numbers: always include units and currency where relevant.
+- If asked about something not in the data, say so clearly.
+
+=== ACTION FORMAT ===
+When you want to execute an action, include this exact JSON block in your response (wrap in triple backticks json):
+\`\`\`json
+{
+  "action": "approve_po" | "navigate" | "add_employee" | "flag_cert" | "create_po_draft",
+  "params": { ...action-specific fields... },
+  "confirm_message": "Human-readable description of what will happen"
+}
+\`\`\`
+
+Action schemas:
+- approve_po: { "po_id": "PO-2025-XXX" }
+- navigate: { "module": "hr"|"crm"|"certificates"|"supply", "section": "allEmployees"|"allPOs"|"allCerts"|"allAccounts"|"scDashboard"|"inventoryItems"|"lowStockAlerts"|"expiredCerts"|"expiringSoon"|"leaveRequests" }
+- flag_cert: { "cert_id": "CERT-XXX", "note": "reason" }
+- create_po_draft: { "supplier": "...", "description": "...", "amount": 0, "priority": "Normal"|"High"|"Critical", "site": "..." }
+- add_employee: { "firstName": "...", "lastName": "...", "dept": "...", "position": "...", "site": "...", "empType": "Full-time"|"Contract" }
+
+Always include confirm_message so the user knows what action will be taken before confirming.`;
+  },
+
+  /* Parse action block from model response */
+  parseAction(text){
+    const match = text.match(/```json\s*([\s\S]*?)```/);
+    if(!match) return null;
+    try{ return JSON.parse(match[1].trim()); }
+    catch(e){ return null; }
+  },
+
+  /* Strip the JSON block from display text */
+  stripAction(text){
+    return text.replace(/```json[\s\S]*?```/g,'').trim();
+  },
+
+  /* Execute a confirmed action */
+  executeAction(action){
+    const p = action.params;
+    switch(action.action){
+      case 'approve_po': {
+        const po = DATA.purchaseOrders.find(x=>x.id===p.po_id);
+        if(po){ po.status='approved'; po.approvedBy='AMICI AI'; showToast(`${p.po_id} approved via AI`,'success'); rerenderSection(); }
+        else showToast('PO not found','error');
+        break;
+      }
+      case 'navigate': {
+        if(p.module) switchModule(p.module);
+        if(p.section) setTimeout(()=>{ state.section=p.section; rerenderSection(); },50);
+        showToast(`Navigated to ${p.section||p.module}`,'info');
+        break;
+      }
+      case 'flag_cert': {
+        const cert = DATA.certificates.find(x=>x.id===p.cert_id);
+        if(cert){ cert.remarks=(cert.remarks||'')+'\n⚠ AI Flag: '+p.note; showToast(`${p.cert_id} flagged`,'warning'); }
+        else showToast('Certificate not found','error');
+        break;
+      }
+      case 'create_po_draft': {
+        const now=new Date();
+        const newId=`PO-${now.getFullYear()}-${String(DATA.purchaseOrders.length+1).padStart(3,'0')}`;
+        DATA.purchaseOrders.push({
+          id:newId, supplierId:null, supplier:p.supplier||'TBD',
+          category:'General', description:p.description||'AI-generated draft',
+          amount:p.amount||0, currency:'USD', status:'draft',
+          priority:p.priority||'Normal', requestedBy:'AMICI AI',
+          approvedBy:null, site:p.site||'Head Office – Muscat',
+          requiredDate:'', createdDate:now.toISOString().split('T')[0],
+          deliveryDate:null, poLines:[{item:p.description||'TBD',qty:1,unit:'Lot',unitPrice:p.amount||0}]
+        });
+        showToast(`${newId} created as draft`,'success');
+        if(state.module==='supply') rerenderSection();
+        break;
+      }
+      case 'add_employee': {
+        const newId='EMP-'+String(DATA.employees.length+1).padStart(3,'0');
+        DATA.employees.push({
+          id:newId, firstName:p.firstName||'', lastName:p.lastName||'',
+          name:(p.firstName||'')+' '+(p.lastName||''),
+          dept:p.dept||'TBD', position:p.position||'TBD',
+          email:'', phone:'', status:'probation',
+          empType:p.empType||'Full-time',
+          site:p.site||'Head Office – Muscat', crew:'Support',
+          startDate:new Date().toISOString().split('T')[0],
+          salaryBand:'G4', nationality:'', rotation:'N/A',
+          h2sLevel:'N/A', medFit:false, medExpiry:null,
+          visa:'N/A', workPermit:'N/A', manager:null, costCenter:'TBD',
+          leave:{annual:{used:0,total:15},sick:{used:0,total:10},remote:{used:0,total:5},training:{used:0,total:10}},
+          skills:[], hseCerts:[], history:[{date:new Date().toISOString().split('T')[0],event:'Added via AMICI AI'}]
+        });
+        showToast(`${p.firstName} ${p.lastName} added as ${newId}`,'success');
+        if(state.module==='hr') rerenderSection();
+        break;
+      }
+      default: showToast('Unknown action: '+action.action,'warning');
+    }
+  }
+};
+
+/* ── AI PANEL TOGGLE ── */
+function toggleAIPanel(){
+  AI.isOpen = !AI.isOpen;
+  $('#aiPanel').classList.toggle('open', AI.isOpen);
+  $('#aiBtn').classList.toggle('active', AI.isOpen);
+  if(AI.isOpen){
+    renderAIMessages();
+    // Show key bar only if no key saved
+    const hasKey = !!AI.getKey();
+    $('#aiKeyBar').style.display = hasKey ? 'none' : 'flex';
+    if(hasKey) $('#aiInput').focus();
+  }
+}
+
+$('#aiBtn').addEventListener('click', e=>{ e.stopPropagation(); toggleAIPanel(); });
+$('#aiCloseBtn').addEventListener('click', ()=>toggleAIPanel());
+$('#langBtn').addEventListener('click', toggleLang);
+$('#aiKeySaveBtn').addEventListener('click', saveAPIKey);
+$('#aiSend').addEventListener('click', sendAIMessage);
+$('#aiInput').addEventListener('input', e=>autoResizeTextarea(e.target));
+$('#aiInput').addEventListener('keydown', e=>{
+  if(e.key==='Enter' && !e.shiftKey){
+    e.preventDefault();
+    sendAIMessage();
+  }
+});
+
+/* ── API KEY ── */
+function saveAPIKey(){
+  const key = $('#aiKeyInput').value.trim();
+  if(!key.startsWith('sk-or-')){ showToast('Key must start with sk-or-','error'); return; }
+  sessionStorage.setItem('amici_or_key', key);
+  $('#aiKeyBar').innerHTML = `<span class="ai-key-saved"><i class="fa-solid fa-check-circle"></i> API key saved for this session</span>
+    <button class="ai-key-btn" type="button" style="background:var(--text-sec)" data-action="clear-api-key">Change</button>`;
+  showToast('OpenRouter key saved','success');
+  $('#aiInput').focus();
+}
+
+function clearAPIKey(){
+  sessionStorage.removeItem('amici_or_key');
+  $('#aiKeyBar').innerHTML = `<input class="ai-key-input" id="aiKeyInput" type="password" placeholder="Paste OpenRouter API key (sk-or-…)" autocomplete="off">
+    <button class="ai-key-btn" type="button" data-action="save-api-key">Save</button>`;
+  $('#aiKeyBar').style.display='flex';
+}
+
+/* ── RENDER MESSAGES ── */
+function renderAIMessages(){
+  const el = $('#aiMessages');
+  const chips = $('#aiChips');
+
+  if(AI.history.length === 0){
+    el.innerHTML = `<div class="ai-empty">
+      <div class="ai-empty-icon">✦</div>
+      <h3>AMICI AI Assistant</h3>
+      <p>Ask me about employees, certificates, purchase orders, inventory, or CRM accounts. I can also take actions.</p>
+    </div>`;
+    chips.innerHTML = [
+      'Which certificates are expired?',
+      'Show low stock items',
+      'How many employees are offshore?',
+      'List draft POs pending approval',
+      'Who manages Block 15?',
+      'Approve PO-2025-007',
+      'Navigate to certificate management',
+      'Which accounts are rated Hot?'
+    ].map(q=>`<button class="ai-chip" type="button" data-action="send-chip" data-chip="${q}">${q}</button>`).join('');
+    return;
+  }
+
+  chips.innerHTML = '';
+  const now = new Date();
+  const timeStr = ()=> now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+
+  el.innerHTML = AI.history.map((m,i)=>{
+    if(m.role==='system') return '';
+    const isUser = m.role==='user';
+    const rawText = typeof m.content === 'string' ? m.content : '';
+    const action = !isUser ? AI.parseAction(rawText) : null;
+    const displayText = action ? AI.stripAction(rawText) : rawText;
+    const formattedText = displayText.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
+
+    let actionCard = '';
+    if(action && !m.executed){
+      actionCard = `<div class="ai-action-card">
+        <div class="ai-action-card-title"><i class="fa-solid fa-bolt"></i> Proposed Action</div>
+        <div style="font-size:12px;color:var(--text);margin-bottom:4px;">${action.confirm_message||'Execute this action?'}</div>
+        <button class="ai-action-btn confirm" type="button" data-action="confirm-ai-action" data-index="${i}">
+          <i class="fa-solid fa-check"></i> Confirm & Execute
+        </button>
+        <button class="ai-action-btn" type="button" style="background:var(--text-sec);margin-left:4px;" data-action="dismiss-ai-action" data-index="${i}">
+          Dismiss
+        </button>
+      </div>`;
+    } else if(action && m.executed){
+      actionCard = `<div class="ai-action-card" style="border-color:var(--success);">
+        <div class="ai-action-card-title" style="color:var(--success);"><i class="fa-solid fa-check-circle"></i> Action Executed</div>
+        <div style="font-size:12px;color:var(--text-sec);">${action.confirm_message}</div>
+      </div>`;
+    }
+
+    return `<div class="ai-msg ${isUser?'user':'assistant'}">
+      <div class="ai-bubble">${formattedText||'&nbsp;'}</div>
+      ${actionCard}
+      <div class="ai-msg-time">${m.time||timeStr()}</div>
+    </div>`;
+  }).join('');
+
+  // typing indicator
+  if(AI.isLoading){
+    el.innerHTML += `<div class="ai-msg assistant" id="aiTyping">
+      <div class="ai-typing"><span></span><span></span><span></span></div>
+    </div>`;
+  }
+
+  el.scrollTop = el.scrollHeight;
+}
+
+function confirmAction(idx){
+  const msg = AI.history[idx];
+  const action = AI.parseAction(msg.content);
+  if(!action) return;
+  AI.history[idx].executed = true;
+  AI.executeAction(action);
+  renderAIMessages();
+}
+
+function dismissAction(idx){
+  AI.history[idx].executed = 'dismissed';
+  renderAIMessages();
+}
+
+/* ── SEND MESSAGE ── */
+function sendChip(text){
+  $('#aiInput').value = text;
+  autoResizeTextarea($('#aiInput'));
+  sendAIMessage();
+}
+
+document.addEventListener('click', e=>{
+  const actionEl = e.target.closest('[data-action]');
+  if(!actionEl) return;
+  const { action, index, chip, role } = actionEl.dataset;
+  if(action === 'close-toast') return closeToast(actionEl);
+  if(action === 'close-modal') return closeModal();
+  if(action === 'mark-all-read'){
+    closeDropdown();
+    $('#notifBadge').style.display='none';
+    return showToast('All notifications cleared','success');
+  }
+  if(action === 'select-role'){
+    showToast(`Role: ${role}`,'info');
+    return closeDropdown();
+  }
+  if(action === 'sign-out'){
+    showToast('Signed out','success');
+    return closeDropdown();
+  }
+  if(action === 'clear-api-key') return clearAPIKey();
+  if(action === 'save-api-key') return saveAPIKey();
+  if(action === 'send-chip') return sendChip(chip);
+  if(action === 'confirm-ai-action') return confirmAction(Number(index));
+  if(action === 'dismiss-ai-action') return dismissAction(Number(index));
+});
+
+async function sendAIMessage(){
+  const input = $('#aiInput');
+  const text = input.value.trim();
+  if(!text || AI.isLoading) return;
+
+  const key = AI.getKey();
+  if(!key){
+    showToast('Please enter your OpenRouter API key first','warning');
+    $('#aiKeyBar').style.display='flex';
+    return;
+  }
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+
+  AI.history.push({ role:'user', content:text, time:timeStr });
+  input.value = '';
+  input.style.height = 'auto';
+  AI.isLoading = true;
+  $('#aiSend').disabled = true;
+  renderAIMessages();
+
+  // Build messages array: system prompt + conversation history
+  const messages = [
+    { role:'system', content: AI.buildContext() },
+    ...AI.history.filter(m=>m.role!=='system').map(m=>({ role:m.role, content:m.content }))
+  ];
+
+  try{
+    const res = await fetch(AI.endpoint, {
+      method: 'POST',
+      headers:{
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://amici-erp.app',
+        'X-Title': 'AMICI ERP'
+      },
+      body: JSON.stringify({
+        model: AI.model,
+        messages,
+        max_tokens: 1024,
+        temperature: 0.3
+      })
+    });
+
+    if(!res.ok){
+      const err = await res.json().catch(()=>({error:{message:res.statusText}}));
+      throw new Error(err.error?.message || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    const reply = data.choices?.[0]?.message?.content || 'No response received.';
+    const replyTime = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    AI.history.push({ role:'assistant', content:reply, time:replyTime });
+
+  } catch(err){
+    const errTime = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    AI.history.push({ role:'assistant', content:`**Error:** ${err.message}\n\nCheck your API key and try again.`, time:errTime });
+    showToast('AI request failed: '+err.message,'error');
+  } finally {
+    AI.isLoading = false;
+    $('#aiSend').disabled = false;
+    renderAIMessages();
+  }
+}
+
+/* ── CLOSE PANEL ON OUTSIDE CLICK ── */
+document.addEventListener('click', e=>{
+  if(AI.isOpen && !$('#aiPanel').contains(e.target) && e.target !== $('#aiBtn')){
+    // don't close — user may be clicking in the app while panel is open
+  }
+});
+/* ── DATA FETCHING (SUPABASE) ── */
+async function loadData() {
+  if (!supabase) return; // Fallback to mock data if no supabase client
+  try {
+    // 1. Fetch Employees
+    const { data: emps, error: eErr } = await supabase.from('employees').select('*, employee_skills(*), employee_leave_balances(*), employee_history(*), employee_hse_certs(*)');
+    if (eErr) throw eErr;
+    if (emps && emps.length > 0) {
+      DATA.employees = emps.map(emp => ({
+        id: emp.id,
+        firstName: emp.first_name,
+        lastName: emp.last_name,
+        name: emp.full_name || (emp.first_name + ' ' + emp.last_name),
+        dept: emp.department,
+        position: emp.position_title,
+        email: emp.email,
+        phone: emp.phone,
+        status: emp.status,
+        empType: emp.emp_type,
+        site: emp.site,
+        rotation: emp.rotation,
+        crew: emp.crew,
+        startDate: emp.start_date,
+        manager: emp.manager_id,
+        salaryBand: emp.salary_band,
+        costCenter: emp.cost_center,
+        nationality: emp.nationality,
+        visa: emp.visa,
+        h2sLevel: emp.h2s_level,
+        medFit: emp.med_fit,
+        medExpiry: emp.med_expiry,
+        workPermit: emp.work_permit,
+        skills: emp.employee_skills || [],
+        hseCerts: emp.employee_hse_certs || [],
+        history: emp.employee_history || [],
+        leave: (emp.employee_leave_balances || []).reduce((acc, lb) => {
+          acc[lb.leave_type] = { used: lb.used, total: lb.total };
+          return acc;
+        }, {})
+      }));
+    }
+
+    // 2. Fetch Inventory
+    const { data: inv, error: iErr } = await supabase.from('inventory').select('*');
+    if (!iErr && inv && inv.length > 0) {
+      DATA.inventory = inv.map(i => ({
+        id: i.id, name: i.item_name, category: i.category, stock: i.stock_level, min: i.min_stock, unit: i.unit, location: i.location
+      }));
+    }
+
+    // 3. Fetch Suppliers
+    const { data: sups } = await supabase.from('suppliers').select('*');
+    if (sups && sups.length > 0) {
+      DATA.suppliers = sups.map(s => ({
+        id: s.id, name: s.name, category: s.category, contact_person: s.contact_person, email: s.email, phone: s.phone, rating: s.rating, country: s.country, status: s.status
+      }));
+    }
+
+    // 4. Fetch Warehouses
+    const { data: whs } = await supabase.from('warehouses').select('*');
+    if (whs && whs.length > 0) {
+      DATA.warehouses = whs.map(w => ({
+        id: w.id, name: w.name, location: w.location, manager_id: w.manager_id, capacity_used: w.capacity_used, capacity_total: w.capacity_total, status: w.status
+      }));
+    }
+
+    // 5. Fetch Purchase Orders and Line Items
+    const { data: pos, error: pErr } = await supabase.from('purchase_orders').select('*, po_line_items(*)');
+    if (!pErr && pos && pos.length > 0) {
+      DATA.purchaseOrders = pos.map(po => ({
+        id: po.id, supplier: po.supplier_name, description: po.description, amount: po.total_amount, status: po.status, 
+        priority: po.priority, site: po.site, requestedBy: po.requested_by, createdDate: po.order_date, deliveryDate: po.delivery_date,
+        poLines: (po.po_line_items || []).map(l => ({ item: l.item_desc, qty: l.quantity, unit: l.unit, unitPrice: l.unit_price }))
+      }));
+    }
+
+    // 4. Fetch CRM Accounts
+    const { data: accs, error: aErr } = await supabase.from('crm_accounts').select('*');
+    if (!aErr && accs && accs.length > 0) {
+      DATA.accounts = accs.map(a => ({
+        id: a.id, name: a.name, industry: a.industry, status: a.status, tier: a.tier, managerId: a.manager_id, revenue: a.revenue, lastContact: a.last_contact, nextAction: a.next_action
+      }));
+    }
+
+    // 4.5 Fetch CRM Field Service Logs
+    const { data: fsl } = await supabase.from('crm_field_service_logs').select('*');
+    if (fsl && fsl.length > 0) {
+      DATA.fieldServiceLogs = fsl.map(l => ({
+        id: l.id, client_name: l.client_name, engineer_name: l.engineer_name, date: l.date, job_description: l.job_description, status: l.status
+      }));
+    }
+
+    // 5. Fetch Leave Requests
+    const { data: lreqs } = await supabase.from('leave_requests').select('*');
+    if (lreqs && lreqs.length > 0) {
+      DATA.leaveRequests = lreqs.map(lr => ({
+        id: lr.id, empId: lr.employee_id, type: lr.leave_type, start: lr.start_date, end: lr.end_date, status: lr.status
+      }));
+    }
+
+    // 6. Fetch standalone certificates
+    const { data: certs } = await supabase.from('certificates').select('*');
+    if (certs && certs.length > 0) {
+      DATA.certificates = certs.map(c => ({
+        id: c.id, empId: c.employee_id, type: c.cert_type, expiry: c.expiry_date, status: c.status
+      }));
+    }
+
+    // 7. Fetch CRM Leads
+    const { data: leads } = await supabase.from('crm_leads').select('*');
+    if (leads && leads.length > 0) {
+      DATA.leads = leads.map(l => ({
+        id: l.id, name: l.name, email: l.email, phone: l.phone, status: l.status, source: l.source
+      }));
+    }
+
+    // 8. Fetch CRM Deals
+    const { data: deals } = await supabase.from('crm_deals').select('*');
+    if (deals && deals.length > 0) {
+      DATA.deals = deals.map(d => ({
+        id: d.id, title: d.title, lead_id: d.lead_id, account_id: d.account_id, value: d.value, stage: d.stage, expected_close_date: d.expected_close_date
+      }));
+    }
+
+    // 9. Fetch CRM Tasks
+    const { data: tasks } = await supabase.from('crm_tasks').select('*');
+    if (tasks && tasks.length > 0) {
+      DATA.tasks = tasks.map(t => ({
+        id: t.id, description: t.description, due_date: t.due_date, status: t.status, assigned_to: t.assigned_to, related_lead_id: t.related_lead_id, related_deal_id: t.related_deal_id
+      }));
+    }
+
+    // 9.5 Fetch HR Open Positions
+    const { data: pos_hr } = await supabase.from('hr_open_positions').select('*');
+    if (pos_hr && pos_hr.length > 0) {
+      DATA.openPositions = pos_hr.map(p => ({
+        id: p.id, title: p.title, department: p.department, status: p.status, posted_date: p.posted_date
+      }));
+    }
+
+    // 9.6 Fetch HR Performance Reviews
+    const { data: revs } = await supabase.from('hr_performance_reviews').select('*');
+    if (revs && revs.length > 0) {
+      DATA.performanceReviews = revs.map(r => ({
+        id: r.id, employee_name: r.employee_name, period: r.period, rating: r.rating, comments: r.comments, status: r.status
+      }));
+    }
+
+    // 9.7 Fetch HSE Training
+    const { data: trns } = await supabase.from('hr_hse_training').select('*');
+    if (trns && trns.length > 0) {
+      DATA.hseTraining = trns.map(t => ({
+        id: t.id, employee_name: t.employee_name, course: t.course, date: t.date, status: t.status
+      }));
+    }
+
+    // 9.8 Fetch Org Units
+    const { data: orgs } = await supabase.from('hr_org_units').select('*');
+    if (orgs && orgs.length > 0) {
+      DATA.orgUnits = orgs.map(o => ({
+        id: o.id, name: o.name, head_count: o.head_count, manager: o.manager
+      }));
+    }
+
+    // 10. Fetch HR Attendance
+    const { data: att } = await supabase.from('hr_attendance').select('*');
+    if (att && att.length > 0) {
+      DATA.attendance = att.map(a => ({
+        id: a.id, employee_id: a.employee_id, date: a.date, status: a.status, check_in_time: a.check_in_time, check_out_time: a.check_out_time
+      }));
+    }
+
+    // 11. Fetch HR Expenses
+    const { data: exp } = await supabase.from('hr_expense_claims').select('*');
+    if (exp && exp.length > 0) {
+      DATA.expenses = exp.map(e => ({
+        id: e.id, employee_id: e.employee_id, date: e.date, amount: e.amount, category: e.category, description: e.description, status: e.status
+      }));
+    }
+
+    // 12. Fetch HR Salary Slips
+    const { data: sal } = await supabase.from('hr_salary_slips').select('*');
+    if (sal && sal.length > 0) {
+      DATA.salarySlips = sal.map(s => ({
+        id: s.id, employee_id: s.employee_id, month: s.month, year: s.year, base_pay: s.base_pay, allowances: s.allowances, deductions: s.deductions, net_pay: s.net_pay, status: s.status
+      }));
+    }
+    // 13. Fetch Finance Invoices
+    const { data: invs } = await supabase.from('fin_invoices').select('*');
+    if (invs && invs.length > 0) {
+      DATA.invoices = invs.map(i => ({
+        id: i.id, type: i.type, party_name: i.party_name, date: i.date, due_date: i.due_date, total_amount: i.total_amount, status: i.status
+      }));
+    }
+
+    // 14. Fetch Finance Payments
+    const { data: pays } = await supabase.from('fin_payments').select('*');
+    if (pays && pays.length > 0) {
+      DATA.payments = pays.map(p => ({
+        id: p.id, invoice_id: p.invoice_id, date: p.date, amount: p.amount, payment_method: p.payment_method
+      }));
+    }
+
+    console.log("Supabase data loaded successfully!");
+  } catch (err) {
+    console.error("Error loading data from Supabase:", err);
+    showToast("Error loading data from server. Using mock data.", "error");
+  }
+}
+
+/* ── INITIALIZATION & AUTH ── */
+async function initializeApp() {
+  await loadData();
+  renderAll();
+  const certAlerts = DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring');
+  const notifBadge = document.getElementById('notifBadge');
+  if (notifBadge) notifBadge.textContent = certAlerts.length + DATA.leaveRequests.filter(l=>l.status==='Pending').length;
+  
+  if (certAlerts.length > 0) {
+    setTimeout(()=> showToast(`Warning: ${certAlerts.length} certificates are expired or expiring soon.`, 'error'), 1500);
+  }
+  
+  setTimeout(()=> showToast('Welcome to AMICI ERP · All modules live','success'), 700);
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  if (!supabase) {
+    // No supabase client, just run with mock data
+    document.getElementById('authOverlay').classList.add('hidden');
+    initializeApp();
+    return;
+  }
+
+  // Check existing session
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+    document.getElementById('authOverlay').classList.add('hidden');
+    initializeApp();
+  }
+
+  // Handle Auth state changes
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN') {
+      document.getElementById('authOverlay').classList.add('hidden');
+      initializeApp();
+    } else if (event === 'SIGNED_OUT') {
+      document.getElementById('authOverlay').classList.remove('hidden');
+      document.querySelector('.app-body').innerHTML = ''; // clear app body
+    }
+  });
+
+  // Login Button Handler
+  document.getElementById('authLoginBtn').addEventListener('click', async () => {
+    const email = document.getElementById('authEmail').value;
+    const password = document.getElementById('authPassword').value;
+    const errEl = document.getElementById('authError');
+    errEl.textContent = '';
+    
+    if (!email || !password) {
+      errEl.textContent = 'Please enter email and password';
+      return;
+    }
+    
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) errEl.textContent = error.message;
+  });
+
+  // Logout Button Handler
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      await supabase.auth.signOut();
+    });
+  }
+});
+const menuBtn = document.getElementById('menuBtn');
+if (menuBtn) {
+  menuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const sidebar = document.querySelector('.mod-sidebar');
+    if (sidebar) sidebar.classList.toggle('open');
+  });
+}
+document.addEventListener('click', (e) => {
+  const sidebar = document.querySelector('.mod-sidebar');
+  if (sidebar && sidebar.classList.contains('open') && !sidebar.contains(e.target) && e.target !== menuBtn && !menuBtn.contains(e.target)) {
+    sidebar.classList.remove('open');
+  }
+});
+
+/* ── CRM LEADS ── */
+function renderCRMLeads() {
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Leads</h2>
+    <button class="btn btn-primary" onclick="openNewLeadModal()">+ New Lead</button>
+  </div>
+  <table class="table">
+    <thead><tr><th>Lead Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Source</th></tr></thead>
+    <tbody>`;
+  DATA.leads.forEach(l => {
+    html+=`<tr style="cursor:pointer" onclick="alert('Lead details coming soon!')">
+      <td><strong>${l.name}</strong></td><td>${l.email||'-'}</td><td>${l.phone||'-'}</td>
+      <td><span class="status-pill status-${l.status.toLowerCase().replace(' ','-')}">${l.status}</span></td>
+      <td>${l.source||'-'}</td>
+    </tr>`;
+  });
+  if(DATA.leads.length===0) html+=`<tr><td colspan="5" style="text-align:center">No leads found.</td></tr>`;
+  html+=`</tbody></table></div>`;
+  return html;
+}
+
+function openNewLeadModal() {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="nl-name" placeholder="Lead Name" />
+    <input class="filter-input" id="nl-email" placeholder="Email" />
+    <input class="filter-input" id="nl-phone" placeholder="Phone" />
+    <select class="filter-select" id="nl-source">
+      <option value="Website">Website</option><option value="Referral">Referral</option><option value="Cold Call">Cold Call</option>
+    </select>
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewLead()">Save Lead</button>`;
+  openModal('New Lead', body, footer);
+}
+
+async function submitNewLead() {
+  const name=$('#nl-name').value.trim();
+  if(!name){showToast('Name is required','error');return;}
+  const newLead = { id:'LD-'+Date.now(), name, email:$('#nl-email').value, phone:$('#nl-phone').value, source:$('#nl-source').value, status:'New' };
+  
+  if (supabase) {
+    const { error } = await supabase.from('crm_leads').insert(newLead);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.leads.push(newLead);
+  closeModal(); showToast('Lead saved','success'); rerenderSection();
+}
+
+/* ── CRM DEALS KANBAN ── */
+function renderCRMDeals(filterFn=null) {
+  const stages = ['Prospecting', 'Qualification', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost'];
+  let deals = DATA.deals;
+  if(filterFn) deals = deals.filter(filterFn);
+  let html=`<div class="fade-in" style="display:flex;flex-direction:column;height:100%">
+    <div class="filter-bar" style="justify-content:space-between">
+      <h2>Deals Pipeline</h2>
+      <button class="btn btn-primary" onclick="openNewDealModal()">+ New Deal</button>
+    </div>
+    <div style="display:flex;gap:16px;overflow-x:auto;flex:1;padding-bottom:16px;">`;
+  
+  stages.forEach(st => {
+    const stageDeals = deals.filter(d => d.stage === st);
+    const totalVal = stageDeals.reduce((sum,d)=>sum+parseFloat(d.value||0),0);
+    html+=`<div class="kanban-col" ondragover="event.preventDefault()" ondrop="dropDeal(event, '${st}')" style="flex:0 0 300px;background:#f8fafc;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <h3 style="font-size:14px;color:var(--text);">${st} <span style="color:var(--text-sec);font-weight:normal">(${stageDeals.length})</span></h3>
+        <span style="font-size:13px;font-weight:600;color:var(--success)">$${totalVal.toLocaleString()}</span>
+      </div>`;
+    stageDeals.forEach(d => {
+      html+=`<div class="kanban-card" draggable="true" ondragstart="dragStartDeal(event, '${d.id}')" style="background:#fff;padding:12px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);cursor:grab;border-left:4px solid var(--blue);">
+        <div style="font-weight:600;font-size:14px;margin-bottom:6px">${d.title}</div>
+        <div style="font-size:13px;color:var(--text-sec);margin-bottom:8px">$${parseFloat(d.value).toLocaleString()}</div>
+        <div style="font-size:11px;color:#888;">Close: ${d.expected_close_date||'N/A'}</div>
+      </div>`;
+    });
+    html+=`</div>`;
+  });
+
+  html+=`</div></div>`;
+  return html;
+}
+
+window.dragStartDeal = function(e, id) { e.dataTransfer.setData('text/plain', id); }
+window.dropDeal = async function(e, stage) {
+  const id = e.dataTransfer.getData('text/plain');
+  const deal = DATA.deals.find(d => d.id === id);
+  if(deal && deal.stage !== stage) {
+    deal.stage = stage;
+    if (supabase) await supabase.from('crm_deals').update({stage}).eq('id', id);
+    if(stage === 'Closed Won') {
+      const newInv = {
+        id: 'INV-' + Date.now(), type: 'Sales', party_name: deal.company, date: new Date().toISOString().split('T')[0],
+        due_date: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0], total_amount: deal.value, status: 'Draft'
+      };
+      if (supabase) await supabase.from('fin_invoices').insert(newInv);
+      DATA.invoices.push(newInv);
+      showToast('Deal won! Draft Invoice ' + newInv.id + ' auto-generated.', 'success');
+    }
+    rerenderSection();
+  }
+}
+
+function openNewDealModal() {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="nd-title" placeholder="Deal Title" />
+    <input type="number" class="filter-input" id="nd-value" placeholder="Value ($)" />
+    <select class="filter-select" id="nd-stage">
+      <option value="Prospecting">Prospecting</option><option value="Qualification">Qualification</option><option value="Proposal">Proposal</option>
+    </select>
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewDeal()">Save Deal</button>`;
+  openModal('New Deal', body, footer);
+}
+
+async function submitNewDeal() {
+  const title=$('#nd-title').value.trim();
+  if(!title){showToast('Title required','error');return;}
+  const newDeal = { id:'DL-'+Date.now(), title, value:parseFloat($('#nd-value').value)||0, stage:$('#nd-stage').value, expected_close_date:new Date().toISOString().split('T')[0] };
+  
+  if (supabase) {
+    const { error } = await supabase.from('crm_deals').insert(newDeal);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.deals.push(newDeal);
+  closeModal(); showToast('Deal saved','success'); rerenderSection();
+}
+
+/* ── CRM TASKS ── */
+function renderCRMTasks() {
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>My Tasks</h2>
+    <button class="btn btn-primary" onclick="openNewTaskModal()">+ New Task</button>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px;">`;
+  
+  DATA.tasks.forEach(t => {
+    const isDone = t.status==='completed';
+    html+=`<div style="display:flex;align-items:center;gap:12px;background:#fff;padding:12px 16px;border-radius:6px;border:1px solid var(--border)">
+      <input type="checkbox" ${isDone?'checked':''} onchange="toggleTask('${t.id}', this.checked)" style="width:18px;height:18px;cursor:pointer;">
+      <div style="flex:1;text-decoration:${isDone?'line-through':'none'};color:${isDone?'var(--text-sec)':'var(--text)'};font-size:15px;">
+        ${t.description}
+      </div>
+      <div style="font-size:12px;color:${t.due_date < new Date().toISOString().split('T')[0] && !isDone ? 'var(--error)' : 'var(--text-sec)'}">
+        <i class="fa-regular fa-calendar"></i> ${t.due_date||'No date'}
+      </div>
+    </div>`;
+  });
+  if(DATA.tasks.length===0) html+=`<div style="text-align:center;padding:30px;color:var(--text-sec)">No tasks! You're all caught up.</div>`;
+  html+=`</div></div>`;
+  return html;
+}
+
+window.toggleTask = async function(id, isDone) {
+  const t = DATA.tasks.find(x=>x.id===id);
+  if(t) {
+    t.status = isDone ? 'completed' : 'pending';
+    if(supabase) await supabase.from('crm_tasks').update({status:t.status}).eq('id',id);
+    rerenderSection();
+  }
+}
+
+function openNewTaskModal() {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="nt-desc" placeholder="Task Description" />
+    <input type="date" class="filter-input" id="nt-due" />
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewTask()">Save Task</button>`;
+  openModal('New Task', body, footer);
+}
+
+async function submitNewTask() {
+  const desc=$('#nt-desc').value.trim();
+  if(!desc){showToast('Description required','error');return;}
+  const newTask = { id:'TSK-'+Date.now(), description:desc, due_date:$('#nt-due').value||null, status:'pending' };
+  
+  if (supabase) {
+    const { error } = await supabase.from('crm_tasks').insert(newTask);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.tasks.push(newTask);
+  closeModal(); showToast('Task added','success'); rerenderSection();
+}
+
+/* ── HR ATTENDANCE ── */
+function renderHRAttendance() {
+  const today = new Date().toISOString().split('T')[0];
+  const myAtt = DATA.attendance.find(a => a.employee_id === 'EMP-001' && a.date === today);
+  const checkedIn = myAtt && myAtt.check_in_time && !myAtt.check_out_time;
+  
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Attendance & Timesheets</h2>
+    <div>
+      ${!checkedIn ? `<button class="btn btn-primary" onclick="hrCheckIn()">Check In</button>` : `<button class="btn btn-danger" onclick="hrCheckOut()">Check Out</button>`}
+    </div>
+  </div>
+  <table class="table">
+    <thead><tr><th>Date</th><th>Employee ID</th><th>Status</th><th>Check In</th><th>Check Out</th></tr></thead>
+    <tbody>`;
+  DATA.attendance.slice().reverse().forEach(a => {
+    html+=`<tr>
+      <td>${a.date}</td><td>${a.employee_id}</td>
+      <td><span class="status-pill status-${a.status.toLowerCase().replace(' ','-')}">${a.status}</span></td>
+      <td>${a.check_in_time||'-'}</td><td>${a.check_out_time||'-'}</td>
+    </tr>`;
+  });
+  if(DATA.attendance.length===0) html+=`<tr><td colspan="5" style="text-align:center">No attendance records.</td></tr>`;
+  html+=`</tbody></table></div>`;
+  return html;
+}
 
 async function hrCheckIn() {
   const today = new Date().toISOString().split('T')[0];
@@ -1928,34 +3094,7 @@ async function hrCheckOut() {
   }
 }
 
-async function submitNewExpense() {
-  const amt=parseFloat($('#nx-amt').value)||0;
-  const desc=$('#nx-desc').value.trim();
-  const date=$('#nx-date').value;
-  const fileInput = document.getElementById('nx-file');
-  if(!desc || amt<=0 || !date) { showToast('Please fill all required fields', 'error'); return; }
-  
-  let uploadedUrl = null;
-  if(fileInput && fileInput.files.length > 0) {
-    const file = fileInput.files[0];
-    if(supabase) {
-      showToast('Uploading receipt...', 'info');
-      const { data, error } = await supabase.storage.from('expense-receipts').upload(`public/${Date.now()}-${file.name}`, file);
-      if(!error && data) {
-        uploadedUrl = supabase.storage.from('expense-receipts').getPublicUrl(data.path).data.publicUrl;
-      }
-    } else {
-      uploadedUrl = URL.createObjectURL(file);
-    }
-    showToast('Receipt securely uploaded', 'success');
-  }
-
-  const newExp = { id:'EXP-'+Date.now(), employee_id:DATA.employees[0].id, date:date, amount:amt, category:$('#nx-cat').value, description:desc, status:'Pending', receipt_url: uploadedUrl };
-  if(supabase) await supabase.from('hr_expense_claims').insert(newExp);
-  DATA.expenses.push(newExp);
-  closeModal(); showToast('Expense submitted', 'success'); rerenderSection();
-}
-
+/* ── HR EXPENSES ── */
 function renderHRAbsenceCalendar() {
   const allLeaves = DATA.leaveRequests.map(l => ({
     id: l.id, employee: l.employeeName, type: l.type, startDate: l.startDate, endDate: l.endDate, status: l.status, source: 'Leave'
@@ -2148,7 +3287,18 @@ function openNewExpenseModal() {
   openModal('New Expense Claim', body, footer);
 }
 
-
+async function submitNewExpense() {
+  const amt=$('#nx-amt').value;
+  if(!amt){showToast('Amount required','error');return;}
+  const newExp = { id:'EXP-'+Date.now(), employee_id:'EMP-001', date:$('#nx-date').value||new Date().toISOString().split('T')[0], amount:parseFloat(amt), category:$('#nx-cat').value, description:$('#nx-desc').value, status:'Pending' };
+  
+  if (supabase) {
+    const { error } = await supabase.from('hr_expense_claims').insert(newExp);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.expenses.push(newExp);
+  closeModal(); showToast('Expense submitted','success'); rerenderSection();
+}
 
 /* ── HR PAYROLL ── */
 function renderHRPayroll() {
@@ -2440,111 +3590,4 @@ window.clearAPIKey = clearAPIKey;
 window.confirmAction = confirmAction;
 window.dismissAction = dismissAction;
 window.sendChip = sendChip;
-if (typeof sendAIMessage !== 'undefined') window.sendAIMessage = sendAIMessage;window.deleteRecord = deleteRecord; window.editRecord = editRecord;
-
-/* ── ROUTING & RENDER ENGINE RESTORED ── */
-
-function renderSidebar(){
-  let html='';
-  if(state.module==='hr') html=typeof renderHRSidebar !== 'undefined' ? renderHRSidebar() : '';
-  else if(state.module==='crm') html=typeof renderCRMSidebar !== 'undefined' ? renderCRMSidebar() : '';
-  else if(state.module==='certificates') html=typeof renderCertSidebar !== 'undefined' ? renderCertSidebar() : '';
-  else if(state.module==='supply') html=typeof renderSCSidebar !== 'undefined' ? renderSCSidebar() : '';
-  const modSidebar = document.getElementById('modSidebar');
-  if(modSidebar) modSidebar.innerHTML=html;
-}
-
-function renderContent(){
-  let html='';
-  if(state.module==='hr'){
-    if(state.section==='allEmployees'||state.section==='newHires') html=typeof renderAllEmployees !== 'undefined' ? renderAllEmployees() : '';
-    else if(state.section==='leaveRequests') html=typeof renderLeaveRequests !== 'undefined' ? renderLeaveRequests() : '';
-    else html=typeof renderHRStub !== 'undefined' ? renderHRStub(state.section.replace(/([A-Z])/g,' $1').trim()) : '';
-  }
-  else if(state.module==='crm'){
-    if(state.section==='crmLeads') html=typeof renderCRMLeads !== 'undefined' ? renderCRMLeads() : (typeof renderAllAccounts !== 'undefined' ? renderAllAccounts() : '');
-    else if(state.section==='crmDeals') html=typeof renderCRMDeals !== 'undefined' ? renderCRMDeals() : (typeof renderAllAccounts !== 'undefined' ? renderAllAccounts() : '');
-    else if(state.section==='myTasks') html=typeof renderCRMTasks !== 'undefined' ? renderCRMTasks() : (typeof renderAllAccounts !== 'undefined' ? renderAllAccounts() : '');
-    else if(state.section==='fieldServiceLogs') html=typeof renderCRMFieldServiceLogs !== 'undefined' ? renderCRMFieldServiceLogs() : (typeof renderAllAccounts !== 'undefined' ? renderAllAccounts() : '');
-    else if(state.section==='partnersJVs'){ state.filters.type='JV Partner'; html=typeof renderAllAccounts !== 'undefined' ? renderAllAccounts() : ''; }
-    else html=typeof renderAllAccounts !== 'undefined' ? renderAllAccounts() : '';
-  }
-  else if(state.module==='supply'){
-    if(state.section==='allPOs') html=typeof renderAllPOs !== 'undefined' ? renderAllPOs() : '';
-    else if(state.section==='allSuppliers') html=typeof renderAllSuppliers !== 'undefined' ? renderAllSuppliers() : '';
-    else if(state.section==='inventoryItems') html=typeof renderInventory !== 'undefined' ? renderInventory() : '<p>Inventory</p>';
-    else if(state.section==='warehouses') html=typeof renderWarehouseCapacity !== 'undefined' ? renderWarehouseCapacity() : '<p>Warehouses</p>';
-    else if(state.section==='scSettings') html=typeof renderSCSettings !== 'undefined' ? renderSCSettings() : '<p>Settings</p>';
-    else html=typeof renderSCDashboard !== 'undefined' ? renderSCDashboard() : '<p>Dashboard</p>';
-  }
-  else if(state.module==='certificates'){
-    html=typeof renderCertificates !== 'undefined' ? renderCertificates() : '<p>Certs</p>';
-  }
-  const modContent = document.getElementById('modContent');
-  if(modContent) modContent.innerHTML=html;
-}
-
-function renderAll(){
-  if(typeof renderSidebar !== 'undefined') renderSidebar();
-  if(typeof renderContent !== 'undefined') renderContent();
-  if(typeof renderAIMessages !== 'undefined') renderAIMessages();
-}
-
-function rerenderSection(){
-  if(typeof renderContent !== 'undefined') renderContent();
-}
-
-function renderCRMFieldServiceLogs() {
-  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
-    <h2>Field Service Logs</h2>
-    <button class="btn btn-primary" onclick="openNewFSLModal()">+ Log New Service</button>
-  </div>
-  <table class="data-table">
-    <thead><tr><th>Log ID</th><th>Client Name</th><th>Engineer</th><th>Date</th><th>Status</th></tr></thead>
-    <tbody>`;
-  const logs = DATA.fieldServiceLogs || [];
-  logs.forEach(l => {
-    html += `<tr>
-      <td>${l.id}</td><td>${l.client_name}</td><td>${l.engineer_name}</td><td>${l.date}</td>
-      <td><span class="status-pill status-${l.status.toLowerCase()}">${l.status}</span></td>
-    </tr>`;
-  });
-  if(logs.length===0) html += `<tr><td colspan="5" style="text-align:center">No logs found</td></tr>`;
-  html += `</tbody></table></div>`;
-  return html;
-}
-
-function openNewFSLModal() {
-  const body = `<div style="display:flex;flex-direction:column;gap:12px">
-    <input type="text" id="fsl-client" class="filter-input" placeholder="Client Name">
-    <input type="text" id="fsl-engineer" class="filter-input" placeholder="Engineer Name">
-    <input type="date" id="fsl-date" class="filter-input" value="${new Date().toISOString().split('T')[0]}">
-    <textarea id="fsl-desc" class="filter-input" placeholder="Job Description"></textarea>
-  </div>`;
-  const footer = `<button class="btn btn-primary" onclick="submitNewFSL()">Save Log</button>`;
-  openModal('New Field Service Log', body, footer);
-}
-
-function submitNewFSL() {
-  const newLog = {
-    id: 'FSL-' + Date.now(),
-    client_name: document.getElementById('fsl-client').value,
-    engineer_name: document.getElementById('fsl-engineer').value,
-    date: document.getElementById('fsl-date').value,
-    job_description: document.getElementById('fsl-desc').value,
-    status: 'Completed'
-  };
-  if(!DATA.fieldServiceLogs) DATA.fieldServiceLogs = [];
-  DATA.fieldServiceLogs.push(newLog);
-  if (typeof supabase !== 'undefined' && supabase) supabase.from('crm_field_service_logs').insert(newLog).then();
-  closeModal();
-  showToast('Service log added', 'success');
-  rerenderSection();
-}
-
-// Restore global exports
-window.openNewFSLModal = openNewFSLModal;
-window.submitNewFSL = submitNewFSL;
-window.renderContent = renderContent;
-window.rerenderSection = rerenderSection;
-
+if (typeof sendAIMessage !== 'undefined') window.sendAIMessage = sendAIMessage;

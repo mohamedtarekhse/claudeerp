@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMICI ERP</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/assets/index-DVElU82E.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-KprLkoYS.css">
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay hidden">
+  <div class="loading-ring-container">
+    <svg class="loading-ring" viewBox="0 0 200 200">
+      <defs>
+        <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#d4a843"/>
+          <stop offset="100%" stop-color="#f0d080"/>
+        </linearGradient>
+        <linearGradient id="ringGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#d4a843" stop-opacity="0.15"/>
+          <stop offset="100%" stop-color="#f0d080" stop-opacity="0.4"/>
+        </linearGradient>
+      </defs>
+      <circle class="loading-ring-track" cx="100" cy="100" r="82" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6"/>
+      <circle class="loading-ring-fill" id="loadingRingFill" cx="100" cy="100" r="82" fill="none" stroke="url(#ringGrad)" stroke-width="6" stroke-linecap="round" stroke-dasharray="515" stroke-dashoffset="515" transform="rotate(-90 100 100)"/>
+      <circle class="loading-ring-glow" cx="100" cy="100" r="82" fill="none" stroke="url(#ringGrad2)" stroke-width="14" stroke-linecap="round" stroke-dasharray="515" stroke-dashoffset="515" transform="rotate(-90 100 100)" style="filter:blur(6px)"/>
+    </svg>
+    <div class="loading-logo">AM</div>
+    <div class="loading-percent" id="loadingPercent">0%</div>
+  </div>
+  <div class="loading-title">AMICI ERP</div>
+  <div class="loading-sub">Empowering Operations</div>
+  <div class="loading-bar-track"><div class="loading-bar-fill" id="loadingBarFill"></div></div>
+  <div class="loading-orbits">
+    <div class="orbit-dot" style="--angle:0deg;--delay:0s"></div>
+    <div class="orbit-dot" style="--angle:120deg;--delay:0.4s"></div>
+    <div class="orbit-dot" style="--angle:240deg;--delay:0.8s"></div>
+  </div>
+</div>
+
+<div id="authOverlay" class="auth-overlay">
+  <div class="auth-card">
+    <div class="auth-logo">AM</div>
+    <h2>AMICI ERP</h2>
+    <p>Sign in to access your dashboard</p>
+    <div class="auth-form" id="authForm">
+      <input type="email" id="authEmail" placeholder="Email address" autocomplete="email" />
+      <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password" />
+      <button id="authLoginBtn" type="button"><span id="authBtnText">Sign In</span><span id="authBtnSpinner" style="display:none"><i class="fa-solid fa-spinner fa-spin"></i> Signing in...</span></button>
+      <div id="authError" class="auth-error"></div>
+    </div>
+  </div>
+</div>
+
+<header class="shell" id="shell">
+  <div class="shell-brand">
+    <button class="shell-btn" id="menuBtn" type="button" style="display:none; margin-right:4px;" aria-label="Open navigation menu">
+      <i class="fa-solid fa-bars"></i>
+    </button>
+    <div class="shell-logo">AM</div>
+    <span class="shell-name">AMICI</span>
+  </div>
+  <div class="shell-divider"></div>
+  <div class="shell-search-wrap">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <input class="shell-search" id="shellSearch" placeholder="Search..." type="text">
+  </div>
+  <div class="shell-right">
+    <button class="lang-btn" id="langBtn" type="button" aria-label="Toggle language">عر</button>
+    <button class="shell-btn ai-btn" id="aiBtn" type="button" title="AMICI AI Assistant" aria-label="Open AI assistant">✦</button>
+    <button class="shell-btn" id="notifBtn" type="button" title="Notifications" aria-label="Open notifications" style="position:relative;">
+      <i class="fa-regular fa-bell"></i>
+      <span class="notif-badge" id="notifBadge">3</span>
+    </button>
+    <button class="shell-btn" id="logoutBtn" type="button" title="Log Out" aria-label="Log out">
+      <i class="fa-solid fa-right-from-bracket"></i>
+    </button>
+    <button class="shell-avatar" id="userBtn" type="button" title="User profile" aria-label="Open user menu">KA</button>
+  </div>
+</header>
+
+<div class="ai-panel" id="aiPanel">
+  <div class="ai-panel-head">
+    <div style="width:32px;height:32px;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">✦</div>
+    <div style="flex:1;">
+      <div class="ai-panel-title">AMICI AI Assistant</div>
+      <div class="ai-panel-sub">Powered by Google Gemini · OpenRouter</div>
+    </div>
+    <button class="ai-close" id="aiCloseBtn" type="button" aria-label="Close AI assistant">×</button>
+  </div>
+  <div class="ai-key-bar" id="aiKeyBar">
+    <input class="ai-key-input" id="aiKeyInput" type="password" placeholder="Paste OpenRouter API key (sk-or-…)" autocomplete="off">
+    <button class="ai-key-btn" id="aiKeySaveBtn" type="button">Save</button>
+  </div>
+  <div class="ai-messages" id="aiMessages"></div>
+  <div class="ai-chips" id="aiChips"></div>
+  <div class="ai-input-bar">
+    <textarea class="ai-textarea" id="aiInput" placeholder="Ask anything about AMICI data…" rows="1"></textarea>
+    <button class="ai-send" id="aiSend" type="button" title="Send" aria-label="Send AI message">
+      <i class="fa-solid fa-paper-plane"></i>
+    </button>
+  </div>
+</div>
+
+<nav class="tab-bar" id="tabBar"></nav>
+
+<div class="app-body">
+  <aside class="mod-sidebar" id="modSidebar"></aside>
+  <main class="mod-content" id="modContent"></main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalBox"></div>
+</div>
+
+<div class="dropdown" id="dropdown"></div>
+
+</body>
+</html>

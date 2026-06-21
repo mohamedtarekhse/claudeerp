@@ -2507,17 +2507,17 @@ function renderContent(){
     else html=renderHRStub(state.section.replace(/([A-Z])/g,' $1').trim());
   }
   else if(state.module==='crm'){
-    if(state.section==='crmDashboard') html=renderCRMDashboard();
-    else if(state.section==='leads') html=renderCRMLeads();
-    else if(state.section==='deals') html=renderCRMDeals();
-    else if(state.section==='accounts') html=renderCRMAccounts();
-    else if(state.section==='tasks') html=renderCRMTasks();
+    if(state.section==='crmLeads') html=renderCRMLeads();
+    else if(state.section==='crmDeals') html=renderCRMDeals();
+    else if(state.section==='allAccounts') html=renderAllAccounts();
+    else if(state.section==='myTasks') html=renderCRMTasks();
     else if(state.section==='myFavorites') html=renderCRMDeals(d=>d.stage==='Negotiation'||d.stage==='Proposal');
     else if(state.section==='openContracts') html=renderCRMDeals(d=>d.stage==='Contract Sent');
     else if(state.section==='wonThisQuarter') html=renderCRMDeals(d=>d.stage==='Closed Won');
     else if(state.section==='fieldServiceLogs') html=renderCRMFieldServiceLogs();
+    else if(state.section==='partnersJVs') html=renderCRMPartners();
     else if(state.section==='crmSettings') html=renderCRMSettings();
-    else html=renderCRMDashboard();
+    else html=renderAllAccounts();
   }
   else if(state.module==='certificates'){
     if(state.section==='allCerts') html=renderCertificates();
@@ -3523,6 +3523,78 @@ async function submitNewTask() {
   closeModal(); showToast('Task added','success'); rerenderSection();
 }
 
+/* ── CRM FIELD SERVICE LOGS ── */
+function renderCRMFieldServiceLogs() {
+  const logs = DATA.fieldServiceLogs || [];
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Field Service Logs</h2>
+    <button class="btn btn-primary" onclick="openNewFSLModal()"><i class="fa-solid fa-plus"></i> New Log</button>
+  </div>`;
+  if(logs.length===0) {
+    html+=`<div class="empty-state" style="margin-top:40px"><i class="fa-solid fa-screwdriver-wrench"></i><p>No field service logs yet</p></div>`;
+  } else {
+    html+=`<table class="table"><thead><tr><th>ID</th><th>Date</th><th>Customer</th><th>Equipment</th><th>Technician</th><th>Status</th></tr></thead><tbody>`;
+    logs.forEach(l => {
+      html+=`<tr><td>${l.id}</td><td>${l.date}</td><td>${l.customer}</td><td>${l.equipment}</td><td>${l.technician}</td><td>${statusPill(l.status)}</td></tr>`;
+    });
+    html+=`</tbody></table>`;
+  }
+  html+=`</div>`;
+  return html;
+}
+
+function openNewFSLModal() {
+  const body = `<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="fsl-customer" placeholder="Customer" />
+    <input class="filter-input" id="fsl-equipment" placeholder="Equipment / Asset" />
+    <input class="filter-input" id="fsl-technician" placeholder="Technician" />
+    <input type="date" class="filter-input" id="fsl-date" />
+    <select class="filter-select" id="fsl-status">
+      <option value="Scheduled">Scheduled</option><option value="In Progress">In Progress</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option>
+    </select>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewFSL()">Save Log</button>`;
+  openModal('New Field Service Log', body, footer);
+}
+
+async function submitNewFSL() {
+  const customer = $('#fsl-customer').value.trim();
+  if(!customer) { showToast('Customer is required','error'); return; }
+  const log = {
+    id:'FSL-'+Date.now(),
+    date: $('#fsl-date').value || new Date().toISOString().split('T')[0],
+    customer,
+    equipment: $('#fsl-equipment').value.trim(),
+    technician: $('#fsl-technician').value.trim(),
+    status: $('#fsl-status').value
+  };
+  if(!DATA.fieldServiceLogs) DATA.fieldServiceLogs = [];
+  if(supabase) await supabase.from('crm_field_service_logs').insert(log).catch(()=>{});
+  DATA.fieldServiceLogs.push(log);
+  closeModal(); showToast('Log created','success'); rerenderSection();
+}
+
+/* ── CRM PARTNERS / JVs ── */
+function renderCRMPartners() {
+  const partners = DATA.partners || [];
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Partners & Joint Ventures</h2>
+    <button class="btn btn-primary"><i class="fa-solid fa-plus"></i> New Partner</button>
+  </div>`;
+  if(partners.length===0) {
+    html+=`<div class="empty-state" style="margin-top:40px"><i class="fa-solid fa-handshake"></i><p>No partners registered</p></div>`;
+  }
+  html+=`</div>`;
+  return html;
+}
+
+/* ── CRM SETTINGS ── */
+function renderCRMSettings() {
+  return `<div class="fade-in"><h2>CRM Settings</h2>
+    <div class="empty-state" style="margin-top:40px"><i class="fa-solid fa-gear"></i><p>CRM configuration coming soon</p></div>
+  </div>`;
+}
+
 /* ── HR ATTENDANCE ── */
 function renderHRAttendance() {
   const today = new Date().toISOString().split('T')[0];
@@ -4060,11 +4132,6 @@ window.submitNewAccount = submitNewAccount;
 window.selectCertItem = selectCertItem;
 window.openNewCertModal = openNewCertModal;
 window.submitNewCert = submitNewCert;
-window.selectPOItem = selectPOItem;
-window.approvePO = approvePO;
-window.selectSupplierItem = selectSupplierItem;
-window.openNewPOModal = openNewPOModal;
-window.submitNewPO = submitNewPO;
 window.toggleAIPanel = toggleAIPanel;
 window.saveAPIKey = saveAPIKey;
 window.clearAPIKey = clearAPIKey;

@@ -81,10 +81,33 @@ let DATA = {
     {id:'LD-001', name:'Acme Corp', email:'info@acme.com', phone:'+1 555-0198', status:'New', source:'Website'}
   ],
   deals: [
-    {id:'DL-001', title:'Acme SaaS Deal', lead_id:'LD-001', account_id:null, value:15000, stage:'Prospecting', expected_close_date:'2026-08-01', invoice_id:null}
+    {id:'DL-001', title:'Acme SaaS Deal', lead_id:'LD-001', account_id:null, value:15000, stage:'Prospecting', expected_close_date:'2026-08-01', invoice_id:null, sales_person:'Ahmed Al-Riyami', territory:'Oman North', lost_reason:'', notes:'Initial SaaS opportunity'},
+    {id:'DL-002', title:'Block 15 Drilling Consumables', lead_id:null, account_id:'ACC-001', value:98000, stage:'Negotiation', expected_close_date:'2026-07-15', invoice_id:null, sales_person:'Noor Al-Balushi', territory:'Oman South', lost_reason:'', notes:'Competitive bid, pricing discussion ongoing'},
+    {id:'DL-003', title:'H2S Safety Training – PDO', lead_id:null, account_id:'ACC-003', value:42000, stage:'Proposal', expected_close_date:'2026-08-20', invoice_id:null, sales_person:'Ahmed Al-Riyami', territory:'Oman South', lost_reason:'', notes:'Technical proposal submitted'},
+    {id:'DL-004', title:'Corrosion Monitoring – Shell', lead_id:null, account_id:'ACC-005', value:65000, stage:'Qualification', expected_close_date:'2026-09-01', invoice_id:null, sales_person:'Noor Al-Balushi', territory:'Oman North', lost_reason:'', notes:'Initial meetings completed'},
+    {id:'DL-005', title:'Flow Assurance Study – Total', lead_id:null, account_id:'ACC-002', value:35000, stage:'Closed Lost', expected_close_date:'2026-06-01', invoice_id:null, sales_person:'Ahmed Al-Riyami', territory:'Oman South', lost_reason:'Budget constraints – client postponed indefinitely', notes:'Lost to budget freeze'},
   ],
   tasks: [
     {id:'TSK-001', description:'Follow up with Acme', due_date:'2026-06-25', status:'pending', assigned_to:'EMP-001', related_lead_id:'LD-001', related_deal_id:null}
+  ],
+  contacts: [
+    {id:'CON-001',account_id:'ACC-001',salutation:'Mr',first_name:'Sultan',last_name:'Al-Habsi',email:'sultan@oq.om',phone:'+968 91234567',mobile:'+968 99887766',designation:'Procurement Director',department:'Supply Chain',is_primary:true,nationality:'Omani',notes:''},
+    {id:'CON-002',account_id:'ACC-001',salutation:'Ms',first_name:'Laila',last_name:'Al-Zadjali',email:'laila@oq.om',phone:'+968 92345678',mobile:'',designation:'Contracts Manager',department:'Legal',is_primary:false,nationality:'Omani',notes:''},
+    {id:'CON-003',account_id:'ACC-003',salutation:'Mr',first_name:'Tariq',last_name:'Al-Balushi',email:'tariq@pdo.co.om',phone:'+968 93456789',mobile:'+968 91122334',designation:'Field Operations Manager',department:'Operations',is_primary:true,nationality:'Omani',notes:''},
+    {id:'CON-004',account_id:'ACC-005',salutation:'Dr',first_name:'Fatima',last_name:'Al-Said',email:'fatima@shell.om',phone:'+968 94567890',mobile:'',designation:'HSE Director',department:'HSE',is_primary:true,nationality:'Omani',notes:''},
+  ],
+  quotations: [
+    {id:'QTN-001',deal_id:'DL-001',account_id:'ACC-001',account_name:'OQ (Oman Oil & Gas)',lead_id:null,date:'2025-06-10',valid_till:'2025-07-10',items:[{item:'Drilling Consumables Package',description:'PDC bits + mud pump parts',qty:1,rate:45000,amount:45000},{item:'On-site Technical Support',description:'2 engineers × 30 days',qty:60,rate:850,amount:51000}],tax_rate:5,tax_amount:4800,discount_percent:0,discount_amount:0,grand_total:100800,status:'Sent',notes:'Competitive pricing for Block 15'},
+    {id:'QTN-002',deal_id:null,account_id:'ACC-003',account_name:'PDO (Petroleum Development Oman)',lead_id:null,date:'2025-06-12',valid_till:'2025-07-12',items:[{item:'H2S Safety Training Program',description:'10-day certification course',qty:1,rate:28000,amount:28000},{item:'PPE Starter Kits',description:'Full PPE sets for 25 personnel',qty:25,rate:650,amount:16250}],tax_rate:5,tax_amount:2212.5,discount_percent:10,discount_amount:4425,grand_total:42037.5,status:'Draft',notes:'Awaiting budget approval'},
+  ],
+  prospects: [
+    {id:'PRO-001',company_name:'TotalEnergies Oman',industry:'Oil & Gas',website:'totalenergies.om',phone:'+968 95678901',email:'info@total.om',territory:'Oman South',prospect_owner:'Ahmed Al-Riyami',status:'Qualified',notes:'Potential Block 12 operator',created_date:'2025-05-20'},
+    {id:'PRO-002',company_name:'Oman LNG',industry:'LNG / Gas',website:'omanlng.om',phone:'+968 96789012',email:'contact@omanlng.om',territory:'Oman North',prospect_owner:'Noor Al-Balushi',status:'New',notes:'New facility planned for 2027',created_date:'2025-06-01'},
+  ],
+  communications: [
+    {id:'COM-001',reference_type:'Account',reference_id:'ACC-001',type:'Meeting',subject:'Q3 Contract Review',content:'Discussed pricing for Block 15 drilling consumables. Client requested volume discount.',date:'2025-06-14',sender:'Ahmed Al-Riyami',recipients:'Sultan Al-Habsi, Laila Al-Zadjali'},
+    {id:'COM-002',reference_type:'Deal',reference_id:'DL-001',type:'Email',subject:'Proposal Follow-up',content:'Sent revised pricing for Acme SaaS package. Awaiting feedback.',date:'2025-06-13',sender:'Noor Al-Balushi',recipients:'info@acme.com'},
+    {id:'COM-003',reference_type:'Lead',reference_id:'LD-001',type:'Call',subject:'Initial Outreach',content:'Called Acme Corp to introduce AMICI services. Interested in safety training.',date:'2025-06-10',sender:'Ahmed Al-Riyami',recipients:'John (Acme Corp)'},
   ],
   attendance: [
     {id:'ATT-001', employee_id:'EMP-001', date:new Date().toISOString().split('T')[0], status:'Present', check_in_time:'08:00', check_out_time:null}
@@ -291,7 +314,9 @@ let DATA = {
     {icon:'fa-triangle-exclamation',color:'var(--warning)',text:'3 equipment certificates expiring within 30 days',time:'2 hours ago'},
     {icon:'fa-user-clock',color:'var(--blue)',text:'Leave request pending: Omar Al-Kindi (28 days)',time:'5 hours ago'},
     {icon:'fa-circle-xmark',color:'var(--error)',text:'Certificate CERT-007 (H2S Detector) — EXPIRED',time:'1 day ago'},
-  ]
+  ],
+  fieldServiceLogs: [],
+  partners: [],
 };
 
 /* ═══════════════════════════════════════════════
@@ -821,7 +846,7 @@ function renderHRStub(label){
    DATA — CRM MODULE
 ═══════════════════════════════════════════════ */
 DATA.accounts = [
-  {id:'ACC-001',name:'OQ (Oman Oil & Gas)',type:'Operator',country:'Oman',region:'Middle East',owner:'Khalid Al-Rashidi',status:'active',contractValue:4200000,rating:'Hot',blockRef:'Block 15',openOpps:2,
+  {id:'ACC-001',name:'OQ (Oman Oil & Gas)',type:'Operator',country:'Oman',territory:'Oman South',region:'Middle East',owner:'Khalid Al-Rashidi',status:'active',contractValue:4200000,rating:'Hot',blockRef:'Block 15',openOpps:2,
     contacts:[{name:'Saif Al-Habsi',role:'VP Upstream',email:'s.alhabsi@oq.com'},{name:'Muna Al-Lawati',role:'Contracts Manager',email:'m.allawati@oq.com'}],
     opps:[{id:'OPP-001',title:'Integrated Well Services – Phase 3',value:2100000,stage:'Negotiation',closeDate:'2025-09-30',prob:75},{id:'OPP-002',title:'Production Optimisation Study',value:480000,stage:'Technical Bid',closeDate:'2025-11-15',prob:45}],
     activities:[{type:'Meeting',date:'2025-06-02',desc:'Quarterly review at OQ HQ – discussed Phase 3 scope'},{type:'Call',date:'2025-05-20',desc:'Follow-up on contract terms with Saif Al-Habsi'},{type:'Site Visit',date:'2025-04-10',desc:'Joint inspection at Block 15 Rig Alpha'}],
@@ -836,7 +861,7 @@ DATA.accounts = [
     opps:[{id:'OPP-006',title:'Process Safety Audit – Gas Train A',value:280000,stage:'Qualification',closeDate:'2026-01-15',prob:30}],
     activities:[{type:'Meeting',date:'2025-05-15',desc:'JV steering committee – FEED review for Block 61'},{type:'Email',date:'2025-04-20',desc:'Sent NDA for shared subsurface data access'}],
   },
-  {id:'ACC-004',name:'PDO – Petroleum Development Oman',type:'Operator',country:'Oman',region:'Middle East',owner:'Khalid Al-Rashidi',status:'active',contractValue:11500000,rating:'Hot',blockRef:'South Oman',openOpps:4,
+  {id:'ACC-004',name:'PDO – Petroleum Development Oman',type:'Operator',country:'Oman',territory:'Oman South',region:'Middle East',owner:'Khalid Al-Rashidi',status:'active',contractValue:11500000,rating:'Hot',blockRef:'South Oman',openOpps:4,
     contacts:[{name:'Hamood Al-Toubi',role:'Head of Drilling',email:'h.altoubi@pdo.co.om'},{name:'Noor Al-Kalbani',role:'Contracts Specialist',email:'n.alkalbani@pdo.co.om'}],
     opps:[{id:'OPP-007',title:'Enhanced Oil Recovery – Pilot Phase',value:4800000,stage:'Commercial Bid',closeDate:'2025-10-30',prob:65},{id:'OPP-008',title:'Corrosion Management Services',value:1100000,stage:'Award',closeDate:'2025-07-15',prob:92},{id:'OPP-009',title:'Produced Water Treatment Study',value:550000,stage:'Negotiation',closeDate:'2025-09-01',prob:80},{id:'OPP-010',title:'Rig Inspection & Certification',value:220000,stage:'Technical Bid',closeDate:'2025-11-30',prob:35}],
     activities:[{type:'Site Visit',date:'2025-06-01',desc:'Visited Marmul field – EOR pilot site walk-through'},{type:'Proposal',date:'2025-05-25',desc:'Submitted commercial bid for EOR pilot'},{type:'Meeting',date:'2025-05-05',desc:'Annual account review at PDO HQ Muscat'}],
@@ -978,19 +1003,27 @@ Object.assign(i18n.ar,{
    CRM SIDEBAR
 ═══════════════════════════════════════════════ */
 function renderCRMSidebar(){
-  const openContracts = DATA.accounts.filter(a=>a.status==='active'&&a.contractValue>0).length;
-  const overdueCount = 2;
+  const overdueCount = DATA.tasks.filter(t=>t.status!=='completed'&&t.due_date&&t.due_date<new Date().toISOString().split('T')[0]).length;
   const sections=[
     {group:null,items:[
       {id:'crmLeads',icon:'fa-users-viewfinder',label:'Leads'},
       {id:'crmDeals',icon:'fa-kanban',label:'Deals Pipeline'},
       {id:'allAccounts',icon:'fa-building',label:t('allAccounts')},
+      {id:'crmContacts',icon:'fa-address-card',label:'Contacts'},
+      {id:'crmQuotations',icon:'fa-file-invoice',label:'Quotations'},
       {id:'myFavorites',icon:'fa-star',label:t('myFavorites')},
-      {id:'openContracts',icon:'fa-file-signature',label:t('openContracts'),badge:openContracts,badgeCls:'blue'},
       {id:'wonThisQuarter',icon:'fa-trophy',label:t('wonThisQuarter')},
     ]},
+    {group:'Pipeline',items:[
+      {id:'crmProspects',icon:'fa-binoculars',label:'Prospects'},
+      {id:'crmCommunications',icon:'fa-comments',label:'Communications'},
+    ]},
+    {group:'Analytics',items:[
+      {id:'crmWinLoss',icon:'fa-chart-simple',label:'Win/Loss Analysis'},
+      {id:'crmTerritory',icon:'fa-map-location-dot',label:'Territory View'},
+    ]},
     {group:'Activities',items:[
-      {id:'myTasks',icon:'fa-list-check',label:t('myTasks'),badge:overdueCount},
+      {id:'myTasks',icon:'fa-list-check',label:t('myTasks'),badge:overdueCount,badgeCls:'red'},
       {id:'fieldServiceLogs',icon:'fa-screwdriver-wrench',label:t('fieldServiceLogs')},
       {id:'partnersJVs',icon:'fa-handshake',label:t('partnersJVs')},
     ]},
@@ -1033,9 +1066,10 @@ function renderCRMKPIs(){
 /* ═══════════════════════════════════════════════
    CRM — ALL ACCOUNTS (Master-Detail)
 ═══════════════════════════════════════════════ */
-function renderAllAccounts(){
+function renderAllAccounts(filterFn){
   const f=state.filters;
   let items=[...DATA.accounts];
+  if(filterFn) items=items.filter(filterFn);
   if(f.search){const s=f.search.toLowerCase();items=items.filter(a=>a.name.toLowerCase().includes(s)||a.country.toLowerCase().includes(s)||a.owner.toLowerCase().includes(s)||a.id.toLowerCase().includes(s));}
   if(f.type&&f.type!=='all') items=items.filter(a=>a.type===f.type);
   if(f.rating&&f.rating!=='all') items=items.filter(a=>a.rating===f.rating);
@@ -3507,6 +3541,10 @@ async function loadData() {
       supabase.from('crm_leads').select('*').then(r => { if (r.data && r.data.length > 0) DATA.leads = r.data.map(l => ({ id: l.id, name: l.name, email: l.email, phone: l.phone, status: l.status, source: l.source })); }),
       supabase.from('crm_deals').select('*').then(r => { if (r.data && r.data.length > 0) DATA.deals = r.data.map(d => ({ id: d.id, title: d.title, lead_id: d.lead_id, account_id: d.account_id, value: d.value, stage: d.stage, expected_close_date: d.expected_close_date, invoice_id: d.invoice_id || null })); }),
       supabase.from('crm_tasks').select('*').then(r => { if (r.data && r.data.length > 0) DATA.tasks = r.data.map(t => ({ id: t.id, description: t.description, due_date: t.due_date, status: t.status, assigned_to: t.assigned_to, related_lead_id: t.related_lead_id, related_deal_id: t.related_deal_id })); }),
+      supabase.from('crm_contacts').select('*').then(r => { if (r.data && r.data.length > 0) DATA.contacts = r.data.map(c => ({ id: c.id, account_id: c.account_id, salutation: c.salutation, first_name: c.first_name, last_name: c.last_name, email: c.email, phone: c.phone, mobile: c.mobile, designation: c.designation, department: c.department, is_primary: c.is_primary || false, nationality: c.nationality, notes: c.notes || '' })); }),
+      supabase.from('crm_quotations').select('*').then(r => { if (r.data && r.data.length > 0) DATA.quotations = r.data.map(q => ({ id: q.id, deal_id: q.deal_id, account_id: q.account_id, account_name: q.account_name, lead_id: q.lead_id, date: q.date, valid_till: q.valid_till, items: q.items || [], tax_rate: q.tax_rate || 0, tax_amount: q.tax_amount || 0, discount_percent: q.discount_percent || 0, discount_amount: q.discount_amount || 0, grand_total: q.grand_total || 0, status: q.status || 'Draft', notes: q.notes || '' })); }),
+      supabase.from('crm_prospects').select('*').then(r => { if (r.data && r.data.length > 0) DATA.prospects = r.data.map(p => ({ id: p.id, company_name: p.company_name, industry: p.industry, website: p.website, phone: p.phone, email: p.email, territory: p.territory, prospect_owner: p.prospect_owner, status: p.status || 'New', notes: p.notes || '', created_date: p.created_date })); }),
+      supabase.from('crm_communications').select('*').then(r => { if (r.data && r.data.length > 0) DATA.communications = r.data.map(m => ({ id: m.id, reference_type: m.reference_type, reference_id: m.reference_id, type: m.type, subject: m.subject, content: m.content, date: m.date, sender: m.sender, recipients: m.recipients })); }),
       supabase.from('hr_open_positions').select('*').then(r => { if (r.data && r.data.length > 0) DATA.openPositions = r.data.map(p => ({ id: p.id, title: p.title, department: p.department, status: p.status, posted_date: p.posted_date })); }),
       supabase.from('hr_performance_reviews').select('*').then(r => { if (r.data && r.data.length > 0) DATA.performanceReviews = r.data.map(rv => ({ id: rv.id, employee_name: rv.employee_name, period: rv.period, rating: rv.rating, comments: rv.comments, status: rv.status })); }),
       supabase.from('hr_hse_training').select('*').then(r => { if (r.data && r.data.length > 0) DATA.hseTraining = r.data.map(t => ({ id: t.id, employee_name: t.employee_name, course: t.course, date: t.date, status: t.status })); }),
@@ -3660,26 +3698,6 @@ document.addEventListener('click', (e) => {
 });
 
 /* ── CRM LEADS ── */
-function renderCRMLeads() {
-  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
-    <h2>Leads</h2>
-    <button class="btn btn-primary" onclick="openNewLeadModal()">+ New Lead</button>
-  </div>
-  <table class="table">
-    <thead><tr><th>Lead Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Source</th></tr></thead>
-    <tbody>`;
-  DATA.leads.forEach(l => {
-    html+=`<tr style="cursor:pointer" onclick="alert('Lead details coming soon!')">
-      <td><strong>${l.name}</strong></td><td>${l.email||'-'}</td><td>${l.phone||'-'}</td>
-      <td><span class="status-pill status-${l.status.toLowerCase().replace(' ','-')}">${l.status}</span></td>
-      <td>${l.source||'-'}</td>
-    </tr>`;
-  });
-  if(DATA.leads.length===0) html+=`<tr><td colspan="5" style="text-align:center">No leads found.</td></tr>`;
-  html+=`</tbody></table></div>`;
-  return html;
-}
-
 function openNewLeadModal() {
   const body=`<div style="display:flex;flex-direction:column;gap:12px">
     <input class="filter-input" id="nl-name" placeholder="Lead Name" />
@@ -3707,39 +3725,6 @@ async function submitNewLead() {
 }
 
 /* ── CRM DEALS KANBAN ── */
-function renderCRMDeals(filterFn=null) {
-  const stages = ['Prospecting', 'Qualification', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost'];
-  let deals = DATA.deals;
-  if(filterFn) deals = deals.filter(filterFn);
-  let html=`<div class="fade-in" style="display:flex;flex-direction:column;height:100%">
-    <div class="filter-bar" style="justify-content:space-between">
-      <h2>Deals Pipeline</h2>
-      <button class="btn btn-primary" onclick="openNewDealModal()">+ New Deal</button>
-    </div>
-    <div style="display:flex;gap:16px;overflow-x:auto;flex:1;padding-bottom:16px;">`;
-  
-  stages.forEach(st => {
-    const stageDeals = deals.filter(d => d.stage === st);
-    const totalVal = stageDeals.reduce((sum,d)=>sum+parseFloat(d.value||0),0);
-    html+=`<div class="kanban-col" ondragover="event.preventDefault()" ondrop="dropDeal(event, '${st}')" style="flex:0 0 300px;background:#f8fafc;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <h3 style="font-size:14px;color:var(--text);">${st} <span style="color:var(--text-sec);font-weight:normal">(${stageDeals.length})</span></h3>
-        <span style="font-size:13px;font-weight:600;color:var(--success)">$${totalVal.toLocaleString()}</span>
-      </div>`;
-    stageDeals.forEach(d => {
-      html+=`<div class="kanban-card" draggable="true" ondragstart="dragStartDeal(event, '${d.id}')" style="background:#fff;padding:12px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);cursor:grab;border-left:4px solid var(--blue);">
-        <div style="font-weight:600;font-size:14px;margin-bottom:6px">${d.title}</div>
-        <div style="font-size:13px;color:var(--text-sec);margin-bottom:8px">$${parseFloat(d.value).toLocaleString()}</div>
-        <div style="font-size:11px;color:#888;">Close: ${d.expected_close_date||'N/A'}</div>
-      </div>`;
-    });
-    html+=`</div>`;
-  });
-
-  html+=`</div></div>`;
-  return html;
-}
-
 window.dragStartDeal = function(e, id) { e.dataTransfer.setData('text/plain', id); }
 window.dropDeal = async function(e, stage) {
   const id = e.dataTransfer.getData('text/plain');
@@ -3771,21 +3756,37 @@ window.dropDeal = async function(e, stage) {
 }
 
 function openNewDealModal() {
-  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+  const salesPeople = [...new Set(DATA.deals.map(d => d.sales_person).filter(Boolean))];
+  const territories = [...new Set(DATA.deals.map(d => d.territory).filter(Boolean))];
+  const acctOpts = DATA.accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  const spOpts = salesPeople.map(sp => `<option value="${sp}">${sp}</option>`).join('');
+  const terrOpts = territories.map(t => `<option value="${t}">${t}</option>`).join('');
+  const body=`<div style="display:flex;flex-direction:column;gap:10px">
     <input class="filter-input" id="nd-title" placeholder="Deal Title" />
-    <input type="number" class="filter-input" id="nd-value" placeholder="Value ($)" />
-    <select class="filter-select" id="nd-stage">
-      <option value="Prospecting">Prospecting</option><option value="Qualification">Qualification</option><option value="Proposal">Proposal</option>
-    </select>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Value ($)</label><input type="number" class="form-input" id="nd-value" value="0" /></div>
+      <div class="form-group"><label class="form-label">Stage</label>
+        <select class="form-input" id="nd-stage"><option value="Prospecting">Prospecting</option><option value="Qualification">Qualification</option><option value="Proposal">Proposal</option><option value="Negotiation">Negotiation</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Account</label><select class="form-input" id="nd-acct"><option value="">— None —</option>${acctOpts}</select></div>
+      <div class="form-group"><label class="form-label">Expected Close</label><input type="date" class="form-input" id="nd-close" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Sales Person</label><select class="form-input" id="nd-sp"><option value="">—</option>${spOpts}</select></div>
+      <div class="form-group"><label class="form-label">Territory</label><select class="form-input" id="nd-terr"><option value="">—</option>${terrOpts}</select></div>
+    </div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="nd-notes" rows="2" placeholder="Deal description, context..."></textarea></div>
   </div>`;
-  const footer=`<button class="btn btn-primary" onclick="submitNewDeal()">Save Deal</button>`;
+  const footer=`<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitNewDeal()">Save Deal</button>`;
   openModal('New Deal', body, footer);
 }
 
 async function submitNewDeal() {
   const title=$('#nd-title').value.trim();
   if(!title){showToast('Title required','error');return;}
-  const newDeal = { id:'DL-'+Date.now(), title, value:parseFloat($('#nd-value').value)||0, stage:$('#nd-stage').value, expected_close_date:new Date().toISOString().split('T')[0] };
+  const newDeal = { id:'DL-'+Date.now(), title, value:parseFloat($('#nd-value').value)||0, stage:$('#nd-stage').value, expected_close_date:$('#nd-close').value||new Date().toISOString().split('T')[0], account_id:$('#nd-acct').value||null, lead_id:null, invoice_id:null, sales_person:$('#nd-sp').value||'', territory:$('#nd-terr').value||'', lost_reason:'', notes:$('#nd-notes').value.trim() };
   
   if (supabase) {
     const { error } = await supabase.from('crm_deals').insert(newDeal);
@@ -3921,6 +3922,987 @@ function renderCRMSettings() {
   return `<div class="fade-in"><h2>CRM Settings</h2>
     <div class="empty-state" style="margin-top:40px"><i class="fa-solid fa-gear"></i><p>CRM configuration coming soon</p></div>
   </div>`;
+}
+
+/* ── CRM CONTACTS ── */
+function renderCRMContacts() {
+  const f = state.filters;
+  let items = [...DATA.contacts];
+  if (f.search) { const s = f.search.toLowerCase(); items = items.filter(c => c.first_name.toLowerCase().includes(s) || c.last_name.toLowerCase().includes(s) || c.email.toLowerCase().includes(s) || (c.account_id && (DATA.accounts.find(a => a.id === c.account_id)?.name || '').toLowerCase().includes(s))); }
+  if (f.account_id && f.account_id !== 'all') items = items.filter(c => c.account_id === f.account_id);
+
+  const acctOpts = [...new Set(DATA.contacts.map(c => c.account_id))].map(id => { const a = DATA.accounts.find(x => x.id === id); return { id, name: a ? a.name : id }; }).filter(Boolean);
+
+  let html = `<div class="fade-in">`;
+  html += `<div class="filter-bar" style="justify-content:space-between;flex-wrap:wrap;">
+    <h2>Contacts <span style="font-weight:400;font-size:14px;color:var(--text-sec)">(${DATA.contacts.length})</span></h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input class="filter-input" placeholder="Search..." value="${f.search || ''}" oninput="state.filters.search=this.value;rerenderSection()" style="min-width:140px;">
+      <select class="filter-select" onchange="state.filters.account_id=this.value;rerenderSection()">
+        <option value="all">All Accounts</option>${acctOpts.map(o => `<option value="${o.id}" ${f.account_id === o.id ? 'selected' : ''}>${o.name}</option>`).join('')}
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openNewContactModal()"><i class="fa-solid fa-plus"></i> New Contact</button>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-top:16px;">`;
+  if (!items.length) html += `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-sec)">No contacts found</div>`;
+  items.forEach(c => {
+    const acct = DATA.accounts.find(a => a.id === c.account_id);
+    const fullName = [c.salutation, c.first_name, c.last_name].filter(Boolean).join(' ');
+    html += `<div class="sec-card" style="cursor:default;position:relative;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="avatar" style="width:42px;height:42px;font-size:14px;background:${c.is_primary ? 'var(--blue)' : 'var(--text-sec)'}">${initials(c.first_name + ' ' + c.last_name)}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:14px;">${fullName} ${c.is_primary ? '<span style="font-size:10px;background:var(--blue);color:#fff;padding:1px 6px;border-radius:3px;margin-left:4px;">PRIMARY</span>' : ''}</div>
+          <div style="font-size:12px;color:var(--text-sec);">${c.designation || '—'}</div>
+          ${acct ? `<div style="font-size:11px;color:var(--blue);margin-top:2px;"><i class="fa-solid fa-building"></i> ${acct.name}</div>` : ''}
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--text-sec);margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+        ${c.email ? `<span><i class="fa-solid fa-envelope" style="width:16px;"></i> ${c.email}</span>` : ''}
+        ${c.phone ? `<span><i class="fa-solid fa-phone" style="width:16px;"></i> ${c.phone}</span>` : ''}
+        ${c.mobile ? `<span><i class="fa-solid fa-mobile" style="width:16px;"></i> ${c.mobile}</span>` : ''}
+        ${c.department ? `<span><i class="fa-solid fa-sitemap" style="width:16px;"></i> ${c.department}</span>` : ''}
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
+        <button class="btn btn-ghost btn-sm" onclick="editContact('${c.id}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="deleteContact('${c.id}')"><i class="fa-solid fa-trash-can"></i></button>
+      </div>
+    </div>`;
+  });
+  html += `</div></div>`;
+  return html;
+}
+
+function openNewContactModal(editId) {
+  const c = editId ? DATA.contacts.find(x => x.id === editId) : null;
+  const acctOpts = DATA.accounts.map(a => `<option value="${a.id}" ${c && c.account_id === a.id ? 'selected' : ''}>${a.name}</option>`).join('');
+  const body = `
+    <input type="hidden" id="con-edit-id" value="${editId || ''}">
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Salutation</label>
+        <select class="form-input" id="con-sal"><option value="">—</option><option value="Mr" ${c && c.salutation === 'Mr' ? 'selected' : ''}>Mr</option><option value="Ms" ${c && c.salutation === 'Ms' ? 'selected' : ''}>Ms</option><option value="Mrs" ${c && c.salutation === 'Mrs' ? 'selected' : ''}>Mrs</option><option value="Dr" ${c && c.salutation === 'Dr' ? 'selected' : ''}>Dr</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">First Name *</label><input class="form-input" id="con-first" value="${c ? c.first_name : ''}" placeholder="First name"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Last Name *</label><input class="form-input" id="con-last" value="${c ? c.last_name : ''}" placeholder="Last name"></div>
+      <div class="form-group"><label class="form-label">Account</label>
+        <select class="form-input" id="con-acct"><option value="">— None —</option>${acctOpts}</select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="con-email" value="${c ? c.email : ''}" placeholder="email@domain.com"></div>
+      <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="con-phone" value="${c ? c.phone : ''}" placeholder="+968 ..."></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Mobile</label><input class="form-input" id="con-mobile" value="${c ? c.mobile : ''}"></div>
+      <div class="form-group"><label class="form-label">Designation</label><input class="form-input" id="con-desig" value="${c ? c.designation : ''}" placeholder="Job title"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Department</label><input class="form-input" id="con-dept" value="${c ? c.department : ''}"></div>
+      <div class="form-group"><label class="form-label">Nationality</label><input class="form-input" id="con-nat" value="${c ? c.nationality : ''}"></div>
+    </div>
+    <div class="form-group"><label class="form-checkbox"><input type="checkbox" id="con-primary" ${c && c.is_primary ? 'checked' : ''}> Primary contact for this account</label></div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="con-notes" rows="2">${c ? c.notes || '' : ''}</textarea></div>`;
+  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitContact()">${c ? 'Update' : 'Save'} Contact</button>`;
+  openModal(editId ? 'Edit Contact' : 'New Contact', body, footer);
+}
+window.editContact = (id) => openNewContactModal(id);
+
+async function submitContact() {
+  const editId = $('#con-edit-id').value;
+  const first = $('#con-first').value.trim();
+  const last = $('#con-last').value.trim();
+  if (!first || !last) { showToast('First and last name are required', 'error'); return; }
+  const obj = {
+    account_id: $('#con-acct').value || null,
+    salutation: $('#con-sal').value,
+    first_name: first,
+    last_name: last,
+    email: $('#con-email').value.trim(),
+    phone: $('#con-phone').value.trim(),
+    mobile: $('#con-mobile').value.trim(),
+    designation: $('#con-desig').value.trim(),
+    department: $('#con-dept').value.trim(),
+    is_primary: $('#con-primary').checked,
+    nationality: $('#con-nat').value.trim(),
+    notes: $('#con-notes').value.trim(),
+  };
+  if (editId) {
+    Object.assign(DATA.contacts.find(x => x.id === editId), obj);
+    if (supabase) await supabase.from('crm_contacts').update(obj).eq('id', editId).catch(() => {});
+    showToast('Contact updated', 'success');
+  } else {
+    obj.id = 'CON-' + Date.now();
+    DATA.contacts.push(obj);
+    if (supabase) await supabase.from('crm_contacts').insert(obj).catch(() => {});
+    showToast('Contact saved', 'success');
+  }
+  closeModal();
+  rerenderSection();
+}
+
+async function deleteContact(id) {
+  if (!confirm('Delete this contact?')) return;
+  DATA.contacts = DATA.contacts.filter(c => c.id !== id);
+  if (supabase) await supabase.from('crm_contacts').delete().eq('id', id).catch(() => {});
+  showToast('Contact deleted', 'success');
+  rerenderSection();
+}
+
+/* ── CRM QUOTATIONS ── */
+function renderCRMQuotations() {
+  const f = state.filters;
+  let items = [...DATA.quotations];
+  if (f.search) { const s = f.search.toLowerCase(); items = items.filter(q => q.id.toLowerCase().includes(s) || (q.account_name || '').toLowerCase().includes(s) || q.items.some(i => i.item.toLowerCase().includes(s))); }
+  if (f.status && f.status !== 'all') items = items.filter(q => q.status === f.status);
+
+  let html = `<div class="fade-in">`;
+  html += `<div class="filter-bar" style="justify-content:space-between;flex-wrap:wrap;">
+    <h2>Quotations <span style="font-weight:400;font-size:14px;color:var(--text-sec)">(${DATA.quotations.length})</span></h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input class="filter-input" placeholder="Search..." value="${f.search || ''}" oninput="state.filters.search=this.value;rerenderSection()" style="min-width:140px;">
+      <select class="filter-select" onchange="state.filters.status=this.value;rerenderSection()">
+        <option value="all">All Status</option><option value="Draft" ${f.status === 'Draft' ? 'selected' : ''}>Draft</option><option value="Sent" ${f.status === 'Sent' ? 'selected' : ''}>Sent</option><option value="Accepted" ${f.status === 'Accepted' ? 'selected' : ''}>Accepted</option><option value="Lost" ${f.status === 'Lost' ? 'selected' : ''}>Lost</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openNewQuotationModal()"><i class="fa-solid fa-plus"></i> New Quotation</button>
+    </div>
+  </div>
+  <div style="overflow-x:auto;margin-top:16px;"><table class="data-table">
+    <thead><tr>
+      <th onclick="sortBy('id')" class="${sortedCls('id')}">ID ${sortIcon('id')}</th>
+      <th>Account</th>
+      <th>Date</th>
+      <th>Valid Till</th>
+      <th>Items</th>
+      <th onclick="sortBy('grand_total')" class="${sortedCls('grand_total')}">Total ${sortIcon('grand_total')}</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr></thead><tbody>`;
+  if (!items.length) html += `<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-sec)">No quotations found</td></tr>`;
+  items.forEach(q => {
+    const statusColors = { Draft: 'var(--text-sec)', Sent: 'var(--blue)', Accepted: 'var(--success)', Lost: 'var(--error)' };
+    html += `<tr>
+      <td style="font-weight:600">${q.id}</td>
+      <td>${q.account_name || q.account_id || '—'}</td>
+      <td style="font-size:12px;color:var(--text-sec)">${fmtDate(q.date)}</td>
+      <td style="font-size:12px;color:${q.valid_till && new Date(q.valid_till) < new Date() ? 'var(--error)' : 'var(--text-sec)'}">${fmtDate(q.valid_till)}</td>
+      <td style="font-size:12px;">${q.items.length} item${q.items.length !== 1 ? 's' : ''}</td>
+      <td style="font-weight:600">${fmt(q.grand_total)}</td>
+      <td><span style="color:${statusColors[q.status] || 'var(--text-sec)'};font-weight:600">${q.status}</span></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="viewQuotation('${q.id}')"><i class="fa-solid fa-eye"></i></button>
+        ${q.status === 'Draft' ? `<button class="btn btn-ghost btn-sm" onclick="sendQuotation('${q.id}')" title="Mark as Sent"><i class="fa-solid fa-paper-plane"></i></button>` : ''}
+        ${q.status === 'Accepted' ? `<button class="btn btn-ghost btn-sm" style="color:var(--success)" onclick="convertQuotationToInvoice('${q.id}')" title="Convert to Invoice"><i class="fa-solid fa-file-invoice-dollar"></i></button>` : ''}
+        <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="deleteQuotation('${q.id}')"><i class="fa-solid fa-trash-can"></i></button>
+      </td>
+    </tr>`;
+  });
+  html += `</tbody></table></div></div>`;
+  return html;
+}
+
+function openNewQuotationModal(editId, prefillDealId, prefillAcctId) {
+  const q = editId ? DATA.quotations.find(x => x.id === editId) : null;
+  const acctOpts = DATA.accounts.map(a => `<option value="${a.id}" ${(q && q.account_id === a.id) || (!q && a.id === prefillAcctId) ? 'selected' : ''}>${a.name}</option>`).join('');
+  const dealOpts = DATA.deals.map(d => `<option value="${d.id}" ${(q && q.deal_id === d.id) || d.id === prefillDealId ? 'selected' : ''}>${d.title} (${fmt(d.value)})</option>`).join('');
+  const body = `
+    <input type="hidden" id="qtn-edit-id" value="${editId || ''}">
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Account *</label><select class="form-input" id="qtn-acct"><option value="">— Select Account —</option>${acctOpts}</select></div>
+      <div class="form-group"><label class="form-label">Deal (optional)</label><select class="form-input" id="qtn-deal"><option value="">— None —</option>${dealOpts}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Date</label><input class="form-input" id="qtn-date" type="date" value="${q ? q.date : new Date().toISOString().split('T')[0]}"></div>
+      <div class="form-group"><label class="form-label">Valid Till</label><input class="form-input" id="qtn-valid" type="date" value="${q ? q.valid_till : ''}"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Status</label>
+      <select class="form-input" id="qtn-status"><option value="Draft" ${q && q.status === 'Draft' ? 'selected' : ''}>Draft</option><option value="Sent" ${q && q.status === 'Sent' ? 'selected' : ''}>Sent</option><option value="Accepted" ${q && q.status === 'Accepted' ? 'selected' : ''}>Accepted</option><option value="Lost" ${q && q.status === 'Lost' ? 'selected' : ''}>Lost</option></select>
+    </div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="qtn-notes" rows="2">${q ? q.notes || '' : ''}</textarea></div>
+    <h4 style="margin:12px 0 8px;font-size:14px;">Line Items</h4>
+    <div id="qtn-items-container">${q ? q.items.map((it, i) => renderQtnItemRow(i, it)).join('') : renderQtnItemRow(0)}</div>
+    <div style="margin-top:8px;"><button class="btn btn-ghost btn-sm" onclick="addQtnItemRow()"><i class="fa-solid fa-plus"></i> Add Item</button></div>
+    <div style="margin-top:10px;padding:10px;background:#f8fafc;border-radius:6px;">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Tax Rate (%)</label><input class="form-input" id="qtn-tax" type="number" min="0" step="0.1" value="${q ? q.tax_rate : 0}" oninput="recalcQtnTotals()"></div>
+        <div class="form-group"><label class="form-label">Discount (%)</label><input class="form-input" id="qtn-disc-pct" type="number" min="0" step="0.1" value="${q ? q.discount_percent : 0}" oninput="recalcQtnTotals()"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-weight:600;margin-top:6px;">
+        <span>Subtotal: <span id="qtn-subtotal">0</span></span>
+        <span>Tax: <span id="qtn-tax-display">0</span></span>
+        <span>Discount: <span id="qtn-disc-display">0</span></span>
+        <span>Grand Total: <span id="qtn-grand-total" style="color:var(--success);font-size:16px;">0</span></span>
+      </div>
+    </div>`;
+  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitQuotation()">${q ? 'Update' : 'Create'} Quotation</button>`;
+  openModal(editId ? 'Edit Quotation' : 'New Quotation', body, footer);
+  recalcQtnTotals();
+}
+
+function renderQtnItemRow(idx, it) {
+  it = it || {};
+  return `<div class="qtn-item-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+    <input class="form-input" style="flex:2;min-width:80px;" id="qtn-item-${idx}-name" value="${it.item || ''}" placeholder="Item name">
+    <input class="form-input" style="flex:1;min-width:60px;" id="qtn-item-${idx}-desc" value="${it.description || ''}" placeholder="Description">
+    <input class="form-input" style="width:50px;" id="qtn-item-${idx}-qty" type="number" min="1" value="${it.qty || 1}" oninput="recalcQtnTotals()">
+    <input class="form-input" style="width:80px;" id="qtn-item-${idx}-rate" type="number" min="0" step="1" value="${it.rate || 0}" oninput="recalcQtnTotals()">
+    <span style="width:80px;font-weight:600;text-align:right;" id="qtn-item-${idx}-amount">${fmt(it.amount || 0)}</span>
+    ${idx > 0 ? `<button class="btn btn-ghost btn-sm" style="color:var(--error);padding:4px;" onclick="this.closest('.qtn-item-row').remove();recalcQtnTotals()"><i class="fa-solid fa-xmark"></i></button>` : ''}
+  </div>`;
+}
+window.addQtnItemRow = () => {
+  const container = $('#qtn-items-container');
+  const idx = container.children.length;
+  container.insertAdjacentHTML('beforeend', renderQtnItemRow(idx, {}));
+  recalcQtnTotals();
+};
+window.recalcQtnTotals = () => {
+  const container = $('#qtn-items-container');
+  let subtotal = 0;
+  [...container.children].forEach((row, i) => {
+    const qty = parseFloat($('#qtn-item-' + i + '-qty')?.value) || 0;
+    const rate = parseFloat($('#qtn-item-' + i + '-rate')?.value) || 0;
+    const amt = qty * rate;
+    const el = $('#qtn-item-' + i + '-amount');
+    if (el) el.textContent = fmt(amt);
+    subtotal += amt;
+  });
+  const taxRate = parseFloat($('#qtn-tax')?.value) || 0;
+  const discPct = parseFloat($('#qtn-disc-pct')?.value) || 0;
+  const taxAmount = subtotal * taxRate / 100;
+  const discAmount = subtotal * discPct / 100;
+  const grandTotal = subtotal + taxAmount - discAmount;
+  $('#qtn-subtotal').textContent = fmt(subtotal);
+  $('#qtn-tax-display').textContent = fmt(taxAmount);
+  $('#qtn-disc-display').textContent = fmt(discAmount);
+  $('#qtn-grand-total').textContent = fmt(grandTotal);
+};
+
+async function submitQuotation() {
+  const editId = $('#qtn-edit-id').value;
+  const acctId = $('#qtn-acct').value;
+  if (!acctId) { showToast('Account is required', 'error'); return; }
+  const acct = DATA.accounts.find(a => a.id === acctId);
+  const container = $('#qtn-items-container');
+  const items = [];
+  [...container.children].forEach((row, i) => {
+    const item = ($('#qtn-item-' + i + '-name')?.value || '').trim();
+    if (!item) return;
+    const qty = parseFloat($('#qtn-item-' + i + '-qty')?.value) || 1;
+    const rate = parseFloat($('#qtn-item-' + i + '-rate')?.value) || 0;
+    items.push({ item, description: ($('#qtn-item-' + i + '-desc')?.value || '').trim(), qty, rate, amount: qty * rate });
+  });
+  if (!items.length) { showToast('At least one line item is required', 'error'); return; }
+  const subtotal = items.reduce((s, i) => s + i.amount, 0);
+  const taxRate = parseFloat($('#qtn-tax')?.value) || 0;
+  const discPct = parseFloat($('#qtn-disc-pct')?.value) || 0;
+  const taxAmount = subtotal * taxRate / 100;
+  const discAmount = subtotal * discPct / 100;
+  const obj = {
+    account_id: acctId,
+    account_name: acct ? acct.name : '',
+    deal_id: $('#qtn-deal').value || null,
+    lead_id: null,
+    date: $('#qtn-date').value || new Date().toISOString().split('T')[0],
+    valid_till: $('#qtn-valid').value || '',
+    items,
+    tax_rate: taxRate,
+    tax_amount: taxAmount,
+    discount_percent: discPct,
+    discount_amount: discAmount,
+    grand_total: subtotal + taxAmount - discAmount,
+    status: $('#qtn-status').value,
+    notes: $('#qtn-notes').value.trim(),
+  };
+  if (editId) {
+    Object.assign(DATA.quotations.find(x => x.id === editId), obj);
+    if (supabase) await supabase.from('crm_quotations').update(obj).eq('id', editId).catch(() => {});
+    showToast('Quotation updated', 'success');
+  } else {
+    obj.id = 'QTN-' + Date.now();
+    DATA.quotations.push(obj);
+    if (supabase) await supabase.from('crm_quotations').insert(obj).catch(() => {});
+    showToast('Quotation created', 'success');
+  }
+  closeModal();
+  rerenderSection();
+}
+
+window.viewQuotation = (id) => {
+  const q = DATA.quotations.find(x => x.id === id);
+  if (!q) return;
+  const statusColors = { Draft: 'var(--text-sec)', Sent: 'var(--blue)', Accepted: 'var(--success)', Lost: 'var(--error)' };
+  let html = `<div style="max-width:600px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div><h3 style="margin:0">${q.id}</h3><div style="color:var(--text-sec);font-size:13px;">${q.account_name || ''}</div></div>
+      <span style="font-weight:600;color:${statusColors[q.status] || 'var(--text-sec)'}">${q.status}</span>
+    </div>
+    <div style="display:flex;gap:20px;font-size:13px;color:var(--text-sec);margin-bottom:12px;">
+      <span>Date: ${fmtDate(q.date)}</span>
+      <span>Valid Till: ${fmtDate(q.valid_till)}</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="border-bottom:2px solid var(--border);"><th style="text-align:left;padding:6px 4px;">Item</th><th style="text-align:right;padding:6px 4px;">Qty</th><th style="text-align:right;padding:6px 4px;">Rate</th><th style="text-align:right;padding:6px 4px;">Amount</th></tr></thead>
+      <tbody>${q.items.map(i => `<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 4px;">${i.item}${i.description ? '<br><span style="font-size:11px;color:var(--text-sec)">' + i.description + '</span>' : ''}</td><td style="text-align:right;padding:6px 4px;">${i.qty}</td><td style="text-align:right;padding:6px 4px;">${fmt(i.rate)}</td><td style="text-align:right;padding:6px 4px;font-weight:600;">${fmt(i.amount)}</td></tr>`).join('')}</tbody>
+    </table>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);text-align:right;">
+      <div>Subtotal: ${fmt(q.items.reduce((s, i) => s + i.amount, 0))}</div>
+      ${q.tax_rate ? `<div>Tax (${q.tax_rate}%): ${fmt(q.tax_amount)}</div>` : ''}
+      ${q.discount_percent ? `<div>Discount (${q.discount_percent}%): -${fmt(q.discount_amount)}</div>` : ''}
+      <div style="font-size:18px;font-weight:700;color:var(--success);margin-top:4px;">Total: ${fmt(q.grand_total)}</div>
+    </div>
+    ${q.notes ? `<div style="margin-top:12px;padding:8px;background:#f8fafc;border-radius:4px;font-size:12px;color:var(--text-sec);">${q.notes}</div>` : ''}
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="closeModal()">Close</button>`;
+  openModal('Quotation: ' + q.id, html, footer);
+};
+
+window.sendQuotation = async (id) => {
+  const q = DATA.quotations.find(x => x.id === id);
+  if (q) { q.status = 'Sent'; if (supabase) await supabase.from('crm_quotations').update({ status: 'Sent' }).eq('id', id).catch(() => {}); showToast('Quotation marked as Sent', 'success'); rerenderSection(); }
+};
+
+window.convertQuotationToInvoice = async (id) => {
+  const q = DATA.quotations.find(x => x.id === id);
+  if (!q) return;
+  const newInv = {
+    id: 'INV-' + Date.now(), type: 'Sales', party_name: q.account_name || q.account_id,
+    date: new Date().toISOString().split('T')[0],
+    due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    total_amount: q.grand_total, status: 'Draft', deal_id: q.deal_id,
+    cost_center_id: null, tax_template_id: null, tax_rate: q.tax_rate, tax_amount: q.tax_amount,
+    items: q.items.map(it => ({ ...it }))
+  };
+  DATA.invoices.push(newInv);
+  if (supabase) await supabase.from('fin_invoices').insert(newInv).catch(() => {});
+  showToast('Invoice ' + newInv.id + ' created from ' + q.id, 'success');
+  rerenderSection();
+};
+
+window.deleteQuotation = async (id) => {
+  if (!confirm('Delete this quotation?')) return;
+  DATA.quotations = DATA.quotations.filter(q => q.id !== id);
+  if (supabase) await supabase.from('crm_quotations').delete().eq('id', id).catch(() => {});
+  showToast('Quotation deleted', 'success');
+  rerenderSection();
+};
+
+/* ── CRM PROSPECTS ── */
+function renderCRMProspects() {
+  const f = state.filters;
+  let items = [...DATA.prospects];
+  if (f.search) { const s = f.search.toLowerCase(); items = items.filter(p => p.company_name.toLowerCase().includes(s) || p.industry?.toLowerCase().includes(s) || p.prospect_owner?.toLowerCase().includes(s)); }
+  if (f.status && f.status !== 'all') items = items.filter(p => p.status === f.status);
+
+  let html = `<div class="fade-in">`;
+  html += `<div class="filter-bar" style="justify-content:space-between;flex-wrap:wrap;">
+    <h2>Prospects <span style="font-weight:400;font-size:14px;color:var(--text-sec)">(${DATA.prospects.length})</span></h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input class="filter-input" placeholder="Search..." value="${f.search || ''}" oninput="state.filters.search=this.value;rerenderSection()" style="min-width:140px;">
+      <select class="filter-select" onchange="state.filters.status=this.value;rerenderSection()">
+        <option value="all">All</option><option value="New" ${f.status === 'New' ? 'selected' : ''}>New</option><option value="Contacted" ${f.status === 'Contacted' ? 'selected' : ''}>Contacted</option><option value="Qualified" ${f.status === 'Qualified' ? 'selected' : ''}>Qualified</option><option value="Converted" ${f.status === 'Converted' ? 'selected' : ''}>Converted</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openNewProspectModal()"><i class="fa-solid fa-plus"></i> New Prospect</button>
+    </div>
+  </div>
+  <div style="overflow-x:auto;margin-top:16px;"><table class="data-table">
+    <thead><tr>
+      <th>Company</th><th>Industry</th><th>Territory</th><th>Owner</th><th>Status</th><th>Created</th><th>Actions</th>
+    </tr></thead><tbody>`;
+  if (!items.length) html += `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-sec)">No prospects found</td></tr>`;
+  const statusColors = { New: 'var(--blue)', Contacted: 'var(--warning)', Qualified: 'var(--success)', Converted: 'var(--text-sec)' };
+  items.forEach(p => {
+    html += `<tr>
+      <td style="font-weight:600">${p.company_name}${p.website ? '<br><span style="font-size:11px;color:var(--text-sec)">' + p.website + '</span>' : ''}</td>
+      <td style="font-size:13px;">${p.industry || '—'}</td>
+      <td style="font-size:13px;">${p.territory || '—'}</td>
+      <td style="font-size:13px;">${p.prospect_owner || '—'}</td>
+      <td><span style="color:${statusColors[p.status] || 'var(--text-sec)'};font-weight:600">${p.status}</span></td>
+      <td style="font-size:12px;color:var(--text-sec)">${fmtDate(p.created_date)}</td>
+      <td>
+        ${p.status !== 'Converted' ? `<button class="btn btn-ghost btn-sm" style="color:var(--success)" onclick="convertProspectToLead('${p.id}')" title="Convert to Lead"><i class="fa-solid fa-arrow-right"></i></button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="editProspect('${p.id}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="deleteProspect('${p.id}')"><i class="fa-solid fa-trash-can"></i></button>
+      </td>
+    </tr>`;
+  });
+  html += `</tbody></table></div></div>`;
+  return html;
+}
+
+function openNewProspectModal(editId) {
+  const p = editId ? DATA.prospects.find(x => x.id === editId) : null;
+  const body = `
+    <input type="hidden" id="pro-edit-id" value="${editId || ''}">
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Company Name *</label><input class="form-input" id="pro-company" value="${p ? p.company_name : ''}"></div>
+      <div class="form-group"><label class="form-label">Industry</label><input class="form-input" id="pro-industry" value="${p ? p.industry || '' : ''}" placeholder="Oil & Gas, LNG..."></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Website</label><input class="form-input" id="pro-website" value="${p ? p.website || '' : ''}"></div>
+      <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="pro-phone" value="${p ? p.phone || '' : ''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="pro-email" value="${p ? p.email || '' : ''}"></div>
+      <div class="form-group"><label class="form-label">Territory</label><input class="form-input" id="pro-territory" value="${p ? p.territory || '' : ''}" placeholder="Oman North, South..."></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Owner</label><input class="form-input" id="pro-owner" value="${p ? p.prospect_owner || '' : ''}" placeholder="Sales person name"></div>
+      <div class="form-group"><label class="form-label">Status</label><select class="form-input" id="pro-status"><option value="New" ${p && p.status === 'New' ? 'selected' : ''}>New</option><option value="Contacted" ${p && p.status === 'Contacted' ? 'selected' : ''}>Contacted</option><option value="Qualified" ${p && p.status === 'Qualified' ? 'selected' : ''}>Qualified</option></select></div>
+    </div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="pro-notes" rows="2">${p ? p.notes || '' : ''}</textarea></div>`;
+  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitProspect()">${p ? 'Update' : 'Save'} Prospect</button>`;
+  openModal(editId ? 'Edit Prospect' : 'New Prospect', body, footer);
+}
+window.editProspect = (id) => openNewProspectModal(id);
+
+async function submitProspect() {
+  const editId = $('#pro-edit-id').value;
+  const company = $('#pro-company').value.trim();
+  if (!company) { showToast('Company name is required', 'error'); return; }
+  const obj = {
+    company_name: company,
+    industry: $('#pro-industry').value.trim(),
+    website: $('#pro-website').value.trim(),
+    phone: $('#pro-phone').value.trim(),
+    email: $('#pro-email').value.trim(),
+    territory: $('#pro-territory').value.trim(),
+    prospect_owner: $('#pro-owner').value.trim(),
+    status: $('#pro-status').value,
+    notes: $('#pro-notes').value.trim(),
+    created_date: new Date().toISOString().split('T')[0],
+  };
+  if (editId) {
+    Object.assign(DATA.prospects.find(x => x.id === editId), obj);
+    if (supabase) await supabase.from('crm_prospects').update(obj).eq('id', editId).catch(() => {});
+    showToast('Prospect updated', 'success');
+  } else {
+    obj.id = 'PRO-' + Date.now();
+    DATA.prospects.push(obj);
+    if (supabase) await supabase.from('crm_prospects').insert(obj).catch(() => {});
+    showToast('Prospect saved', 'success');
+  }
+  closeModal();
+  rerenderSection();
+}
+
+window.convertProspectToLead = async (id) => {
+  const p = DATA.prospects.find(x => x.id === id);
+  if (!p) return;
+  const newLead = { id: 'LD-' + Date.now(), name: p.company_name, email: p.email || '', phone: p.phone || '', source: 'Prospect Conversion', status: 'New' };
+  DATA.leads.push(newLead);
+  p.status = 'Converted';
+  if (supabase) {
+    await supabase.from('crm_leads').insert(newLead).catch(() => {});
+    await supabase.from('crm_prospects').update({ status: 'Converted' }).eq('id', id).catch(() => {});
+  }
+  showToast('Prospect converted to Lead: ' + newLead.id, 'success');
+  rerenderSection();
+};
+
+window.deleteProspect = async (id) => {
+  if (!confirm('Delete this prospect?')) return;
+  DATA.prospects = DATA.prospects.filter(p => p.id !== id);
+  if (supabase) await supabase.from('crm_prospects').delete().eq('id', id).catch(() => {});
+  showToast('Prospect deleted', 'success');
+  rerenderSection();
+};
+
+/* ── CRM COMMUNICATIONS ── */
+function renderCRMCommunications() {
+  const f = state.filters;
+  let items = [...DATA.communications].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+  if (f.search) { const s = f.search.toLowerCase(); items = items.filter(m => m.subject?.toLowerCase().includes(s) || m.content?.toLowerCase().includes(s) || m.sender?.toLowerCase().includes(s) || m.recipients?.toLowerCase().includes(s)); }
+  if (f.type && f.type !== 'all') items = items.filter(m => m.type === f.type);
+  if (f.ref && f.ref !== 'all') items = items.filter(m => m.reference_type === f.ref);
+
+  const typeIcons = { Email: 'fa-envelope', Call: 'fa-phone', Meeting: 'fa-handshake', Note: 'fa-note-sticky' };
+  const typeColors = { Email: 'var(--blue)', Call: 'var(--success)', Meeting: 'var(--warning)', Note: 'var(--text-sec)' };
+
+  let html = `<div class="fade-in">`;
+  html += `<div class="filter-bar" style="justify-content:space-between;flex-wrap:wrap;">
+    <h2>Communications <span style="font-weight:400;font-size:14px;color:var(--text-sec)">(${DATA.communications.length})</span></h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input class="filter-input" placeholder="Search..." value="${f.search || ''}" oninput="state.filters.search=this.value;rerenderSection()" style="min-width:120px;">
+      <select class="filter-select" onchange="state.filters.type=this.value;rerenderSection()">
+        <option value="all">All Types</option><option value="Email" ${f.type === 'Email' ? 'selected' : ''}>Email</option><option value="Call" ${f.type === 'Call' ? 'selected' : ''}>Call</option><option value="Meeting" ${f.type === 'Meeting' ? 'selected' : ''}>Meeting</option><option value="Note" ${f.type === 'Note' ? 'selected' : ''}>Note</option>
+      </select>
+      <select class="filter-select" onchange="state.filters.ref=this.value;rerenderSection()">
+        <option value="all">All References</option><option value="Account" ${f.ref === 'Account' ? 'selected' : ''}>Account</option><option value="Deal" ${f.ref === 'Deal' ? 'selected' : ''}>Deal</option><option value="Lead" ${f.ref === 'Lead' ? 'selected' : ''}>Lead</option><option value="Quotation" ${f.ref === 'Quotation' ? 'selected' : ''}>Quotation</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openNewCommModal()"><i class="fa-solid fa-plus"></i> New Communication</button>
+    </div>
+  </div>
+  <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">`;
+  if (!items.length) html += `<div style="text-align:center;padding:40px;color:var(--text-sec)">No communications found</div>`;
+  items.forEach(m => {
+    const refName = m.reference_id ? (DATA.accounts.find(a => a.id === m.reference_id)?.name || DATA.leads.find(l => l.id === m.reference_id)?.name || DATA.deals.find(d => d.id === m.reference_id)?.title || m.reference_id) : '—';
+    html += `<div class="sec-card" style="cursor:default;">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <div style="width:32px;height:32px;border-radius:50%;background:${typeColors[m.type] || 'var(--text-sec)'};display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;flex-shrink:0;">
+          <i class="fa-solid ${typeIcons[m.type] || 'fa-comment'}"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-weight:600;font-size:14px;">${m.subject || '(No subject)'}</div>
+            <div style="font-size:11px;color:var(--text-sec);white-space:nowrap;">${fmtDate(m.date)}</div>
+          </div>
+          <div style="font-size:12px;color:var(--text-sec);margin-top:2px;">
+            <span style="font-weight:500;color:${typeColors[m.type] || 'var(--text-sec)'}">${m.type}</span>
+            · ${m.reference_type}: <strong>${refName}</strong>
+            · From: ${m.sender} → ${m.recipients || '—'}
+          </div>
+          <div style="font-size:13px;margin-top:6px;color:var(--text);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${m.content || ''}</div>
+          <div style="margin-top:6px;"><button class="btn btn-ghost btn-sm" onclick="viewFullComm('${m.id}')">View Details</button></div>
+        </div>
+      </div>
+    </div>`;
+  });
+  html += `</div></div>`;
+  return html;
+}
+
+window.viewFullComm = (id) => {
+  const m = DATA.communications.find(x => x.id === id);
+  if (!m) return;
+  const refName = m.reference_id ? (DATA.accounts.find(a => a.id === m.reference_id)?.name || DATA.leads.find(l => l.id === m.reference_id)?.name || DATA.deals.find(d => d.id === m.reference_id)?.title || m.reference_id) : '—';
+  const body = `<div>
+    <div style="font-size:13px;color:var(--text-sec);margin-bottom:8px;">
+      <strong>${m.type}</strong> · ${m.reference_type}: ${refName} · ${fmtDate(m.date)}
+    </div>
+    <div style="font-size:13px;margin-bottom:6px;"><strong>From:</strong> ${m.sender}</div>
+    <div style="font-size:13px;margin-bottom:12px;"><strong>To:</strong> ${m.recipients || '—'}</div>
+    <div style="font-size:14px;line-height:1.6;padding:12px;background:#f8fafc;border-radius:6px;white-space:pre-wrap;">${m.content || ''}</div>
+  </div>`;
+  openModal(m.subject || 'Communication', body, `<button class="btn btn-primary" onclick="closeModal()">Close</button>`);
+};
+
+function openNewCommModal() {
+  const refOpts = [
+    ...DATA.accounts.map(a => ({ type: 'Account', id: a.id, name: a.name })),
+    ...DATA.leads.map(l => ({ type: 'Lead', id: l.id, name: l.name })),
+    ...DATA.deals.map(d => ({ type: 'Deal', id: d.id, name: d.title })),
+    ...DATA.quotations.map(q => ({ type: 'Quotation', id: q.id, name: q.id })),
+  ];
+  const refHtml = refOpts.map(r => `<option value="${r.type}|${r.id}">[${r.type}] ${r.name}</option>`).join('');
+  const body = `
+    <div class="form-group"><label class="form-label">Type</label>
+      <select class="form-input" id="comm-type"><option value="Email">Email</option><option value="Call">Call</option><option value="Meeting">Meeting</option><option value="Note">Note</option></select>
+    </div>
+    <div class="form-group"><label class="form-label">Reference (linked to)</label>
+      <select class="form-input" id="comm-ref"><option value="">— None —</option>${refHtml}</select>
+    </div>
+    <div class="form-group"><label class="form-label">Subject</label><input class="form-input" id="comm-subject" placeholder="Subject line"></div>
+    <div class="form-group"><label class="form-label">Content</label><textarea class="form-textarea" id="comm-content" rows="4" placeholder="Meeting notes, call summary, email content..."></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Sender</label><input class="form-input" id="comm-sender" placeholder="Your name"></div>
+      <div class="form-group"><label class="form-label">Recipients</label><input class="form-input" id="comm-recipients" placeholder="Name, email..."></div>
+    </div>
+    <div class="form-group"><label class="form-label">Date</label><input class="form-input" id="comm-date" type="date" value="${new Date().toISOString().split('T')[0]}"></div>`;
+  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitComm()">Save Communication</button>`;
+  openModal('New Communication', body, footer);
+}
+
+async function submitComm() {
+  const type = $('#comm-type').value;
+  const refVal = $('#comm-ref').value;
+  let refType = '', refId = '';
+  if (refVal) { const parts = refVal.split('|'); refType = parts[0]; refId = parts[1]; }
+  const obj = {
+    id: 'COM-' + Date.now(),
+    reference_type: refType,
+    reference_id: refId || null,
+    type,
+    subject: $('#comm-subject').value.trim(),
+    content: $('#comm-content').value.trim(),
+    date: $('#comm-date').value || new Date().toISOString().split('T')[0],
+    sender: $('#comm-sender').value.trim() || 'Current User',
+    recipients: $('#comm-recipients').value.trim(),
+  };
+  if (!obj.subject && !obj.content) { showToast('Subject or content required', 'error'); return; }
+  DATA.communications.push(obj);
+  if (supabase) await supabase.from('crm_communications').insert(obj).catch(() => {});
+  closeModal();
+  showToast('Communication logged', 'success');
+  rerenderSection();
+}
+
+/* ── ENHANCED CRM LEADS (with Convert to Account) ── */
+function renderCRMLeads() {
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between;flex-wrap:wrap;">
+    <h2>Leads <span style="font-weight:400;font-size:14px;color:var(--text-sec)">(${DATA.leads.length})</span></h2>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" onclick="openNewLeadModal()">+ New Lead</button>
+    </div>
+  </div>
+  <div style="overflow-x:auto;margin-top:16px;"><table class="data-table">
+    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Source</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>`;
+  if (DATA.leads.length === 0) html += `<tr><td colspan="6" style="text-align:center;padding:30px">No leads found.</td></tr>`;
+  DATA.leads.forEach(l => {
+    const alreadyConverted = DATA.accounts.find(a => a.name === l.name);
+    html += `<tr>
+      <td><strong>${l.name}</strong></td>
+      <td>${l.email || '-'}</td>
+      <td>${l.phone || '-'}</td>
+      <td>${l.source || '-'}</td>
+      <td><span class="status-pill status-${(l.status || 'new').toLowerCase().replace(' ', '-')}">${l.status || 'New'}</span></td>
+      <td>
+        ${!alreadyConverted ? `<button class="btn btn-ghost btn-sm" style="color:var(--success)" onclick="convertLeadToAccount('${l.id}')" title="Convert to Account"><i class="fa-solid fa-arrow-right-to-bracket"></i> Convert</button>` : `<span style="font-size:11px;color:var(--success)"><i class="fa-solid fa-check"></i> Converted</span>`}
+        <button class="btn btn-ghost btn-sm" onclick="deleteLead('${l.id}')"><i class="fa-solid fa-trash-can"></i></button>
+      </td>
+    </tr>`;
+  });
+  html += `</tbody></table></div></div>`;
+  return html;
+}
+
+window.convertLeadToAccount = async (id) => {
+  const lead = DATA.leads.find(x => x.id === id);
+  if (!lead) return;
+  if (DATA.accounts.find(a => a.name === lead.name)) { showToast('Account with this name already exists', 'warning'); return; }
+  const newAcct = {
+    id: 'ACC-' + Date.now(),
+    name: lead.name,
+    type: 'Customer',
+    rating: 'Warm',
+    owner: 'Current User',
+    country: 'Oman',
+    contractValue: 0,
+    openOpps: 0,
+    status: 'active',
+    website: '',
+    phone: lead.phone || '',
+    email: lead.email || '',
+  };
+  DATA.accounts.push(newAcct);
+  // Create a contact from lead info
+  const nameParts = lead.name.split(' ');
+  const newContact = {
+    id: 'CON-' + Date.now(),
+    account_id: newAcct.id,
+    salutation: '',
+    first_name: nameParts[0] || lead.name,
+    last_name: nameParts.slice(1).join(' ') || '',
+    email: lead.email || '',
+    phone: lead.phone || '',
+    mobile: '',
+    designation: '',
+    department: '',
+    is_primary: true,
+    nationality: '',
+    notes: 'Converted from lead ' + lead.id,
+  };
+  DATA.contacts.push(newContact);
+  // Create a deal from the lead
+  const newDeal = {
+    id: 'DL-' + Date.now(),
+    title: lead.name + ' - Initial Deal',
+    lead_id: lead.id,
+    account_id: newAcct.id,
+    value: 0,
+    stage: 'Prospecting',
+    expected_close_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    invoice_id: null,
+  };
+  DATA.deals.push(newDeal);
+  if (supabase) {
+    await supabase.from('crm_accounts').insert(newAcct).catch(() => {});
+    await supabase.from('crm_contacts').insert(newContact).catch(() => {});
+    await supabase.from('crm_deals').insert(newDeal).catch(() => {});
+  }
+  showToast('Lead converted: Account ' + newAcct.id + ', Contact, and Deal created', 'success');
+  rerenderSection();
+};
+
+window.deleteLead = async (id) => {
+  if (!confirm('Delete this lead?')) return;
+  DATA.leads = DATA.leads.filter(l => l.id !== id);
+  if (supabase) await supabase.from('crm_leads').delete().eq('id', id).catch(() => {});
+  showToast('Lead deleted', 'success');
+  rerenderSection();
+};
+
+/* ── ENHANCED CRM DEALS (with Create Quotation) ── */
+function renderCRMDeals(filterFn) {
+  const stages = ['Prospecting', 'Qualification', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost'];
+  const stageProb = { Prospecting: 10, Qualification: 25, Proposal: 50, Negotiation: 75, 'Closed Won': 100, 'Closed Lost': 0 };
+  let deals = DATA.deals;
+  if (filterFn) deals = deals.filter(filterFn);
+  const totalWeighted = deals.reduce((s, d) => s + (parseFloat(d.value || 0) * (stageProb[d.stage] || 0) / 100), 0);
+  let html = `<div class="fade-in" style="display:flex;flex-direction:column;height:100%">
+    <div class="filter-bar" style="justify-content:space-between;flex-wrap:wrap;">
+      <h2>Deals Pipeline <span style="font-weight:400;font-size:14px;color:var(--text-sec)">(${deals.length})</span></h2>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="font-size:13px;color:var(--text-sec);">Weighted Pipeline: <strong style="color:var(--blue);font-size:15px;">${fmt(totalWeighted)}</strong></span>
+        <button class="btn btn-primary btn-sm" onclick="openNewDealModal()">+ New Deal</button>
+      </div>
+    </div>
+    <h4 style="margin:8px 0 4px;font-size:16px;color:var(--success);">Forecast</h4>
+    <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+      ${stages.filter(s => s !== 'Closed Won' && s !== 'Closed Lost').map(s => {
+        const stageDeals = deals.filter(d => d.stage === s);
+        const val = stageDeals.reduce((sum, d) => sum + parseFloat(d.value || 0), 0);
+        const weighted = val * (stageProb[s] || 0) / 100;
+        return `<div style="padding:8px 14px;background:#f0f4f8;border-radius:6px;text-align:center;min-width:100px;">
+          <div style="font-size:11px;color:var(--text-sec)">${s}</div>
+          <div style="font-weight:600;font-size:14px;">${fmt(val)}</div>
+          <div style="font-size:11px;color:var(--blue)">${fmt(weighted)} weighted</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="display:flex;gap:16px;overflow-x:auto;flex:1;padding-bottom:16px;">`;
+  stages.forEach(st => {
+    const stageDeals = deals.filter(d => d.stage === st);
+    const totalVal = stageDeals.reduce((sum, d) => sum + parseFloat(d.value || 0), 0);
+    const stageWeighted = totalVal * (stageProb[st] || 0) / 100;
+    html += `<div class="kanban-col" ondragover="event.preventDefault()" ondrop="dropDeal(event, '${st}')" style="flex:0 0 280px;background:#f8fafc;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <h3 style="font-size:13px;color:var(--text);margin:0;">${st} <span style="color:var(--text-sec);font-weight:normal">(${stageDeals.length})</span></h3>
+        <span style="font-size:12px;font-weight:600;color:var(--success)">${fmt(totalVal)}</span>
+      </div>
+      ${st !== 'Closed Won' && st !== 'Closed Lost' ? `<div style="font-size:10px;color:var(--blue);margin-bottom:4px;">Weighted: ${fmt(stageWeighted)}</div>` : ''}
+      ${stageDeals.map(d => {
+        const acctName = d.account_id ? (DATA.accounts.find(a => a.id === d.account_id)?.name || '') : d.lead_id ? (DATA.leads.find(l => l.id === d.lead_id)?.name || '') : '';
+        return `<div class="kanban-card" draggable="true" ondragstart="dragStartDeal(event, '${d.id}')" style="background:#fff;padding:12px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);cursor:grab;border-left:4px solid var(--blue);">
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px">${d.title}</div>
+          ${acctName ? `<div style="font-size:11px;color:var(--text-sec);margin-bottom:2px;">${acctName}</div>` : ''}
+          <div style="font-size:13px;color:var(--text-sec);margin-bottom:2px;">${fmt(d.value)}</div>
+          <div style="font-size:11px;color:#888;margin-bottom:2px;">Close: ${d.expected_close_date || 'N/A'}</div>
+          ${d.sales_person ? `<div style="font-size:10px;color:var(--text-sec);margin-bottom:2px;"><i class="fa-solid fa-user"></i> ${d.sales_person}</div>` : ''}
+          ${d.territory ? `<div style="font-size:10px;color:var(--text-sec);margin-bottom:4px;"><i class="fa-solid fa-location-dot"></i> ${d.territory}</div>` : ''}
+          <div style="display:flex;gap:4px;">
+            <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px;" onclick="createQuotationFromDeal('${d.id}')" title="Create Quotation"><i class="fa-solid fa-file-invoice"></i> Quote</button>
+            <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px;" onclick="viewDealDeals('${d.id}')" title="View"><i class="fa-solid fa-eye"></i></button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  });
+  html += `</div></div>`;
+  return html;
+}
+
+window.createQuotationFromDeal = (dealId) => {
+  const d = DATA.deals.find(x => x.id === dealId);
+  if (!d) return;
+  const acctId = d.account_id || (d.lead_id ? DATA.accounts.find(a => a.name === (DATA.leads.find(l => l.id === d.lead_id)?.name || ''))?.id : null);
+  setTimeout(() => openNewQuotationModal(null, dealId, acctId), 100);
+};
+
+window.viewDealDeals = (id) => {
+  const d = DATA.deals.find(x => x.id === id);
+  if (!d) return;
+  const acctName = d.account_id ? (DATA.accounts.find(a => a.id === d.account_id)?.name || '—') : d.lead_id ? (DATA.leads.find(l => l.id === d.lead_id)?.name || '—') : '—';
+  const qtns = DATA.quotations.filter(q => q.deal_id === id);
+  const body = `<div>
+    <div style="margin-bottom:12px;"><strong>${d.title}</strong> · ${fmt(d.value)} · ${d.stage}</div>
+    <div style="font-size:13px;color:var(--text-sec);margin-bottom:4px;">Account: ${acctName}</div>
+    <div style="font-size:13px;color:var(--text-sec);margin-bottom:4px;">Close Date: ${d.expected_close_date || 'N/A'}</div>
+    ${d.sales_person ? `<div style="font-size:13px;color:var(--text-sec);margin-bottom:4px;">Sales Person: ${d.sales_person}</div>` : ''}
+    ${d.territory ? `<div style="font-size:13px;color:var(--text-sec);margin-bottom:4px;">Territory: ${d.territory}</div>` : ''}
+    ${d.lost_reason ? `<div style="font-size:13px;color:var(--error);margin-bottom:4px;">Lost Reason: ${d.lost_reason}</div>` : ''}
+    ${qtns.length ? `<h4 style="margin:12px 0 6px;font-size:13px;">Quotations (${qtns.length})</h4>
+      ${qtns.map(q => `<div style="font-size:12px;padding:4px 0;">${q.id} · ${fmt(q.grand_total)} · ${q.status}</div>`).join('')}` : ''}
+  </div>`;
+  openModal('Deal: ' + d.id, body, `<button class="btn btn-primary" onclick="closeModal()">Close</button>`);
+};
+
+/* ── CRM WIN/LOSS ANALYSIS ── */
+function renderCRMWinLoss() {
+  const won = DATA.deals.filter(d => d.stage === 'Closed Won');
+  const lost = DATA.deals.filter(d => d.stage === 'Closed Lost');
+  const total = won.length + lost.length;
+  const winRate = total > 0 ? Math.round(won.length / total * 100) : 0;
+  const wonVal = won.reduce((s, d) => s + parseFloat(d.value || 0), 0);
+  const lostVal = lost.reduce((s, d) => s + parseFloat(d.value || 0), 0);
+
+  // Group lost by reason
+  const reasons = {};
+  lost.forEach(d => {
+    const r = d.lost_reason || 'Unknown';
+    reasons[r] = (reasons[r] || 0) + 1;
+  });
+  const topReasons = Object.entries(reasons).sort((a, b) => b[1] - a[1]);
+
+  // Group by sales person
+  const spWon = {}, spLost = {}, spValWon = {}, spValLost = {};
+  DATA.deals.forEach(d => {
+    const sp = d.sales_person || 'Unassigned';
+    if (d.stage === 'Closed Won') {
+      spWon[sp] = (spWon[sp] || 0) + 1;
+      spValWon[sp] = (spValWon[sp] || 0) + parseFloat(d.value || 0);
+    } else if (d.stage === 'Closed Lost') {
+      spLost[sp] = (spLost[sp] || 0) + 1;
+      spValLost[sp] = (spValLost[sp] || 0) + parseFloat(d.value || 0);
+    }
+  });
+  const allSPs = [...new Set([...Object.keys(spWon), ...Object.keys(spLost)])];
+
+  // Territory analysis
+  const tWon = {}, tLost = {}, tValWon = {}, tValLost = {};
+  DATA.deals.forEach(d => {
+    const t = d.territory || 'Unassigned';
+    if (d.stage === 'Closed Won') {
+      tWon[t] = (tWon[t] || 0) + 1;
+      tValWon[t] = (tValWon[t] || 0) + parseFloat(d.value || 0);
+    } else if (d.stage === 'Closed Lost') {
+      tLost[t] = (tLost[t] || 0) + 1;
+      tValLost[t] = (tValLost[t] || 0) + parseFloat(d.value || 0);
+    }
+  });
+  const allTerr = [...new Set([...Object.keys(tWon), ...Object.keys(tLost)])];
+
+  let html = `<div class="fade-in">
+    <h2>Win/Loss Analysis</h2>
+    <div class="kpi-grid" style="margin-top:16px;">
+      <div class="kpi-card green"><span class="kpi-label">Closed Won</span><span class="kpi-value">${won.length}</span><span class="kpi-change kpi-up">${fmt(wonVal)} total value</span></div>
+      <div class="kpi-card red"><span class="kpi-label">Closed Lost</span><span class="kpi-value">${lost.length}</span><span class="kpi-change kpi-warn">${fmt(lostVal)} total value</span></div>
+      <div class="kpi-card"><span class="kpi-label">Win Rate</span><span class="kpi-value" style="color:${winRate >= 50 ? 'var(--success)' : 'var(--error)'}">${winRate}%</span><span class="kpi-change">${total} total decisions</span></div>
+      <div class="kpi-card purple"><span class="kpi-label">Active Pipeline</span><span class="kpi-value">${DATA.deals.length - won.length - lost.length}</span><span class="kpi-change"><i class="fa-solid fa-chart-line"></i> Still in play</span></div>
+    </div>`;
+
+  // Top Lost Reasons
+  if (topReasons.length) {
+    html += `<div class="sec-card" style="margin-top:16px;"><div class="sec-card-head">Top Reasons for Lost Deals</div><div class="sec-card-body">
+      <div style="display:flex;flex-direction:column;gap:6px;">`;
+    const maxReasonCount = Math.max(...topReasons.map(r => r[1]));
+    topReasons.forEach(([reason, count]) => {
+      const pct = Math.round(count / lost.length * 100);
+      html += `<div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px;">
+          <span>${reason}</span><span style="font-weight:600;">${count} (${pct}%)</span>
+        </div>
+        <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+          <div style="width:${count / maxReasonCount * 100}%;height:100%;background:var(--error);border-radius:4px;"></div>
+        </div>
+      </div>`;
+    });
+    html += `</div></div></div>`;
+  }
+
+  // Sales Person Performance
+  if (allSPs.length) {
+    html += `<div class="sec-card" style="margin-top:16px;"><div class="sec-card-head">Sales Person Performance</div>
+      <div style="overflow-x:auto;"><table class="data-table">
+        <thead><tr><th>Sales Person</th><th>Won</th><th>Lost</th><th>Win Rate</th><th>Won Value</th><th>Lost Value</th></tr></thead>
+        <tbody>${allSPs.map(sp => {
+          const w = spWon[sp] || 0, l = spLost[sp] || 0;
+          const rate = (w + l) > 0 ? Math.round(w / (w + l) * 100) : 0;
+          return `<tr><td style="font-weight:600">${sp}</td><td style="color:var(--success)">${w}</td><td style="color:var(--error)">${l}</td><td style="font-weight:600;color:${rate >= 50 ? 'var(--success)' : 'var(--error)'}">${rate}%</td><td>${fmt(spValWon[sp] || 0)}</td><td>${fmt(spValLost[sp] || 0)}</td></tr>`;
+        }).join('')}</tbody>
+      </table></div></div>`;
+  }
+
+  // Territory Analysis
+  if (allTerr.length) {
+    html += `<div class="sec-card" style="margin-top:16px;"><div class="sec-card-head">Territory Performance</div>
+      <div style="overflow-x:auto;"><table class="data-table">
+        <thead><tr><th>Territory</th><th>Won</th><th>Lost</th><th>Win Rate</th><th>Won Value</th><th>Lost Value</th></tr></thead>
+        <tbody>${allTerr.map(t => {
+          const w = tWon[t] || 0, l = tLost[t] || 0;
+          const rate = (w + l) > 0 ? Math.round(w / (w + l) * 100) : 0;
+          return `<tr><td style="font-weight:600">${t}</td><td style="color:var(--success)">${w}</td><td style="color:var(--error)">${l}</td><td style="font-weight:600;color:${rate >= 50 ? 'var(--success)' : 'var(--error)'}">${rate}%</td><td>${fmt(tValWon[t] || 0)}</td><td>${fmt(tValLost[t] || 0)}</td></tr>`;
+        }).join('')}</tbody>
+      </table></div></div>`;
+  }
+
+  // Recent Closed Deals
+  const recentClosed = DATA.deals.filter(d => d.stage === 'Closed Won' || d.stage === 'Closed Lost').slice(0, 10);
+  if (recentClosed.length) {
+    html += `<div class="sec-card" style="margin-top:16px;"><div class="sec-card-head">Recent Closed Deals</div>
+      <div style="overflow-x:auto;"><table class="data-table">
+        <thead><tr><th>Deal</th><th>Account</th><th>Value</th><th>Result</th><th>Sales Person</th><th>Notes</th></tr></thead>
+        <tbody>${recentClosed.map(d => {
+          const acctName = d.account_id ? (DATA.accounts.find(a => a.id === d.account_id)?.name || '') : d.lead_id ? (DATA.leads.find(l => l.id === d.lead_id)?.name || '') : '';
+          return `<tr>
+            <td style="font-weight:600">${d.title}</td>
+            <td style="font-size:12px;color:var(--text-sec)">${acctName}</td>
+            <td>${fmt(d.value)}</td>
+            <td><span style="color:${d.stage === 'Closed Won' ? 'var(--success)' : 'var(--error)'};font-weight:600">${d.stage === 'Closed Won' ? '✓ Won' : '✗ Lost'}</span></td>
+            <td style="font-size:12px">${d.sales_person || '—'}</td>
+            <td style="font-size:12px;color:var(--text-sec);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.notes || d.lost_reason || '—'}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div></div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+/* ── CRM TERRITORY VIEW ── */
+function renderCRMTerritory() {
+  // Build territory data from accounts and deals
+  const territoryAccounts = {};
+  DATA.accounts.forEach(a => {
+    const t = a.territory || 'Unassigned';
+    if (!territoryAccounts[t]) territoryAccounts[t] = { accounts: [], deals: [], totalValue: 0 };
+    territoryAccounts[t].accounts.push(a);
+    territoryAccounts[t].totalValue += (a.contractValue || 0);
+  });
+  DATA.deals.forEach(d => {
+    const t = d.territory || 'Unassigned';
+    if (!territoryAccounts[t]) territoryAccounts[t] = { accounts: [], deals: [], totalValue: 0 };
+    territoryAccounts[t].deals.push(d);
+  });
+
+  const territories = Object.entries(territoryAccounts);
+  const allSalesPersons = [...new Set(DATA.deals.map(d => d.sales_person).filter(Boolean))];
+
+  let html = `<div class="fade-in">
+    <h2>Territory View</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:16px;">`;
+
+  territories.forEach(([territory, data]) => {
+    const openDeals = data.deals.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost');
+    const wonDeals = data.deals.filter(d => d.stage === 'Closed Won');
+    const dealVal = openDeals.reduce((s, d) => s + parseFloat(d.value || 0), 0);
+    const wonVal = wonDeals.reduce((s, d) => s + parseFloat(d.value || 0), 0);
+    const persons = [...new Set(data.deals.filter(d => d.sales_person).map(d => d.sales_person))];
+
+    html += `<div class="sec-card" style="cursor:default;">
+      <div class="sec-card-head" style="font-size:15px;">
+        <i class="fa-solid fa-map-pin" style="color:var(--blue);"></i> ${territory}
+        <span style="font-weight:400;font-size:12px;color:var(--text-sec);">${data.accounts.length} accounts</span>
+      </div>
+      <div class="sec-card-body" style="font-size:13px;">
+        <div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap;">
+          <span><strong>${data.accounts.length}</strong> accounts</span>
+          <span><strong>${openDeals.length}</strong> open deals</span>
+          <span style="color:var(--success);"><strong>${fmt(dealVal)}</strong> pipeline</span>
+          ${wonDeals.length ? `<span style="color:var(--success);"><strong>${fmt(wonVal)}</strong> won</span>` : ''}
+        </div>
+        ${persons.length ? `<div style="font-size:12px;color:var(--text-sec);margin-bottom:8px;"><i class="fa-solid fa-user"></i> ${persons.join(', ')}</div>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          ${data.accounts.slice(0, 5).map(a => `<span style="padding:2px 8px;background:#f0f4f8;border-radius:4px;font-size:11px;">${a.name}</span>`).join('')}
+          ${data.accounts.length > 5 ? `<span style="font-size:11px;color:var(--text-sec);">+${data.accounts.length - 5} more</span>` : ''}
+        </div>
+        ${openDeals.length ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px;">Open Deals</div>
+          ${openDeals.slice(0, 3).map(d => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;">
+            <span>${d.title}</span><span style="font-weight:600;">${fmt(d.value)}</span>
+          </div>`).join('')}
+          ${openDeals.length > 3 ? `<div style="font-size:11px;color:var(--text-sec);margin-top:2px;">+${openDeals.length - 3} more deals</div>` : ''}
+        </div>` : ''}
+      </div>
+    </div>`;
+  });
+
+  html += `</div>
+    <div class="sec-card" style="margin-top:16px;"><div class="sec-card-head">Account Territory Summary</div>
+    <div style="overflow-x:auto;"><table class="data-table">
+      <thead><tr><th>Territory</th><th>Accounts</th><th>Total Contract Value</th><th>Open Deals</th><th>Pipeline Value</th><th>Sales Persons</th></tr></thead>
+      <tbody>${territories.map(([t, d]) => {
+        const openDeals = d.deals.filter(dl => dl.stage !== 'Closed Won' && dl.stage !== 'Closed Lost');
+        const persons = [...new Set(d.deals.filter(dl => dl.sales_person).map(dl => dl.sales_person))];
+        return `<tr><td style="font-weight:600">${t}</td><td>${d.accounts.length}</td><td>${fmt(d.totalValue)}</td><td>${openDeals.length}</td><td>${fmt(openDeals.reduce((s, dl) => s + parseFloat(dl.value || 0), 0))}</td><td style="font-size:12px">${persons.join(', ') || '—'}</td></tr>`;
+      }).join('')}</tbody>
+    </table></div></div>
+  </div>`;
+  return html;
 }
 
 /* ── HR ATTENDANCE ── */
@@ -5135,3 +6117,15 @@ window.confirmAction = confirmAction;
 window.dismissAction = dismissAction;
 window.sendChip = sendChip;
 if (typeof sendAIMessage !== 'undefined') window.sendAIMessage = sendAIMessage;
+
+// New CRM exports
+window.openNewContactModal = openNewContactModal;
+window.submitContact = submitContact;
+window.deleteContact = deleteContact;
+window.openNewQuotationModal = openNewQuotationModal;
+window.submitQuotation = submitQuotation;
+window.openNewProspectModal = openNewProspectModal;
+window.submitProspect = submitProspect;
+window.deleteProspect = deleteProspect;
+window.openNewCommModal = openNewCommModal;
+window.submitComm = submitComm;

@@ -1,6 +1,14 @@
 import { supabase } from './supabase.js';
 
 /* ═══════════════════════════════════════════════
+   STATE — GLOBAL ROUTER STATE
+═══════════════════════════════════════════════ */
+const state = {
+  module:'hr', section:'allEmployees', selectedId:null, detailTab:'info',
+  filters:{}, sortCol:null, sortDir:'asc', charts:[], currentUserRole:'Admin'
+};
+
+/* ═══════════════════════════════════════════════
    i18n — BILINGUAL STRINGS
 ═══════════════════════════════════════════════ */
 const i18n = {
@@ -1434,6 +1442,26 @@ DATA.warehouses = [
   {id:'WH-North-01',name:'Gas Plant North – Warehouse A',site:'Gas Treatment Plant – North',manager:'Tariq Mubarak',capacity:1500,utilisation:43,items:DATA.inventory.filter(i=>i.warehouse==='WH-North-01').length},
 ];
 
+DATA.stockLedger = [
+  {id:'SL-001',itemId:'INV-001',itemName:'Corrosion Inhibitor CI-4400',type:'in',qty:3200,uom:'Litre',refType:'Opening Balance',refId:'OPEN',date:'2025-01-01',unitCost:18,notes:'Opening stock'},
+  {id:'SL-002',itemId:'INV-001',itemName:'Corrosion Inhibitor CI-4400',type:'out',qty:1200,uom:'Litre',refType:'Issue',refId:'ISS-001',date:'2025-05-15',unitCost:18,notes:'Chemistry dosing – South Facility'},
+  {id:'SL-003',itemId:'INV-001',itemName:'Corrosion Inhibitor CI-4400',type:'in',qty:2000,uom:'Litre',refType:'PO Receipt',refId:'PO-2025-002',date:'2025-05-31',unitCost:18,notes:'Q3 Chemical supply received'},
+  {id:'SL-004',itemId:'INV-002',itemName:'Scale Inhibitor SI-210',type:'in',qty:1500,uom:'Litre',refType:'PO Receipt',refId:'PO-2025-002',date:'2025-05-31',unitCost:22,notes:'Q3 Chemical supply received'},
+  {id:'SL-005',itemId:'INV-002',itemName:'Scale Inhibitor SI-210',type:'out',qty:700,uom:'Litre',refType:'Issue',refId:'ISS-002',date:'2025-06-10',unitCost:22,notes:'Chemical injection – South Facility'},
+  {id:'SL-006',itemId:'INV-009',itemName:'Nitrogen Cylinders 50L',type:'in',qty:40,uom:'Cylinder',refType:'PO Receipt',refId:'PO-2025-008',date:'2025-05-31',unitCost:185,notes:'Monthly nitrogen supply'},
+  {id:'SL-007',itemId:'INV-009',itemName:'Nitrogen Cylinders 50L',type:'out',qty:12,uom:'Cylinder',refType:'Issue',refId:'ISS-003',date:'2025-06-08',unitCost:185,notes:'Consumed – Rig Alpha pneumatic systems'},
+  {id:'SL-008',itemId:'INV-005',itemName:'Anti-H2S Coveralls',type:'in',qty:60,uom:'Unit',refType:'PO Receipt',refId:'PO-2025-004',date:'2025-06-12',unitCost:210,notes:'PPE quarterly replenishment'},
+  {id:'SL-009',itemId:'INV-005',itemName:'Anti-H2S Coveralls',type:'out',qty:15,uom:'Unit',refType:'Issue',refId:'ISS-004',date:'2025-06-18',unitCost:210,notes:'Issued to new Block 15 crew'},
+];
+
+DATA.materialRequests = [
+  {id:'MR-2025-001',title:'Mud Pump Liner Replacement – Rig Alpha',requestedBy:'Khalid Al-Rashidi',requestedDate:'2025-06-01',requiredDate:'2025-06-20',department:'Drilling',site:'Block 15 – Rig Alpha',status:'approved',priority:'High',notes:'Liner showing signs of wear after 420 hours. Gauge reading outside tolerance.',items:[{name:'Mud Pump Liner 7.5"',qty:4,uom:'Unit',estUnitCost:4500,spec:'Part No: DRL-MPL075'},{name:'Valve & Seat Assembly',qty:6,uom:'Set',estUnitCost:6500,spec:'Match existing NOV pump model'}],approvedBy:'Rania Saleh',approvedDate:'2025-06-05',poRef:'PO-2025-001'},
+  {id:'MR-2025-002',title:'H2S Detector Calibration Gas – Annual',requestedBy:'Ahmed Hassan',requestedDate:'2025-06-05',requiredDate:'2025-06-25',department:'HSE',site:'All Sites',status:'approved',priority:'High',notes:'Annual calibration campaign. Current cylinders below 20% remaining.',items:[{name:'Calibration Gas H2S Mix',qty:20,uom:'Cylinder',estUnitCost:480,spec:'H2S/CO/LEL/O2 mix – Dräger compatible'}],approvedBy:'Mohammed Al-Harbi',approvedDate:'2025-06-08',poRef:'PO-2025-009'},
+  {id:'MR-2025-003',title:'Chemical Injection Pump Seal Kit',requestedBy:'Fatima Al-Zahra',requestedDate:'2025-06-10',requiredDate:'2025-07-01',department:'Production',site:'Onshore Processing Facility – South',status:'pending',priority:'Normal',notes:'Milton Roy pump seal kit leaking. OEM part needed.',items:[{name:'Milton Roy Seal Kit',qty:2,uom:'Set',estUnitCost:1200,spec:'Model: MIL-ROY-HPD-150'},{name:'Plunger Assembly',qty:1,uom:'Unit',estUnitCost:2400,spec:'Ceramic plunger 1.5" dia'}]},
+  {id:'MR-2025-004',title:'Offshore Platform Fire Extinguisher Refill',requestedBy:'Ibrahim Qasim',requestedDate:'2025-06-12',requiredDate:'2025-06-30',department:'HSE',site:'Block 7 – Offshore Platform',status:'pending',priority:'High',notes:'Annual refill and hydrostatic test due for 12 units.',items:[{name:'CO2 Refill 9kg',qty:12,uom:'Unit',estUnitCost:75,spec:'Pure CO2 – food grade'},{name:'Hydrostatic Test – CO2 Cylinder',qty:12,uom:'Test',estUnitCost:30,spec:'5-year recertification'}]},
+  {id:'MR-2025-005',title:'SCBA Spare Cylinder – Block 7',requestedBy:'Ahmed Hassan',requestedDate:'2025-06-14',requiredDate:'2025-07-15',department:'HSE',site:'Block 7 – Offshore Platform',status:'draft',priority:'Normal',notes:'Need 2 additional 300-bar carbon composite cylinders for the emergency muster area.',items:[{name:'300 Bar SCBA Cylinder – Carbon Composite',qty:2,uom:'Unit',estUnitCost:1800,spec:'Dräger or MSA compatible'}]},
+];
+
 /* ═══════════════════════════════════════════════
    SC i18n additions
 ═══════════════════════════════════════════════ */
@@ -1444,6 +1472,11 @@ Object.assign(i18n.en,{
   newPO:'New Purchase Order',
   stockStatus:'Stock Status',qtyOnHand:'Qty On Hand',reorderPoint:'Reorder Point',partNo:'Part No.',warehouseLbl:'Warehouse',lastReceived:'Last Received',
   normal:'Normal',low:'Low',critical:'Critical',out:'Out of Stock',
+  materialRequests:'Material Requests',materialRequest:'Material Request',newMR:'New Material Request',mrTitle:'Title',mrStatus:'Status',mrDepartment:'Department',mrItems:'Items',
+  stockLedger:'Stock Ledger',stockMovement:'Stock Movement',recordMovement:'Record Movement',movementType:'Type',movementDate:'Date',reference:'Reference',unitCost:'Unit Cost',
+  in:'In',out:'Out',transfer:'Transfer',adjustment:'Adjustment',
+  pending:'Pending',draft:'Draft',rejected:'Rejected',
+  convertToPO:'Convert to PO',approveMR:'Approve MR',rejectMR:'Reject MR',
 });
 Object.assign(i18n.ar,{
   scDashboard:'لوحة سلسلة التوريد',allPOs:'أوامر الشراء',prRequests:'طلبات الشراء',pendingApprovalPO:'بانتظار الموافقة',orderedItems:'مطلوب / في الطريق',receivedItems:'مستلم',cancelledItems:'ملغي',allSuppliers:'الموردون',supplierPerformance:'أداء الموردين',inventoryItems:'المخزون',lowStockAlerts:'تنبيهات المخزون المنخفض',warehouses:'المستودعات',scSettings:'إعدادات سلسلة التوريد',
@@ -1452,6 +1485,11 @@ Object.assign(i18n.ar,{
   newPO:'أمر شراء جديد',
   stockStatus:'حالة المخزون',qtyOnHand:'الكمية المتوفرة',reorderPoint:'نقطة إعادة الطلب',partNo:'رقم القطعة',warehouseLbl:'المستودع',lastReceived:'آخر استلام',
   normal:'طبيعي',low:'منخفض',critical:'حرج',out:'نفد المخزون',
+  materialRequests:'طلبات المواد',materialRequest:'طلب مادة',newMR:'طلب مادة جديد',mrTitle:'العنوان',mrStatus:'الحالة',mrDepartment:'القسم',mrItems:'الأصناف',
+  stockLedger:'دفتر المخزون',stockMovement:'حركة المخزون',recordMovement:'تسجيل حركة',movementType:'النوع',movementDate:'التاريخ',reference:'المرجع',unitCost:'تكلفة الوحدة',
+  in:'وارد',out:'صادر',transfer:'تحويل',adjustment:'تسوية',
+  pending:'معلق',draft:'مسودة',rejected:'مرفوض',
+  convertToPO:'تحويل إلى أمر شراء',approveMR:'اعتماد طلب المواد',rejectMR:'رفض طلب المواد',
 });
 
 /* ═══════════════════════════════════════════════
@@ -1460,9 +1498,11 @@ Object.assign(i18n.ar,{
 function renderSCSidebar(){
   const pendingPOs = DATA.purchaseOrders.filter(p=>p.status==='draft').length;
   const lowStock = DATA.inventory.filter(i=>i.status==='low'||i.status==='critical'||i.status==='out').length;
+  const pendingMRs = DATA.materialRequests.filter(m=>m.status==='pending').length;
   const sections=[
     {group:null,items:[
       {id:'scDashboard',icon:'fa-gauge-high',label:t('scDashboard')},
+      {id:'materialRequests',icon:'fa-clipboard-list',label:t('materialRequests'),badge:pendingMRs},
       {id:'allPOs',icon:'fa-file-invoice',label:t('allPOs')},
       {id:'pendingApprovalPO',icon:'fa-clock',label:t('pendingApprovalPO'),badge:pendingPOs},
       {id:'orderedItems',icon:'fa-truck-fast',label:t('orderedItems'),badge:DATA.purchaseOrders.filter(p=>p.status==='ordered').length,badgeCls:'blue'},
@@ -1475,6 +1515,7 @@ function renderSCSidebar(){
     {group:'Inventory',items:[
       {id:'inventoryItems',icon:'fa-boxes-stacked',label:t('inventoryItems')},
       {id:'lowStockAlerts',icon:'fa-triangle-exclamation',label:t('lowStockAlerts'),badge:lowStock},
+      {id:'stockLedger',icon:'fa-book',label:t('stockLedger')},
       {id:'warehouses',icon:'fa-warehouse',label:t('warehouses')},
     ]},
     {group:'Admin',items:[
@@ -1502,13 +1543,13 @@ function renderSCKPIs(){
   const open = pos.filter(p=>['draft','approved','ordered'].includes(p.status)).length;
   const now = new Date(); const m = now.getMonth(); const y = now.getFullYear();
   const mtd = pos.filter(p=>{ const d=new Date(p.createdDate); return d.getMonth()===m&&d.getFullYear()===y&&p.status!=='cancelled'; }).reduce((s,p)=>s+p.amount,0);
-  const pending = pos.filter(p=>p.status==='draft').length;
+  const pendingMR = DATA.materialRequests.filter(m=>m.status==='pending').length;
   const lowStock = DATA.inventory.filter(i=>i.status==='low'||i.status==='critical'||i.status==='out').length;
   const activeSup = DATA.suppliers.filter(s=>s.status==='active').length;
   return `<div class="kpi-grid">
     <div class="kpi-card"><span class="kpi-label">${t('openPOs')}</span><span class="kpi-value">${open}</span><span class="kpi-change" style="color:var(--text-sec)"><i class="fa-solid fa-file-invoice"></i> Active orders</span></div>
     <div class="kpi-card green"><span class="kpi-label">${t('poValueMTD')}</span><span class="kpi-value" style="font-size:18px">${fmt(mtd)}</span><span class="kpi-change kpi-up"><i class="fa-solid fa-arrow-up"></i> This month</span></div>
-    <div class="kpi-card orange"><span class="kpi-label">${t('pendingPRs')}</span><span class="kpi-value">${pending}</span><span class="kpi-change kpi-warn"><i class="fa-solid fa-clock"></i> Awaiting approval</span></div>
+    <div class="kpi-card orange"><span class="kpi-label">${t('pendingPRs')}</span><span class="kpi-value">${pendingMR}</span><span class="kpi-change kpi-warn"><i class="fa-solid fa-clock"></i> Awaiting approval</span></div>
     <div class="kpi-card red"><span class="kpi-label">${t('lowStockItems')}</span><span class="kpi-value">${lowStock}</span><span class="kpi-change kpi-down"><i class="fa-solid fa-triangle-exclamation"></i> Below reorder point</span></div>
     <div class="kpi-card purple"><span class="kpi-label">${t('activeSuppliers')}</span><span class="kpi-value">${activeSup}</span><span class="kpi-change" style="color:var(--text-sec)"><i class="fa-solid fa-building-user"></i> Approved vendors</span></div>
   </div>`;
@@ -1714,13 +1755,13 @@ function renderPODetail(p){
   return html;
 }
 
-async function approvePO(id){
+window.approvePO = async function(id){
   if(state.currentUserRole !== 'Manager' && state.currentUserRole !== 'Admin') {
     return showToast('Access denied: Requires Manager role', 'error');
   }
   const po=DATA.purchaseOrders.find(p=>p.id===id);
   if(po){
-    po.status='ordered'; po.approvedBy=DATA.employees[0].name;
+    po.status='ordered'; po.approvedBy=DATA.employees[0]?.name||'Rania Saleh';
     if(supabase) await supabase.from('purchase_orders').update({status:'ordered'}).eq('id',id);
     showToast(id+' approved and ordered','success'); rerenderSection();
   }
@@ -2038,6 +2079,417 @@ function renderFinSettings() {
   </div>`;
 }
 
+/* ═══════════════════════════════════════════════
+   SC — STOCK LEDGER
+═══════════════════════════════════════════════ */
+function recordStockMovement(itemId, type, qty, uom, refType, refId, unitCost, notes){
+  const item = DATA.inventory.find(i=>i.id===itemId);
+  if(!item){showToast('Item not found','error');return null;}
+  const id='SL-'+String(DATA.stockLedger.length+1).padStart(3,'0');
+  const entry = {
+    id, itemId, itemName:item.name, type, qty, uom:uom||item.uom,
+    refType, refId, date:new Date().toISOString().split('T')[0],
+    unitCost:unitCost||item.unitCost, notes:notes||''
+  };
+  DATA.stockLedger.push(entry);
+  if(type==='in'){ item.qtyOnHand += qty; if(item.qtyOnHand>item.maxStock) item.maxStock=item.qtyOnHand*2; }
+  else if(type==='out'){ item.qtyOnHand = Math.max(0, item.qtyOnHand - qty); }
+  item.lastReceived = type==='in' ? entry.date : item.lastReceived;
+  item.status = item.qtyOnHand===0?'out':item.qtyOnHand<item.reorderPoint?'critical':item.qtyOnHand<=item.reorderPoint*1.5?'low':'normal';
+  if(supabase){
+    supabase.from('stock_ledger').insert({
+      id:entry.id, item_id:itemId, movement_type:type, quantity:qty, uom:entry.uom,
+      ref_type:refType, ref_id:refId, date:entry.date, unit_cost:unitCost, notes
+    }).catch(()=>{});
+    supabase.from('inventory').update({stock_level:item.qtyOnHand,last_received:item.lastReceived,status:item.status}).eq('id',itemId).catch(()=>{});
+  }
+  return entry;
+}
+
+function renderStockLedgerPage(){
+  const f=state.filters;
+  let entries=[...DATA.stockLedger];
+  if(f.search){const s=f.search.toLowerCase();entries=entries.filter(e=>e.itemName.toLowerCase().includes(s)||e.refId.toLowerCase().includes(s)||e.refType.toLowerCase().includes(s));}
+  if(f.type&&f.type!=='all') entries=entries.filter(e=>e.type===f.type);
+  if(f.item&&f.item!=='all') entries=entries.filter(e=>e.itemId===f.item);
+  entries.sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+  const itemOptions=[...new Set(DATA.stockLedger.map(e=>e.itemId))].map(id=>{const i=DATA.inventory.find(x=>x.id===id);return {id,name:i?i.name:id};}).filter(Boolean);
+
+  // Calculate running balance
+  let balance=0;
+  const typeIcon=t=>t==='in'?'fa-arrow-down':'fa-arrow-up';
+  const typeColor=t=>t==='in'?'var(--success)':'var(--error)';
+  const typeLabel=t=>t==='in'?t('in'):t==='out'?t('out'):t==='transfer'?t('transfer'):t('adjustment');
+
+  let html=`<div class="fade-in">`;
+  html+=`<div class="sec-card"><div class="sec-card-head">${t('stockLedger')}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input class="filter-input" placeholder="Search..." value="${f.search||''}" oninput="state.filters.search=this.value;rerenderSection()" style="min-width:140px;">
+      <select class="filter-select" onchange="state.filters.type=this.value;rerenderSection()">
+        <option value="all">All Types</option><option value="in">In</option><option value="out">Out</option>
+      </select>
+      <select class="filter-select" onchange="state.filters.item=this.value;rerenderSection()">
+        <option value="all">All Items</option>${itemOptions.map(o=>`<option value="${o.id}" ${f.item===o.id?'selected':''}>${o.name}</option>`).join('')}
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openMovementModal()"><i class="fa-solid fa-plus"></i> ${t('recordMovement')}</button>
+    </div>
+  </div>
+  <div style="overflow-x:auto;"><table class="data-table">
+    <thead><tr>
+      <th onclick="sortBy('date')" class="${sortedCls('date')}">Date ${sortIcon('date')}</th>
+      <th onclick="sortBy('itemName')" class="${sortedCls('itemName')}">Item ${sortIcon('itemName')}</th>
+      <th>Type</th>
+      <th>Qty</th>
+      <th>UoM</th>
+      <th>Unit Cost</th>
+      <th>Total Value</th>
+      <th>Running Balance</th>
+      <th onclick="sortBy('refType')" class="${sortedCls('refType')}">Reference ${sortIcon('refType')}</th>
+      <th>Notes</th>
+    </tr></thead><tbody>`;
+  if(!entries.length) html+=`<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-sec);">No stock movements recorded</td></tr>`;
+  entries.forEach(e=>{
+    balance += e.type==='in' ? e.qty : -e.qty;
+    const totalValue = e.qty * e.unitCost;
+    html+=`<tr>
+      <td style="font-size:12px;color:var(--text-sec)">${fmtDate(e.date)}</td>
+      <td style="font-weight:600">${e.itemName}</td>
+      <td><span style="display:inline-flex;align-items:center;gap:4px;color:${typeColor(e.type)};font-weight:600;"><i class="fa-solid ${typeIcon(e.type)}" style="font-size:11px;"></i> ${typeLabel(e.type)}</span></td>
+      <td style="font-weight:700">${e.type==='in'?'+':'-'}${e.qty}</td>
+      <td style="color:var(--text-sec);font-size:12px">${e.uom}</td>
+      <td>${fmt(e.unitCost)}</td>
+      <td style="font-weight:600">${fmt(totalValue)}</td>
+      <td style="font-weight:700;color:${balance<0?'var(--error)':'var(--success)'}">${balance} ${e.uom}</td>
+      <td style="font-size:12px;color:var(--text-sec)">${e.refType}<br>${e.refId}</td>
+      <td style="font-size:12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-sec)">${e.notes||'—'}</td>
+    </tr>`;
+  });
+  html+=`</tbody></table></div></div></div>`;
+  return html;
+}
+
+function openMovementModal(){
+  const body=`
+    <div class="form-group"><label class="form-label">Item</label>
+      <select class="form-select" id="mv-item">${DATA.inventory.map(i=>`<option value="${i.id}">${i.name} (${i.partNo}) – ${i.qtyOnHand} ${i.uom} on hand</option>`).join('')}
+    </select></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Movement Type</label>
+        <select class="form-select" id="mv-type"><option value="in">In (Receipt / Return)</option><option value="out">Out (Issue / Consumption)</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">Quantity</label><input class="form-input" id="mv-qty" type="number" min="1" value="1"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Unit Cost (optional)</label><input class="form-input" id="mv-cost" type="number" min="0" step="0.01" value="0"></div>
+      <div class="form-group"><label class="form-label">UoM</label><input class="form-input" id="mv-uom" placeholder="Unit, Litre, Pair..." value="Unit"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Reference Type</label>
+      <select class="form-select" id="mv-reftype"><option>Manual Adjustment</option><option>Issue</option><option>Return</option><option>Transfer</option><option>Write-Off</option></select>
+    </div>
+    <div class="form-group"><label class="form-label">Reference ID / Document</label><input class="form-input" id="mv-refid" placeholder="e.g. ISS-001, WO-001..."></div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="mv-notes" placeholder="Reason for movement, receiving notes..."></textarea></div>`;
+  const footer=`<button class="btn btn-secondary" onclick="closeModal()">${t('cancel')}</button><button class="btn btn-primary" onclick="submitMovement()">${t('save')}</button>`;
+  openModal(t('recordMovement'),body,footer);
+}
+
+function submitMovement(){
+  const itemId=$('#mv-item').value;
+  const type=$('#mv-type').value;
+  const qty=parseInt($('#mv-qty').value)||0;
+  if(!itemId||qty<1){showToast('Select item and enter valid quantity','error');return;}
+  const uom=$('#mv-uom').value.trim()||'Unit';
+  const cost=parseFloat($('#mv-cost').value)||0;
+  const refType=$('#mv-reftype').value;
+  const refId=$('#mv-refid').value.trim()||'MANUAL-'+Date.now();
+  const notes=$('#mv-notes').value.trim();
+  const entry=recordStockMovement(itemId,type,qty,uom,refType,refId,cost||undefined,notes);
+  if(entry){
+    closeModal();
+    showToast(`${type==='in'?'Received':'Issued'} ${qty} ${uom}`,'success');
+    rerenderSection();
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   SC — MATERIAL REQUESTS (Master-Detail)
+═══════════════════════════════════════════════ */
+function renderAllMRs(filterFn){
+  const f=state.filters;
+  let items=DATA.materialRequests.filter(filterFn||(_=>true));
+  if(f.search){const s=f.search.toLowerCase();items=items.filter(m=>m.title.toLowerCase().includes(s)||m.id.toLowerCase().includes(s)||m.requestedBy.toLowerCase().includes(s));}
+  if(f.status&&f.status!=='all') items=items.filter(m=>m.status===f.status);
+  if(f.priority&&f.priority!=='all') items=items.filter(m=>m.priority===f.priority);
+  if(state.sortCol){const col=state.sortCol,dir=state.sortDir==='asc'?1:-1;items.sort((a,b)=>{let va=a[col],vb=b[col];if(typeof va==='string')return va.localeCompare(vb)*dir;return(va-vb)*dir;});}
+
+  const statusBadge=s=>s==='approved'?'<span class="pill pill-valid">Approved</span>':s==='rejected'?'<span class="pill pill-inactive">Rejected</span>':s==='pending'?'<span class="pill pill-leave">Pending</span>':'<span class="pill pill-draft">Draft</span>';
+  const priorityBadge=p=>p==='Critical'?'<span style="color:var(--error);font-weight:700;font-size:11px;">● Critical</span>':p==='High'?'<span style="color:var(--warning);font-weight:700;font-size:11px;">● High</span>':'<span style="color:var(--text-sec);font-size:11px;">● Normal</span>';
+
+  let html=`<div class="fade-in">`;
+  html+=`<div class="md-layout" style="min-height:calc(100vh - var(--shell-h) - var(--tab-h) - 48px);">`;
+  html+=`<div class="md-master">
+    <div class="filter-bar">
+      <input class="filter-input" placeholder="Search MRs..." value="${f.search||''}" oninput="state.filters.search=this.value;rerenderSection()" style="flex:1;min-width:90px">
+      <select class="filter-select" onchange="state.filters.status=this.value;rerenderSection()">
+        <option value="all">All Status</option><option value="draft">Draft</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option>
+      </select>
+      <select class="filter-select" onchange="state.filters.priority=this.value;rerenderSection()">
+        <option value="all">All Priority</option><option value="Critical">Critical</option><option value="High">High</option><option value="Normal">Normal</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openNewMRModal()"><i class="fa-solid fa-plus"></i> ${t('newMR')}</button>
+    </div>
+    <div style="padding:6px 14px 4px;font-size:11px;color:var(--text-sec);background:#fafafa;border-bottom:1px solid var(--border);">${items.length} material requests</div>
+    <div class="list-container">`;
+  if(!items.length) html+=`<div class="empty-state"><i class="fa-solid fa-clipboard-list"></i><p>No material requests found</p></div>`;
+  items.forEach(m=>{
+    html+=`<div class="list-item ${state.selectedId===m.id?'selected':''}" onclick="selectMRItem('${m.id}')" style="border-left-color:${m.priority==='Critical'?'var(--error)':m.priority==='High'?'var(--warning)':'var(--border)'}">
+      <div style="width:36px;height:36px;border-radius:6px;background:#ede7f6;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fa-solid fa-clipboard-list" style="color:#6b3fa0;font-size:14px;"></i></div>
+      <div class="list-item-body">
+        <div class="list-item-title">${m.title}</div>
+        <div class="list-item-desc">${m.id} · ${m.department} · ${m.site}</div>
+      </div>
+      <div class="list-item-right">
+        ${statusBadge(m.status)}
+        <div class="list-item-date" style="margin-top:3px;">${m.items.length} items · ${priorityBadge(m.priority)}</div>
+      </div>
+    </div>`;
+  });
+  html+=`</div></div>`;
+
+  html+=`<div class="md-detail ${state.selectedId?'has-item':''}" style="padding:0;">`;
+  if(state.selectedId){
+    const m=DATA.materialRequests.find(x=>x.id===state.selectedId);
+    if(m) html+=renderMRDetail(m);
+  } else {
+    html+=`<div class="empty-state" style="min-height:400px;"><i class="fa-solid fa-hand-pointer"></i><p>Select a material request to view details</p></div>`;
+  }
+  html+=`</div></div></div>`;
+  return html;
+}
+
+function selectMRItem(id){ state.selectedId=id; state.detailTab='info'; rerenderSection(); }
+
+function renderMRDetail(m){
+  const statusBadge=s=>s==='approved'?'<span class="pill pill-valid">Approved</span>':s==='rejected'?'<span class="pill pill-inactive">Rejected</span>':s==='pending'?'<span class="pill pill-leave">Pending</span>':'<span class="pill pill-draft">Draft</span>';
+  const tabs=[
+    {id:'info',label:'Details'},
+    {id:'items',label:`Items (${m.items.length})`},
+  ];
+
+  let html=`<div class="obj-header">
+    <div class="obj-header-top">
+      <div style="width:52px;height:52px;border-radius:8px;background:#ede7f6;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fa-solid fa-clipboard-list" style="font-size:22px;color:#6b3fa0;"></i></div>
+      <div style="flex:1;"><h2>${m.id}</h2><div class="obj-sub">${m.title}</div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${m.status==='pending'?`<button class="btn btn-primary btn-sm" onclick="approveMR('${m.id}')"><i class="fa-solid fa-check"></i> ${t('approveMR')}</button><button class="btn btn-secondary btn-sm" onclick="rejectMR('${m.id}')"><i class="fa-solid fa-xmark"></i> ${t('rejectMR')}</button>`:''}
+        ${m.status==='approved'&&!m.poRef?`<button class="btn btn-primary btn-sm" onclick="convertMRtoPO('${m.id}')"><i class="fa-solid fa-file-invoice"></i> ${t('convertToPO')}</button>`:''}
+      </div>
+    </div>
+    <div class="obj-kv">
+      <div class="obj-kv-item"><span class="obj-kv-label">${t('mrStatus')}</span><span class="obj-kv-value">${statusBadge(m.status)}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">${t('mrDepartment')}</span><span class="obj-kv-value">${m.department}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">${t('requestedBy')}</span><span class="obj-kv-value">${m.requestedBy}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">Site</span><span class="obj-kv-value">${m.site}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">Requested Date</span><span class="obj-kv-value">${fmtDate(m.requestedDate)}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">Required Date</span><span class="obj-kv-value">${fmtDate(m.requiredDate)}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">${t('priority')}</span><span class="obj-kv-value" style="font-weight:700;color:${m.priority==='Critical'?'var(--error)':m.priority==='High'?'var(--warning)':'var(--text)'}">${m.priority}</span></div>
+      ${m.approvedBy?`<div class="obj-kv-item"><span class="obj-kv-label">Approved By</span><span class="obj-kv-value">${m.approvedBy}</span></div>`:''}
+      ${m.poRef?`<div class="obj-kv-item"><span class="obj-kv-label">PO Reference</span><span class="obj-kv-value" style="color:var(--blue);font-weight:600;">${m.poRef}</span></div>`:''}
+    </div>
+  </div>
+  <div class="detail-tabs">${tabs.map(tb=>`<div class="detail-tab ${state.detailTab===tb.id?'active':''}" onclick="state.detailTab='${tb.id}';rerenderSection()">${tb.label}</div>`).join('')}</div>
+  <div class="detail-tab-body">`;
+
+  if(state.detailTab==='info'){
+    html+=`<div class="sec-card"><div class="sec-card-head">Request Details</div>
+    <div class="sec-card-body">
+      <div style="margin-bottom:12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">Purpose / Notes</div>
+      <div style="font-size:13px;line-height:1.6;">${m.notes||'No additional notes'}</div></div>`;
+    if(m.items.length){
+      html+=`<div style="margin-top:12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:8px;">${t('mrItems')}</div>
+      <div style="display:grid;gap:8px;">`;
+      m.items.forEach((it,i)=>{
+        html+=`<div style="padding:10px 12px;background:var(--bg);border-radius:6px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+          <div><div style="font-weight:600;font-size:13px;">${it.name}</div>
+          <div style="font-size:11px;color:var(--text-sec);">${it.spec||''}</div></div>
+          <div style="text-align:right;"><div style="font-weight:700;font-size:14px;">${it.qty} <span style="font-weight:400;font-size:11px;color:var(--text-sec)">${it.uom}</span></div>
+          <div style="font-size:11px;color:var(--text-sec);">~${fmt(it.estUnitCost)}/unit</div></div>
+        </div>`;
+      });
+      html+=`</div></div>`;
+    }
+    html+=`</div></div>`;
+  }
+  else if(state.detailTab==='items'){
+    html+=`<div class="sec-card"><div class="sec-card-head">${t('mrItems')} <span style="font-size:12px;font-weight:400;color:var(--text-sec)">${m.items.length} items</span></div>
+    <div style="overflow-x:auto;"><table class="data-table">
+      <thead><tr><th>#</th><th>Item Name</th><th>Specification</th><th>Qty</th><th>UoM</th><th>Est. Unit Cost</th><th>Est. Total</th></tr></thead><tbody>`;
+    let grandTotal=0;
+    m.items.forEach((it,i)=>{
+      const total=it.qty*it.estUnitCost; grandTotal+=total;
+      html+=`<tr><td style="color:var(--text-sec)">${i+1}</td><td style="font-weight:600">${it.name}</td><td style="font-size:12px;color:var(--text-sec)">${it.spec||'—'}</td>
+        <td style="font-weight:600">${it.qty}</td><td>${it.uom}</td><td>${fmt(it.estUnitCost)}</td><td style="font-weight:700;color:#6b3fa0">${fmt(total)}</td></tr>`;
+    });
+    if(m.items.length){
+      html+=`<tr style="background:#f5f6f7;"><td colspan="6" style="text-align:right;font-weight:700;padding:10px 12px;">Estimated Total</td>
+        <td style="font-weight:800;color:#6b3fa0;font-size:14px;">${fmt(grandTotal)}</td></tr>`;
+    }
+    html+=`</tbody></table></div></div>`;
+  }
+  html+=`</div>`;
+  return html;
+}
+
+function openNewMRModal(){
+  const body=`
+    <div class="form-group"><label class="form-label">${t('mrTitle')}</label><input class="form-input" id="nmr-title" placeholder="e.g. Urgent Liner Replacement for Rig Alpha"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">${t('mrDepartment')}</label>
+        <select class="form-select" id="nmr-dept"><option>Drilling</option><option>Production</option><option>HSE</option><option>Maintenance</option><option>Projects</option><option>General</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">Site</label>
+        <select class="form-select" id="nmr-site"><option>Block 15 – Rig Alpha</option><option>Block 7 – Offshore Platform</option><option>Onshore Processing Facility – South</option><option>Gas Treatment Plant – North</option><option>Head Office – Muscat</option><option>All Sites</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">${t('priority')}</label>
+        <select class="form-select" id="nmr-priority"><option>Normal</option><option>High</option><option>Critical</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">Required Date</label><input class="form-input" id="nmr-reqdate" type="date"></div>
+    </div>
+    <div class="form-group"><label class="form-label">${t('notes')}</label><textarea class="form-textarea" id="nmr-notes" placeholder="Describe why these materials are needed..."></textarea></div>
+    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;">
+      <div style="font-size:12px;font-weight:600;color:var(--text-sec);margin-bottom:8px;">Item Line Items</div>
+      <div id="mr-items-container">
+        <div class="mr-item-row" style="display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;">
+          <div class="form-group" style="flex:3;margin-bottom:0;"><input class="form-input" placeholder="Item name" id="mri-0-name"></div>
+          <div class="form-group" style="flex:1;margin-bottom:0;"><input class="form-input" type="number" placeholder="Qty" id="mri-0-qty" value="1" min="1"></div>
+          <div class="form-group" style="flex:1;margin-bottom:0;"><input class="form-input" placeholder="Unit" id="mri-0-uom" value="Unit"></div>
+          <div class="form-group" style="flex:1;margin-bottom:0;"><input class="form-input" type="number" placeholder="Est. cost" id="mri-0-cost" value="0" min="0"></div>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="addMRItemRow()"><i class="fa-solid fa-plus"></i> Add Item</button>
+    </div>`;
+  const footer=`<button class="btn btn-secondary" onclick="closeModal()">${t('cancel')}</button><button class="btn btn-primary" onclick="submitNewMR()">${t('save')}</button>`;
+  openModal(t('newMR'),body,footer);
+}
+
+let mrItemRowCount=1;
+function addMRItemRow(){
+  const container=$('#mr-items-container');
+  const row=document.createElement('div');
+  row.className='mr-item-row';
+  row.style.cssText='display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;';
+  row.innerHTML=`
+    <div class="form-group" style="flex:3;margin-bottom:0;"><input class="form-input" placeholder="Item name" id="mri-${mrItemRowCount}-name"></div>
+    <div class="form-group" style="flex:1;margin-bottom:0;"><input class="form-input" type="number" placeholder="Qty" id="mri-${mrItemRowCount}-qty" value="1" min="1"></div>
+    <div class="form-group" style="flex:1;margin-bottom:0;"><input class="form-input" placeholder="Unit" id="mri-${mrItemRowCount}-uom" value="Unit"></div>
+    <div class="form-group" style="flex:1;margin-bottom:0;"><input class="form-input" type="number" placeholder="Est. cost" id="mri-${mrItemRowCount}-cost" value="0" min="0"></div>`;
+  container.appendChild(row);
+  mrItemRowCount++;
+}
+
+async function submitNewMR(){
+  const title=$('#nmr-title').value.trim();
+  if(!title){showToast('Title is required','error');return;}
+  const now=new Date();
+  const newId='MR-'+now.getFullYear()+'-'+String(DATA.materialRequests.length+1).padStart(3,'0');
+  const items=[];
+  for(let i=0;i<mrItemRowCount;i++){
+    const name=$('#mri-'+i+'-name')?.value?.trim();
+    if(!name) continue;
+    items.push({
+      name,
+      qty:parseInt($('#mri-'+i+'-qty')?.value)||1,
+      uom:$('#mri-'+i+'-uom')?.value?.trim()||'Unit',
+      estUnitCost:parseFloat($('#mri-'+i+'-cost')?.value)||0,
+      spec:''
+    });
+  }
+  if(!items.length){showToast('Add at least one item','error');return;}
+  const mr={
+    id:newId,title,requestedBy: DATA.employees[0]?.name||'Unknown',
+    requestedDate:now.toISOString().split('T')[0],
+    requiredDate:$('#nmr-reqdate').value,
+    department:$('#nmr-dept').value,
+    site:$('#nmr-site').value,status:'draft',
+    priority:$('#nmr-priority').value,
+    notes:$('#nmr-notes').value.trim(),
+    items,approvedBy:null,approvedDate:null,poRef:null
+  };
+  if(supabase){
+    const{error}=await supabase.from('material_requests').insert({
+      id:newId,title,status:'draft',priority:mr.priority,
+      department:mr.department,site:mr.site,requested_by:mr.requestedBy,required_date:mr.requiredDate,notes:mr.notes
+    }).catch(()=>{});
+  }
+  DATA.materialRequests.push(mr);
+  mrItemRowCount=1;
+  closeModal();state.selectedId=newId;state.section='materialRequests';
+  showToast(newId+' created','success');rerenderSection();
+}
+
+async function approveMR(id){
+  const mr=DATA.materialRequests.find(m=>m.id===id);
+  if(!mr) return showToast('Not found','error');
+  mr.status='pending'; // first submit as pending if draft
+  if(mr.status==='pending'){
+    mr.status='approved'; mr.approvedBy=DATA.employees[0]?.name||'Manager'; mr.approvedDate=new Date().toISOString().split('T')[0];
+    if(supabase) supabase.from('material_requests').update({status:'approved',approved_by:mr.approvedBy,approved_date:mr.approvedDate}).eq('id',id).catch(()=>{});
+    showToast(id+' approved','success'); rerenderSection();
+  }
+}
+
+async function rejectMR(id){
+  const mr=DATA.materialRequests.find(m=>m.id===id);
+  if(!mr||mr.status!=='pending') return showToast('Can only reject pending requests','error');
+  mr.status='rejected';
+  if(supabase) supabase.from('material_requests').update({status:'rejected'}).eq('id',id).catch(()=>{});
+  showToast(id+' rejected','warning'); rerenderSection();
+}
+
+async function convertMRtoPO(id){
+  const mr=DATA.materialRequests.find(m=>m.id===id);
+  if(!mr||mr.status!=='approved') return showToast('Only approved MRs can be converted','error');
+  if(mr.poRef) return showToast('PO already created for this MR: '+mr.poRef,'info');
+  const now=new Date();
+  const poId='PO-'+now.getFullYear()+'-'+String(DATA.purchaseOrders.length+1).padStart(3,'0');
+  const estTotal=mr.items.reduce((s,it)=>s+it.qty*it.estUnitCost,0);
+  const po={
+    id:poId,supplierId:null,supplier:'TBD – Select Supplier',
+    category:mr.department==='Drilling'?'Drilling Equipment':mr.department==='HSE'?'PPE & Safety':'General Industrial',
+    description:'Auto-generated from '+mr.id+': '+mr.title,
+    amount:estTotal,currency:'USD',status:'draft',
+    priority:mr.priority,requestedBy:mr.requestedBy,approvedBy:null,
+    site:mr.site,requiredDate:mr.requiredDate,
+    createdDate:now.toISOString().split('T')[0],deliveryDate:null,
+    poLines:mr.items.map(it=>({item:it.name,qty:it.qty,unit:it.uom,unitPrice:it.estUnitCost,mrRef:mr.id}))
+  };
+  DATA.purchaseOrders.push(po);
+  mr.poRef=poId;
+  if(supabase){
+    supabase.from('purchase_orders').insert({id:poId,supplier_name:po.supplier,description:po.description,total_amount:estTotal,status:'draft',priority:mr.priority,site:mr.site,requested_by:mr.requestedBy,order_date:po.createdDate}).catch(()=>{});
+    supabase.from('material_requests').update({po_ref:poId}).eq('id',id).catch(()=>{});
+  }
+  showToast(poId+' created from '+mr.id,'success');
+  state.selectedId=poId; state.section='allPOs'; state.detailTab='info';
+  rerenderSection();
+}
+
+/* ── Expose SC functions for inline onclick handlers ── */
+window.selectPOItem = selectPOItem;
+window.selectSupplierItem = selectSupplierItem;
+window.selectMRItem = selectMRItem;
+window.openNewPOModal = openNewPOModal;
+window.submitNewPO = submitNewPO;
+window.openNewMRModal = openNewMRModal;
+window.submitNewMR = submitNewMR;
+window.addMRItemRow = addMRItemRow;
+window.approveMR = approveMR;
+window.rejectMR = rejectMR;
+window.convertMRtoPO = convertMRtoPO;
+window.openMovementModal = openMovementModal;
+window.submitMovement = submitMovement;
+
 function renderContent(){
   let html='';
   if(state.module==='hr'){
@@ -2081,6 +2533,7 @@ function renderContent(){
   else if(state.module==='supply'){
     if(state.section==='scDashboard'||state.section==='warehouses') html=renderSCDashboard();
     else if(state.section==='warehouseCapacity') html=renderWarehouseCapacity();
+    else if(state.section==='materialRequests') html=renderAllMRs();
     else if(state.section==='allPOs') html=renderAllPOs();
     else if(state.section==='pendingApprovalPO') html=renderAllPOs(p=>p.status==='draft');
     else if(state.section==='orderedItems') html=renderAllPOs(p=>p.status==='ordered');
@@ -2088,6 +2541,7 @@ function renderContent(){
     else if(state.section==='allSuppliers'||state.section==='supplierPerformance') html=renderAllSuppliers();
     else if(state.section==='inventoryItems') html=renderInventory();
     else if(state.section==='lowStockAlerts') html=renderInventory(i=>i.status!=='normal');
+    else if(state.section==='stockLedger') html=renderStockLedgerPage();
     else if(state.section==='scSettings') html=renderSCSettings();
     else html=renderSCDashboard();
   }
@@ -2195,6 +2649,10 @@ const AI = {
       `${i.id}|${i.name}|${i.partNo}|onHand:${i.qtyOnHand}${i.uom}|reorder:${i.reorderPoint}|${i.status}`
     ).join('\n');
 
+    const mrSummary = DATA.materialRequests.map(m=>
+      `${m.id}|${m.title}|${m.status}|${m.priority}|items:${m.items.length}|site:${m.site}|dept:${m.department}|${m.requiredDate}`
+    ).join('\n');
+
     const expiredCerts = DATA.certificates.filter(c=>c.status==='expired').map(c=>c.equipName).join(', ');
     const expiringCerts = DATA.certificates.filter(c=>c.status==='expiring').map(c=>`${c.equipName}(${c.daysRemaining}d)`).join(', ');
     const lowStock = DATA.inventory.filter(i=>i.status!=='normal').map(i=>`${i.name}(${i.qtyOnHand}${i.uom})`).join(', ');
@@ -2230,6 +2688,10 @@ ${accSummary}
 === INVENTORY (${DATA.inventory.length} items) ===
 Format: ID|Name|PartNo|OnHand|ReorderPoint|Status
 ${invSummary}
+
+=== MATERIAL REQUESTS (${DATA.materialRequests.length} total) ===
+Format: ID|Title|Status|Priority|Items|Site|Dept|RequiredDate
+${mrSummary}
 
 === INSTRUCTIONS ===
 - Answer questions accurately using the data above. Be concise, direct, and helpful.
@@ -2818,6 +3280,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else if (event === 'SIGNED_OUT') {
       document.getElementById('authOverlay').classList.remove('hidden');
       document.querySelector('.app-body').innerHTML = ''; // clear app body
+      document.getElementById('tabBar').innerHTML = ''; // clear tabs
+      document.getElementById('modSidebar').innerHTML = ''; // clear sidebar
     }
   });
 
@@ -2826,6 +3290,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const email = document.getElementById('authEmail').value;
     const password = document.getElementById('authPassword').value;
     const errEl = document.getElementById('authError');
+    const btn = document.getElementById('authLoginBtn');
+    const btnText = document.getElementById('authBtnText');
+    const btnSpinner = document.getElementById('authBtnSpinner');
     errEl.textContent = '';
     
     if (!email || !password) {
@@ -2833,8 +3300,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     
+    btn.disabled = true;
+    btnText.style.display = 'none';
+    btnSpinner.style.display = 'inline';
+    
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    
+    btn.disabled = false;
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+    
     if (error) errEl.textContent = error.message;
+  });
+
+  // Enter key submits login form
+  document.getElementById('authForm').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('authLoginBtn').click();
   });
 
   // Logout Button Handler

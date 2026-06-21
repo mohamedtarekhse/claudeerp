@@ -3482,218 +3482,52 @@ document.addEventListener('click', e=>{
 });
 /* ── DATA FETCHING (SUPABASE) ── */
 async function loadData() {
-  if (!supabase) return; // Fallback to mock data if no supabase client
+  if (!supabase) { updateLoadingProgress(100); return; } // Fallback to mock data if no supabase client
   try {
-    // 1. Fetch Employees
-    const { data: emps, error: eErr } = await supabase.from('employees').select('*, employee_skills(*), employee_leave_balances(*), employee_history(*), employee_hse_certs(*)');
-    if (eErr) throw eErr;
-    if (emps && emps.length > 0) {
-      DATA.employees = emps.map(emp => ({
-        id: emp.id,
-        firstName: emp.first_name,
-        lastName: emp.last_name,
-        name: emp.full_name || (emp.first_name + ' ' + emp.last_name),
-        dept: emp.department,
-        position: emp.position_title,
-        email: emp.email,
-        phone: emp.phone,
-        status: emp.status,
-        empType: emp.emp_type,
-        site: emp.site,
-        rotation: emp.rotation,
-        crew: emp.crew,
-        startDate: emp.start_date,
-        manager: emp.manager_id,
-        salaryBand: emp.salary_band,
-        costCenter: emp.cost_center,
-        nationality: emp.nationality,
-        visa: emp.visa,
-        h2sLevel: emp.h2s_level,
-        medFit: emp.med_fit,
-        medExpiry: emp.med_expiry,
-        workPermit: emp.work_permit,
-        skills: emp.employee_skills || [],
-        hseCerts: emp.employee_hse_certs || [],
-        history: emp.employee_history || [],
-        leave: (emp.employee_leave_balances || []).reduce((acc, lb) => {
-          acc[lb.leave_type] = { used: lb.used, total: lb.total };
-          return acc;
-        }, {})
-      }));
-    }
-
-    // 2. Fetch Inventory
-    const { data: inv, error: iErr } = await supabase.from('inventory').select('*');
-    if (!iErr && inv && inv.length > 0) {
-      DATA.inventory = inv.map(i => ({
-        id: i.id, name: i.item_name, category: i.category, stock: i.stock_level, min: i.min_stock, unit: i.unit, location: i.location
-      }));
-    }
-
-    // 3. Fetch Suppliers
-    const { data: sups } = await supabase.from('suppliers').select('*');
-    if (sups && sups.length > 0) {
-      DATA.suppliers = sups.map(s => ({
-        id: s.id, name: s.name, category: s.category, contact_person: s.contact_person, email: s.email, phone: s.phone, rating: s.rating, country: s.country, status: s.status
-      }));
-    }
-
-    // 4. Fetch Warehouses
-    const { data: whs } = await supabase.from('warehouses').select('*');
-    if (whs && whs.length > 0) {
-      DATA.warehouses = whs.map(w => ({
-        id: w.id, name: w.name, location: w.location, manager_id: w.manager_id, capacity_used: w.capacity_used, capacity_total: w.capacity_total, status: w.status
-      }));
-    }
-
-    // 5. Fetch Purchase Orders and Line Items
-    const { data: pos, error: pErr } = await supabase.from('purchase_orders').select('*, po_line_items(*)');
-    if (!pErr && pos && pos.length > 0) {
-      DATA.purchaseOrders = pos.map(po => ({
-        id: po.id, supplier: po.supplier_name, description: po.description, amount: po.total_amount, status: po.status, 
-        priority: po.priority, site: po.site, requestedBy: po.requested_by, createdDate: po.order_date, deliveryDate: po.delivery_date,
-        poLines: (po.po_line_items || []).map(l => ({ item: l.item_desc, qty: l.quantity, unit: l.unit, unitPrice: l.unit_price }))
-      }));
-    }
-
-    // 4. Fetch CRM Accounts
-    const { data: accs, error: aErr } = await supabase.from('crm_accounts').select('*');
-    if (!aErr && accs && accs.length > 0) {
-      DATA.accounts = accs.map(a => ({
-        id: a.id, name: a.name, industry: a.industry, status: a.status, tier: a.tier, managerId: a.manager_id, revenue: a.revenue, lastContact: a.last_contact, nextAction: a.next_action
-      }));
-    }
-
-    // 4.5 Fetch CRM Field Service Logs
-    const { data: fsl } = await supabase.from('crm_field_service_logs').select('*');
-    if (fsl && fsl.length > 0) {
-      DATA.fieldServiceLogs = fsl.map(l => ({
-        id: l.id, client_name: l.client_name, engineer_name: l.engineer_name, date: l.date, job_description: l.job_description, status: l.status
-      }));
-    }
-
-    // 5. Fetch Leave Requests
-    const { data: lreqs } = await supabase.from('leave_requests').select('*');
-    if (lreqs && lreqs.length > 0) {
-      DATA.leaveRequests = lreqs.map(lr => ({
-        id: lr.id, empId: lr.employee_id, type: lr.leave_type, start: lr.start_date, end: lr.end_date, status: lr.status
-      }));
-    }
-
-    // 6. Fetch standalone certificates
-    const { data: certs } = await supabase.from('certificates').select('*');
-    if (certs && certs.length > 0) {
-      DATA.certificates = certs.map(c => ({
-        id: c.id, empId: c.employee_id, type: c.cert_type, expiry: c.expiry_date, status: c.status
-      }));
-    }
-
-    // 7. Fetch CRM Leads
-    const { data: leads } = await supabase.from('crm_leads').select('*');
-    if (leads && leads.length > 0) {
-      DATA.leads = leads.map(l => ({
-        id: l.id, name: l.name, email: l.email, phone: l.phone, status: l.status, source: l.source
-      }));
-    }
-
-    // 8. Fetch CRM Deals
-    const { data: deals } = await supabase.from('crm_deals').select('*');
-    if (deals && deals.length > 0) {
-      DATA.deals = deals.map(d => ({
-        id: d.id, title: d.title, lead_id: d.lead_id, account_id: d.account_id, value: d.value, stage: d.stage, expected_close_date: d.expected_close_date, invoice_id: d.invoice_id || null
-      }));
-    }
-
-    // 9. Fetch CRM Tasks
-    const { data: tasks } = await supabase.from('crm_tasks').select('*');
-    if (tasks && tasks.length > 0) {
-      DATA.tasks = tasks.map(t => ({
-        id: t.id, description: t.description, due_date: t.due_date, status: t.status, assigned_to: t.assigned_to, related_lead_id: t.related_lead_id, related_deal_id: t.related_deal_id
-      }));
-    }
-
-    // 9.5 Fetch HR Open Positions
-    const { data: pos_hr } = await supabase.from('hr_open_positions').select('*');
-    if (pos_hr && pos_hr.length > 0) {
-      DATA.openPositions = pos_hr.map(p => ({
-        id: p.id, title: p.title, department: p.department, status: p.status, posted_date: p.posted_date
-      }));
-    }
-
-    // 9.6 Fetch HR Performance Reviews
-    const { data: revs } = await supabase.from('hr_performance_reviews').select('*');
-    if (revs && revs.length > 0) {
-      DATA.performanceReviews = revs.map(r => ({
-        id: r.id, employee_name: r.employee_name, period: r.period, rating: r.rating, comments: r.comments, status: r.status
-      }));
-    }
-
-    // 9.7 Fetch HSE Training
-    const { data: trns } = await supabase.from('hr_hse_training').select('*');
-    if (trns && trns.length > 0) {
-      DATA.hseTraining = trns.map(t => ({
-        id: t.id, employee_name: t.employee_name, course: t.course, date: t.date, status: t.status
-      }));
-    }
-
-    // 9.8 Fetch Org Units
-    const { data: orgs } = await supabase.from('hr_org_units').select('*');
-    if (orgs && orgs.length > 0) {
-      DATA.orgUnits = orgs.map(o => ({
-        id: o.id, name: o.name, head_count: o.head_count, manager: o.manager
-      }));
-    }
-
-    // 10. Fetch HR Attendance
-    const { data: att } = await supabase.from('hr_attendance').select('*');
-    if (att && att.length > 0) {
-      DATA.attendance = att.map(a => ({
-        id: a.id, employee_id: a.employee_id, date: a.date, status: a.status, check_in_time: a.check_in_time, check_out_time: a.check_out_time
-      }));
-    }
-
-    // 11. Fetch HR Expenses
-    const { data: exp } = await supabase.from('hr_expense_claims').select('*');
-    if (exp && exp.length > 0) {
-      DATA.expenses = exp.map(e => ({
-        id: e.id, employee_id: e.employee_id, date: e.date, amount: e.amount, category: e.category, description: e.description, status: e.status
-      }));
-    }
-
-    // 12. Fetch HR Salary Slips
-    const { data: sal } = await supabase.from('hr_salary_slips').select('*');
-    if (sal && sal.length > 0) {
-      DATA.salarySlips = sal.map(s => ({
-        id: s.id, employee_id: s.employee_id, month: s.month, year: s.year, base_pay: s.base_pay, allowances: s.allowances, deductions: s.deductions, net_pay: s.net_pay, status: s.status, payment_id: s.payment_id || null
-      }));
-    }
-    // 13. Fetch Cost Centers & Tax Templates
-    const { data: ccs } = await supabase.from('fin_cost_centers').select('*');
-    if (ccs && ccs.length > 0) DATA.costCenters = ccs.map(c => ({ id: c.id, name: c.name, dept: c.dept }));
-    const { data: txs } = await supabase.from('fin_tax_templates').select('*');
-    if (txs && txs.length > 0) DATA.taxTemplates = txs.map(t => ({ id: t.id, name: t.name, rate: t.rate, account: t.account }));
-    const { data: chAccs } = await supabase.from('fin_chart_accounts').select('*');
-    if (chAccs && chAccs.length > 0) DATA.chartAccounts = chAccs.map(a => ({ id: a.id, name: a.name, type: a.type, parent_id: a.parent_id, is_group: a.is_group, balance: a.balance || 0 }));
-    const { data: jes } = await supabase.from('fin_journal_entries').select('*');
-    if (jes && jes.length > 0) DATA.journalEntries = jes.map(j => ({ id: j.id, date: j.date, reference: j.reference, description: j.description, entries: j.entries }));
-    const { data: fas } = await supabase.from('fin_fixed_assets').select('*');
-    if (fas && fas.length > 0) DATA.fixedAssets = fas.map(f => ({ id: f.id, name: f.name, type: f.type, purchase_date: f.purchase_date, cost: f.cost, salvage_value: f.salvage_value, useful_life_years: f.useful_life_years, depreciation_method: f.depreciation_method, accumulated_depreciation: f.accumulated_depreciation || 0, net_book_value: f.net_book_value || f.cost, status: f.status, supplier_id: f.supplier_id || null }));
-    // 14. Fetch Finance Invoices
-    const { data: invs } = await supabase.from('fin_invoices').select('*');
-    if (invs && invs.length > 0) {
-      DATA.invoices = invs.map(i => ({
-        id: i.id, type: i.type, party_name: i.party_name, date: i.date, due_date: i.due_date, total_amount: i.total_amount, status: i.status, deal_id: i.deal_id || null, items: i.items || [], cost_center_id: i.cost_center_id || null, tax_template_id: i.tax_template_id || null, tax_rate: i.tax_rate || 0, tax_amount: i.tax_amount || 0
-      }));
-    }
-
-    // 15. Fetch Finance Payments
-    const { data: pays } = await supabase.from('fin_payments').select('*');
-    if (pays && pays.length > 0) {
-      DATA.payments = pays.map(p => ({
-        id: p.id, invoice_id: p.invoice_id, date: p.date, amount: p.amount, payment_method: p.payment_method, salary_slip_id: p.salary_slip_id || null
-      }));
-    }
-
+    const queries = [
+      supabase.from('employees').select('*, employee_skills(*), employee_leave_balances(*), employee_history(*), employee_hse_certs(*)').then(r => {
+        if (!r.error && r.data && r.data.length > 0) DATA.employees = r.data.map(emp => ({
+          id: emp.id, firstName: emp.first_name, lastName: emp.last_name, name: emp.full_name || (emp.first_name + ' ' + emp.last_name),
+          dept: emp.department, position: emp.position_title, email: emp.email, phone: emp.phone, status: emp.status, empType: emp.emp_type,
+          site: emp.site, rotation: emp.rotation, crew: emp.crew, startDate: emp.start_date, manager: emp.manager_id, salaryBand: emp.salary_band,
+          costCenter: emp.cost_center, nationality: emp.nationality, visa: emp.visa, h2sLevel: emp.h2s_level, medFit: emp.med_fit,
+          medExpiry: emp.med_expiry, workPermit: emp.work_permit, skills: emp.employee_skills || [], hseCerts: emp.employee_hse_certs || [],
+          history: emp.employee_history || [],
+          leave: (emp.employee_leave_balances || []).reduce((acc, lb) => { acc[lb.leave_type] = { used: lb.used, total: lb.total }; return acc; }, {})
+        }));
+      }),
+      supabase.from('inventory').select('*').then(r => { if (!r.error && r.data && r.data.length > 0) DATA.inventory = r.data.map(i => ({ id: i.id, name: i.name || i.item_name, partNo: i.part_no || i.partNo, category: i.category, site: i.site, warehouse: i.warehouse, uom: i.uom || i.unit, qtyOnHand: i.qty_on_hand ?? i.stock_level ?? 0, reorderPoint: i.reorder_point ?? i.min_stock ?? 0, maxStock: i.max_stock ?? 0, unitCost: i.unit_cost ?? 0, status: i.status || 'normal', lastReceived: i.last_received, supplierId: i.supplier_id, parent_item: i.parent_item, serial_tracking: i.serial_tracking ?? false, batch_tracking: i.batch_tracking ?? false, has_variants: i.has_variants ?? false })); }),
+      supabase.from('suppliers').select('*').then(r => { if (r.data && r.data.length > 0) DATA.suppliers = r.data.map(s => ({ id: s.id, name: s.name, category: s.category, contact_person: s.contact_person, email: s.email, phone: s.phone, rating: s.rating, country: s.country, status: s.status })); }),
+      supabase.from('warehouses').select('*').then(r => { if (r.data && r.data.length > 0) DATA.warehouses = r.data.map(w => ({ id: w.id, name: w.name, site: w.location || w.site, manager: w.manager || w.manager_id, capacity: w.capacity_total || 0, utilisation: w.capacity_used ? Math.round(w.capacity_used / w.capacity_total * 100) : 0, items: 0 })); }),
+      supabase.from('purchase_orders').select('*, po_line_items(*)').then(r => { if (!r.error && r.data && r.data.length > 0) DATA.purchaseOrders = r.data.map(po => ({ id: po.id, supplier: po.supplier_name, description: po.description, amount: po.total_amount, status: po.status, priority: po.priority, site: po.site, requestedBy: po.requested_by, createdDate: po.order_date, deliveryDate: po.delivery_date, poLines: (po.po_line_items || []).map(l => ({ item: l.item_desc, qty: l.quantity, unit: l.unit, unitPrice: l.unit_price })) })); }),
+      supabase.from('crm_accounts').select('*').then(r => { if (!r.error && r.data && r.data.length > 0) DATA.accounts = r.data.map(a => ({ id: a.id, name: a.name, industry: a.industry, status: a.status, tier: a.tier, managerId: a.manager_id, revenue: a.revenue, lastContact: a.last_contact, nextAction: a.next_action })); }),
+      supabase.from('crm_field_service_logs').select('*').then(r => { if (r.data && r.data.length > 0) DATA.fieldServiceLogs = r.data.map(l => ({ id: l.id, client_name: l.client_name, engineer_name: l.engineer_name, date: l.date, job_description: l.job_description, status: l.status })); }),
+      supabase.from('leave_requests').select('*').then(r => { if (r.data && r.data.length > 0) DATA.leaveRequests = r.data.map(lr => ({ id: lr.id, empId: lr.employee_id, type: lr.leave_type, start: lr.start_date, end: lr.end_date, status: lr.status })); }),
+      supabase.from('certificates').select('*').then(r => { if (r.data && r.data.length > 0) DATA.certificates = r.data.map(c => ({ id: c.id, empId: c.employee_id, type: c.cert_type, expiry: c.expiry_date, status: c.status })); }),
+      supabase.from('crm_leads').select('*').then(r => { if (r.data && r.data.length > 0) DATA.leads = r.data.map(l => ({ id: l.id, name: l.name, email: l.email, phone: l.phone, status: l.status, source: l.source })); }),
+      supabase.from('crm_deals').select('*').then(r => { if (r.data && r.data.length > 0) DATA.deals = r.data.map(d => ({ id: d.id, title: d.title, lead_id: d.lead_id, account_id: d.account_id, value: d.value, stage: d.stage, expected_close_date: d.expected_close_date, invoice_id: d.invoice_id || null })); }),
+      supabase.from('crm_tasks').select('*').then(r => { if (r.data && r.data.length > 0) DATA.tasks = r.data.map(t => ({ id: t.id, description: t.description, due_date: t.due_date, status: t.status, assigned_to: t.assigned_to, related_lead_id: t.related_lead_id, related_deal_id: t.related_deal_id })); }),
+      supabase.from('hr_open_positions').select('*').then(r => { if (r.data && r.data.length > 0) DATA.openPositions = r.data.map(p => ({ id: p.id, title: p.title, department: p.department, status: p.status, posted_date: p.posted_date })); }),
+      supabase.from('hr_performance_reviews').select('*').then(r => { if (r.data && r.data.length > 0) DATA.performanceReviews = r.data.map(rv => ({ id: rv.id, employee_name: rv.employee_name, period: rv.period, rating: rv.rating, comments: rv.comments, status: rv.status })); }),
+      supabase.from('hr_hse_training').select('*').then(r => { if (r.data && r.data.length > 0) DATA.hseTraining = r.data.map(t => ({ id: t.id, employee_name: t.employee_name, course: t.course, date: t.date, status: t.status })); }),
+      supabase.from('hr_org_units').select('*').then(r => { if (r.data && r.data.length > 0) DATA.orgUnits = r.data.map(o => ({ id: o.id, name: o.name, head_count: o.head_count, manager: o.manager })); }),
+      supabase.from('hr_attendance').select('*').then(r => { if (r.data && r.data.length > 0) DATA.attendance = r.data.map(a => ({ id: a.id, employee_id: a.employee_id, date: a.date, status: a.status, check_in_time: a.check_in_time, check_out_time: a.check_out_time })); }),
+      supabase.from('hr_expense_claims').select('*').then(r => { if (r.data && r.data.length > 0) DATA.expenses = r.data.map(e => ({ id: e.id, employee_id: e.employee_id, date: e.date, amount: e.amount, category: e.category, description: e.description, status: e.status })); }),
+      supabase.from('hr_salary_slips').select('*').then(r => { if (r.data && r.data.length > 0) DATA.salarySlips = r.data.map(s => ({ id: s.id, employee_id: s.employee_id, month: s.month, year: s.year, base_pay: s.base_pay, allowances: s.allowances, deductions: s.deductions, net_pay: s.net_pay, status: s.status, payment_id: s.payment_id || null })); }),
+      supabase.from('fin_cost_centers').select('*').then(r => { if (r.data && r.data.length > 0) DATA.costCenters = r.data.map(c => ({ id: c.id, name: c.name, dept: c.dept || c.description })); }),
+      supabase.from('fin_tax_templates').select('*').then(r => { if (r.data && r.data.length > 0) DATA.taxTemplates = r.data.map(t => ({ id: t.id, name: t.name, rate: t.rate, account: t.account || t.type })); }),
+      supabase.from('fin_chart_accounts').select('*').then(r => { if (r.data && r.data.length > 0) DATA.chartAccounts = r.data.map(a => ({ id: a.id, name: a.name, type: a.type, parent_id: a.parent_id, is_group: a.is_group, balance: a.balance || 0 })); }),
+      supabase.from('fin_journal_entries').select('*').then(r => { if (r.data && r.data.length > 0) DATA.journalEntries = r.data.map(j => ({ id: j.id, date: j.date, reference: j.reference, description: j.description, entries: j.entries })); }),
+      supabase.from('fin_fixed_assets').select('*').then(r => { if (r.data && r.data.length > 0) DATA.fixedAssets = r.data.map(f => ({ id: f.id, name: f.name, type: f.type, purchase_date: f.purchase_date, cost: f.cost, salvage_value: f.salvage_value, useful_life_years: f.useful_life_years, depreciation_method: f.depreciation_method, accumulated_depreciation: f.accumulated_depreciation || 0, net_book_value: f.net_book_value || f.cost, status: f.status, supplier_id: f.supplier_id || null })); }),
+      supabase.from('fin_invoices').select('*').then(r => { if (r.data && r.data.length > 0) DATA.invoices = r.data.map(i => ({ id: i.id, type: i.type, party_name: i.party_name, date: i.date, due_date: i.due_date, total_amount: i.total_amount, status: i.status, deal_id: i.deal_id || null, items: i.items || [], cost_center_id: i.cost_center_id || null, tax_template_id: i.tax_template_id || null, tax_rate: i.tax_rate || 0, tax_amount: i.tax_amount || 0 })); }),
+      supabase.from('fin_payments').select('*').then(r => { if (r.data && r.data.length > 0) DATA.payments = r.data.map(p => ({ id: p.id, invoice_id: p.invoice_id, date: p.date, amount: p.amount, payment_method: p.payment_method, salary_slip_id: p.salary_slip_id || null })); }),
+    ];
+    // loading progress animation (approximate)
+    const total = queries.length; let done = 0;
+    const progressInterval = setInterval(() => { done++; updateLoadingProgress(Math.min(done / total * 100, 95)); if (done >= total) clearInterval(progressInterval); }, 30);
+    await Promise.all(queries);
+    clearInterval(progressInterval);
+    updateLoadingProgress(100);
     console.log("Supabase data loaded successfully!");
   } catch (err) {
     console.error("Error loading data from Supabase:", err);
@@ -3701,13 +3535,26 @@ async function loadData() {
   }
 }
 
+function updateLoadingProgress(pct) {
+  const fill = document.getElementById('loadingRingFill');
+  const barFill = document.getElementById('loadingBarFill');
+  const pctEl = document.getElementById('loadingPercent');
+  if (fill) fill.style.strokeDashoffset = 515 - (515 * pct / 100);
+  if (barFill) barFill.style.width = pct + '%';
+  if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+}
+
 /* ── INITIALIZATION & AUTH ── */
 let _appInitialized = false;
 async function initializeApp() {
   if (_appInitialized) return;
   _appInitialized = true;
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+  document.getElementById('authOverlay').classList.add('hidden');
   await loadData();
   renderAll();
+  const loadingEl = document.getElementById('loadingOverlay');
+  setTimeout(() => loadingEl.classList.add('hidden'), 400);
   const certAlerts = DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring');
   const notifBadge = document.getElementById('notifBadge');
   if (notifBadge) notifBadge.textContent = certAlerts.length + DATA.leaveRequests.filter(l=>l.status==='Pending').length;
@@ -3732,15 +3579,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (session) {
     document.getElementById('authOverlay').classList.add('hidden');
     initializeApp();
+  } else {
+    document.getElementById('loadingOverlay').classList.add('hidden');
+    document.getElementById('authOverlay').classList.remove('hidden');
   }
 
   // Handle Auth state changes
   supabase.auth.onAuthStateChange((event, session) => {
     if (event === 'SIGNED_IN') {
+      document.getElementById('loadingOverlay').classList.remove('hidden');
       document.getElementById('authOverlay').classList.add('hidden');
       initializeApp();
     } else if (event === 'SIGNED_OUT') {
       _appInitialized = false;
+      document.getElementById('loadingOverlay').classList.add('hidden');
       document.getElementById('authOverlay').classList.remove('hidden');
       document.querySelector('.app-body').innerHTML = ''; // clear app body
       document.getElementById('tabBar').innerHTML = ''; // clear tabs

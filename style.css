@@ -121,6 +121,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 [dir="rtl"] .sidebar-badge{margin-left:0;margin-right:auto;}
 .sidebar-badge.orange{background:var(--warning);}
 .sidebar-badge.blue{background:var(--blue);}
+.sidebar-badge.purple{background:var(--purple);}
 
 /* ── MASTER-DETAIL LAYOUT ── */
 .md-layout{display:flex;gap:0;background:var(--white);border-radius:6px;
@@ -232,8 +233,12 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 .btn-ghost:hover{background:var(--blue-light);}
 .btn-outline{background:transparent;color:var(--text);border:1px solid var(--border);}
 .btn-outline:hover{background:#fafafa;}
+.btn-success{background:var(--success);color:white;}
+.btn-success:hover{background:#2e7d32;}
 .btn-danger{background:var(--danger);color:white;}
 .btn-danger:hover{background:#b71c1c;}
+.sap-input{padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-family:inherit;font-size:13px;background:#fff;color:var(--text);}
+.sap-input:focus{outline:none;border-color:var(--blue);}
 .btn-sm{padding:4px 10px;font-size:12px;}
 .btn-icon{width:30px;height:30px;padding:0;justify-content:center;border-radius:50%;}
 

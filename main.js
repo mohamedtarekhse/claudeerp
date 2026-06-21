@@ -5,8 +5,21 @@ import { supabase } from './supabase.js';
 ═══════════════════════════════════════════════ */
 const state = {
   module:'hr', section:'allEmployees', selectedId:null, detailTab:'info',
-  filters:{}, sortCol:null, sortDir:'asc', charts:[], currentUserRole:'Admin'
+  filters:{}, sortCol:null, sortDir:'asc', charts:[], currentUserRole:'Admin',
+  pushEnabled:false, pushSubscribed:false,
 };
+
+/* ── Register Service Worker for Push Notifications ── */
+if('serviceWorker' in navigator && 'PushManager' in window){
+  navigator.serviceWorker.register('/sw.js').then(reg=>{
+    state._swReg = reg;
+    // Check if already subscribed
+    reg.pushManager.getSubscription().then(sub=>{
+      state.pushSubscribed = !!sub;
+      state.pushEnabled = !!sub;
+    });
+  }).catch(()=>{});
+}
 
 /* ═══════════════════════════════════════════════
    i18n — BILINGUAL STRINGS
@@ -962,6 +975,13 @@ DATA.allOpps = DATA.accounts.flatMap(a=>a.opps||[]).map(o=>{
     const days = Math.round((new Date(c.expiryDate)-new Date())/(1000*60*60*24));
     c.daysRemaining = days;
     c.status = days<0?'expired':days<=30?'expiring':days<=90?'renewal':'valid';
+    /* ── Rigways integration fields ── */
+    c.jobNumber       = c.jobNumber       || '';
+    c.certCategory    = c.certCategory    || {'Rotating':'LOAD TEST','Static':'CAT IV','Lifting':'LIFTING','Electrical':'CAT III','Pressure':'CAT IV','Fire & Safety':'ORIGINAL COC','Instrumentation':'CAT III','Vehicles':'LOAD TEST'}[c.category]||'CAT III';
+    c.liftingSubtype  = c.liftingSubtype  || (c.category==='Lifting'?{'Overhead Crane 10T – CR-01':'LIFTING EQUIPMENT','Man Riding Winch – WN-02':'LIFTING GEAR','Pedestal Crane – PC-02':'LIFTING PERSONNEL'}[c.equipName]||'LIFTING EQUIPMENT':'');
+    c.approvalStatus  = c.approvalStatus  || 'approved';
+    c.client          = c.client          || {'Block 15 – Rig Alpha':'ADNOC','Block 7 – Offshore Platform':'ADNOC','Onshore Processing Facility – South':'ADNOC','Gas Treatment Plant – North':'OCC','Head Office – Muscat':'AMICI','Block 3 – Exploration Camp':'OCC'}[c.site]||'ADNOC';
+    c.fileName        = c.fileName        || c.pdfUrl || '';
   });
 })();
 
@@ -991,12 +1011,18 @@ Object.assign(i18n.en,{
   totalCerts:'Total Certificates',validCerts:'Valid',expiringIn30:'Expiring in 30 Days',expiredCount:'Expired (Critical)',complianceRate:'Compliance Rate',
   equipName:'Equipment Name',assetTag:'Asset Tag',category:'Category',certType:'Certificate Type',issuer:'Issuing Authority',issueDate:'Issue Date',expiryDate:'Expiry Date',daysRemaining:'Days Remaining',responsibleEngineer:'Engineer',
   newCertificate:'New Certificate',
+  /* Rigways integration */
+  certCategory:'Cert. Category',pendingApproval:'Pending Approval',approved:'Approved',rejected:'Rejected',jobNumber:'Job Number',client:'Client',liftingSubtype:'Lifting Subtype',approvalStatus:'Approval Status',
+  catCATIII:'CAT III Inspection',catCATIV:'CAT IV Inspection',catLIFTING:'Lifting Equipment',catLOADTEST:'Load Test',catNDT:'NDT Inspection',catTUBULAR:'Tubular Inspection',catORIGINALCOC:'Original COC',
 });
 Object.assign(i18n.ar,{
   allCerts:'كل الشهادات',expiredCerts:'منتهية الصلاحية',expiringSoon:'تنتهي قريباً',catRotating:'المعدات الدوارة',catStatic:'المعدات الثابتة',catLifting:'معدات الرفع',catElectrical:'المعدات الكهربائية',catPressure:'أنظمة الضغط',catFire:'الحريق والسلامة',catInstrumentation:'الأجهزة والقياس',catVehicles:'المركبات',uploadCert:'رفع شهادة',complianceReport:'تقرير الامتثال',
   totalCerts:'إجمالي الشهادات',validCerts:'سارية',expiringIn30:'تنتهي خلال 30 يوم',expiredCount:'منتهية (حرجة)',complianceRate:'معدل الامتثال',
   equipName:'اسم المعدة',assetTag:'رقم الأصل',category:'الفئة',certType:'نوع الشهادة',issuer:'جهة الإصدار',issueDate:'تاريخ الإصدار',expiryDate:'تاريخ الانتهاء',daysRemaining:'الأيام المتبقية',responsibleEngineer:'المهندس',
   newCertificate:'شهادة جديدة',
+  /* Rigways integration */
+  certCategory:'تصنيف الشهادة',pendingApproval:'قيد الموافقة',approved:'معتمدة',rejected:'مرفوضة',jobNumber:'رقم الوظيفة',client:'العميل',liftingSubtype:'نوع الرفع',approvalStatus:'حالة الموافقة',
+  catCATIII:'فحص CAT III',catCATIV:'فحص CAT IV',catLIFTING:'معدات الرفع',catLOADTEST:'اختبار تحميل',catNDT:'فحص NDT',catTUBULAR:'فحص الأنابيب',catORIGINALCOC:'شهادة المنشأ',
 });
 
 /* ═══════════════════════════════════════════════
@@ -1255,13 +1281,25 @@ function renderCertSidebar(){
   const certs=DATA.certificates;
   const expired=certs.filter(c=>c.status==='expired').length;
   const expiring=certs.filter(c=>c.status==='expiring').length;
+  const pending=certs.filter(c=>c.approvalStatus==='pending').length;
   const cats=['Rotating','Static','Lifting','Electrical','Pressure','Fire & Safety','Instrumentation','Vehicles'];
   const catIcons={'Rotating':'fa-rotate','Static':'fa-industry','Lifting':'fa-weight-hanging','Electrical':'fa-bolt','Pressure':'fa-gauge-high','Fire & Safety':'fa-fire-extinguisher','Instrumentation':'fa-sliders','Vehicles':'fa-truck'};
   const catKeys={'Rotating':'catRotating','Static':'catStatic','Lifting':'catLifting','Electrical':'catElectrical','Pressure':'catPressure','Fire & Safety':'catFire','Instrumentation':'catInstrumentation','Vehicles':'catVehicles'};
+  /* ── Rigways cert type sidebar ── */
+  const certTypes=['CAT III','CAT IV','LIFTING','LOAD TEST','NDT','TUBULAR','ORIGINAL COC'];
+  const typeIcons={'CAT III':'fa-shield','CAT IV':'fa-shield','LIFTING':'fa-weight-hanging','LOAD TEST':'fa-dumbbell','NDT':'fa-chart-line','TUBULAR':'fa-pipe','ORIGINAL COC':'fa-file-circle-check'};
+  const typeKeys={'CAT III':'catCATIII','CAT IV':'catCATIV','LIFTING':'catLIFTING','LOAD TEST':'catLOADTEST','NDT':'catNDT','TUBULAR':'catTUBULAR','ORIGINAL COC':'catORIGINALCOC'};
   let html=`<div class="sidebar-item ${state.section==='allCerts'?'active':''}" onclick="switchSection('allCerts')"><i class="fa-solid fa-certificate"></i><span style="flex:1">${t('allCerts')}</span></div>
     <div class="sidebar-item ${state.section==='expiredCerts'?'active':''}" onclick="switchSection('expiredCerts')"><i class="fa-solid fa-circle-xmark" style="color:var(--error)"></i><span style="flex:1">${t('expiredCerts')}</span><span class="sidebar-badge">${expired}</span></div>
     <div class="sidebar-item ${state.section==='expiringSoon'?'active':''}" onclick="switchSection('expiringSoon')"><i class="fa-solid fa-clock" style="color:var(--warning)"></i><span style="flex:1">${t('expiringSoon')}</span><span class="sidebar-badge orange">${expiring}</span></div>
-    <div class="sidebar-group">Equipment Categories</div>`;
+    <div class="sidebar-item ${state.section==='pendingApproval'?'active':''}" onclick="switchSection('pendingApproval')"><i class="fa-solid fa-hourglass-half" style="color:var(--purple)"></i><span style="flex:1">${t('pendingApproval')}</span><span class="sidebar-badge purple">${pending}</span></div>
+    <div class="sidebar-group">${t('certCategory')}</div>`;
+  certTypes.forEach(ct=>{
+    const id='certType_'+ct.replace(/[^a-z0-9]/gi,'');
+    const cnt=certs.filter(c=>c.certCategory===ct).length;
+    html+=`<div class="sidebar-item ${state.section===id?'active':''}" onclick="switchSection('${id}')"><i class="fa-solid ${typeIcons[ct]||'fa-tag'}"></i><span style="flex:1">${t(typeKeys[ct])}</span><span class="sidebar-badge blue">${cnt}</span></div>`;
+  });
+  html+=`<div class="sidebar-group">Equipment Categories</div>`;
   cats.forEach(cat=>{
     const id='cat_'+cat.replace(/[^a-z]/gi,'');
     const cnt=certs.filter(c=>c.category===cat).length;
@@ -1269,6 +1307,9 @@ function renderCertSidebar(){
   });
   html+=`<div class="sidebar-group">Actions</div>
     <div class="sidebar-item" onclick="openNewCertModal()"><i class="fa-solid fa-upload"></i><span>${t('uploadCert')}</span></div>
+    <div class="sidebar-item" onclick="openBulkCertModal()"><i class="fa-solid fa-layer-group"></i><span>Bulk Create</span></div>
+    <div class="sidebar-item ${state.section==='certGantt'?'active':''}" onclick="switchSection('certGantt')"><i class="fa-solid fa-chart-bar"></i><span>Expiry Timeline</span></div>
+    <div class="sidebar-item ${state.section==='certNotifications'?'active':''}" onclick="switchSection('certNotifications')"><i class="fa-solid fa-bell"></i><span>Notifications</span></div>
     <div class="sidebar-item" onclick="showToast('Generating compliance report...','info')"><i class="fa-solid fa-chart-bar"></i><span>${t('complianceReport')}</span></div>`;
   return html;
 }
@@ -1282,12 +1323,14 @@ function renderCertKPIs(){
   const valid=certs.filter(c=>c.status==='valid').length;
   const expiring=certs.filter(c=>c.status==='expiring').length;
   const expired=certs.filter(c=>c.status==='expired').length;
+  const pending=certs.filter(c=>c.approvalStatus==='pending').length;
   const compliance=Math.round((valid+certs.filter(c=>c.status==='renewal').length)/total*100);
   return `<div class="kpi-grid">
     <div class="kpi-card"><span class="kpi-label">${t('totalCerts')}</span><span class="kpi-value">${total}</span><span class="kpi-change" style="color:var(--text-sec)"><i class="fa-solid fa-certificate"></i> Registered</span></div>
     <div class="kpi-card green"><span class="kpi-label">${t('validCerts')}</span><span class="kpi-value">${valid}</span><span class="kpi-change kpi-up"><i class="fa-solid fa-check-circle"></i> In compliance</span></div>
     <div class="kpi-card orange"><span class="kpi-label">${t('expiringIn30')}</span><span class="kpi-value">${expiring}</span><span class="kpi-change kpi-warn"><i class="fa-solid fa-triangle-exclamation"></i> Action required</span></div>
     <div class="kpi-card red"><span class="kpi-label">${t('expiredCount')}</span><span class="kpi-value">${expired}</span><span class="kpi-change kpi-down"><i class="fa-solid fa-circle-xmark"></i> Immediate action!</span></div>
+    <div class="kpi-card purple"><span class="kpi-label">${t('pendingApproval')}</span><span class="kpi-value">${pending}</span><span class="kpi-change kpi-warn"><i class="fa-solid fa-hourglass-half"></i> Awaiting review</span></div>
     <div class="kpi-card ${compliance>=90?'green':compliance>=75?'orange':'red'}"><span class="kpi-label">${t('complianceRate')}</span><span class="kpi-value">${compliance}%</span><span class="kpi-change ${compliance>=90?'kpi-up':'kpi-warn'}"><i class="fa-solid fa-${compliance>=90?'check':'triangle-exclamation'}"></i> ${compliance>=90?'On target':'Below target'}</span></div>
   </div>`;
 }
@@ -1298,8 +1341,9 @@ function renderCertKPIs(){
 function renderCertificates(filterFn){
   const f=state.filters;
   let items=DATA.certificates.filter(filterFn||(_=>true));
-  if(f.search){const s=f.search.toLowerCase();items=items.filter(c=>c.equipName.toLowerCase().includes(s)||c.assetTag.toLowerCase().includes(s)||c.certType.toLowerCase().includes(s)||c.site.toLowerCase().includes(s)||c.id.toLowerCase().includes(s));}
+  if(f.search){const s=f.search.toLowerCase();items=items.filter(c=>c.equipName.toLowerCase().includes(s)||c.assetTag.toLowerCase().includes(s)||c.certType.toLowerCase().includes(s)||c.site.toLowerCase().includes(s)||c.id.toLowerCase().includes(s)||c.jobNumber.toLowerCase().includes(s)||c.client.toLowerCase().includes(s));}
   if(f.category&&f.category!=='all') items=items.filter(c=>c.category===f.category);
+  if(f.certCategory&&f.certCategory!=='all') items=items.filter(c=>c.certCategory===f.certCategory);
   if(f.status&&f.status!=='all') items=items.filter(c=>c.status===f.status);
   if(state.sortCol){const col=state.sortCol,dir=state.sortDir==='asc'?1:-1;items.sort((a,b)=>{let va=a[col],vb=b[col];if(typeof va==='string')return va.localeCompare(vb)*dir;return(va-vb)*dir;});}
 
@@ -1309,13 +1353,19 @@ function renderCertificates(filterFn){
     if(c.status==='renewal') return `<span class="pill pill-probation">Due Renewal</span>`;
     return `<span class="pill pill-valid">Valid</span>`;
   };
+  const approvalPill=(c)=>{
+    if(c.approvalStatus==='pending') return `<span class="pill pill-probation">Pending</span>`;
+    if(c.approvalStatus==='rejected') return `<span class="pill pill-expired">Rejected</span>`;
+    return `<span class="pill pill-valid">Approved</span>`;
+  };
   const daysCell=(c)=>{
     const d=c.daysRemaining;
     const col=d<0?'var(--error)':d<=30?'var(--warning)':d<=90?'var(--purple)':'var(--success)';
     const icon=d<0?'fa-circle-xmark':d<=30?'fa-triangle-exclamation':d<=90?'fa-clock':'fa-circle-check';
     return `<span style="color:${col};font-weight:700;display:flex;align-items:center;gap:4px;"><i class="fa-solid ${icon}" style="font-size:11px;"></i>${d<0?'Expired '+Math.abs(d)+'d ago':d+'d'}</span>`;
   };
-  const catIcons={'Rotating':'🔁','Static':'🏗️','Lifting':'🏋️','Electrical':'⚡','Pressure':'💧','Fire & Safety':'🔥','Instrumentation':'📡','Vehicles':'🚗'};
+  const catIcons={'Rotating':'fa-rotate','Static':'fa-industry','Lifting':'fa-weight-hanging','Electrical':'fa-bolt','Pressure':'fa-gauge-high','Fire & Safety':'fa-fire-extinguisher','Instrumentation':'fa-sliders','Vehicles':'fa-truck'};
+  const certTypeIcons={'CAT III':'fa-shield','CAT IV':'fa-shield','LIFTING':'fa-weight-hanging','LOAD TEST':'fa-dumbbell','NDT':'fa-chart-line','TUBULAR':'fa-pipe','ORIGINAL COC':'fa-file-circle-check'};
   const cats=[...new Set(DATA.certificates.map(c=>c.category))];
 
   let html=`<div class="fade-in">`;
@@ -1325,26 +1375,47 @@ function renderCertificates(filterFn){
   // MASTER LIST
   html+=`<div class="md-master">
     <div class="filter-bar">
-      <input class="filter-input" placeholder="Search certs..." value="${f.search||''}" oninput="state.filters.search=this.value;rerenderSection()" style="flex:1;min-width:100px">
+      <input class="filter-input" placeholder="Search certs, job #, client..." value="${f.search||''}" oninput="state.filters.search=this.value;rerenderSection()" style="flex:1;min-width:100px">
+      <select class="filter-select" onchange="state.filters.certCategory=this.value;rerenderSection()">
+        <option value="all">All Types</option>
+        ${['CAT III','CAT IV','LIFTING','LOAD TEST','NDT','TUBULAR','ORIGINAL COC'].map(ct=>`<option value="${ct}" ${f.certCategory===ct?'selected':''}>${ct}</option>`).join('')}
+      </select>
       <select class="filter-select" onchange="state.filters.status=this.value;rerenderSection()">
         <option value="all">All Status</option><option value="valid">Valid</option><option value="renewal">Due Renewal</option><option value="expiring">Expiring</option><option value="expired">Expired</option>
       </select>
       <button class="btn btn-primary btn-sm" onclick="openNewCertModal()"><i class="fa-solid fa-plus"></i> New</button>
     </div>
-    <div style="padding:6px 14px 4px;font-size:11px;color:var(--text-sec);background:#fafafa;border-bottom:1px solid var(--border);">${items.length} certificates</div>
+    <div style="padding:6px 14px 4px;font-size:11px;color:var(--text-sec);background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+      <span>${items.length} certificates</span>
+      <span style="color:#ccc">|</span>
+      <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" id="showApprovalCol" checked onchange="rerenderSection()"> Approval
+      </label>
+      <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" id="showClientCol" checked onchange="rerenderSection()"> Client
+      </label>
+      <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" id="showJobCol" checked onchange="rerenderSection()"> Job #
+      </label>
+    </div>
     <div class="list-container">`;
   if(items.length===0) html+=`<div class="empty-state"><i class="fa-solid fa-certificate"></i><p>No certificates found</p></div>`;
   items.forEach(c=>{
     const borderCol=c.status==='expired'?'var(--error)':c.status==='expiring'?'var(--warning)':c.status==='renewal'?'var(--purple)':'var(--success)';
+    const showApproval=!document.getElementById('showApprovalCol')||document.getElementById('showApprovalCol').checked;
+    const showClient=!document.getElementById('showClientCol')||document.getElementById('showClientCol').checked;
+    const showJob=!document.getElementById('showJobCol')||document.getElementById('showJobCol').checked;
     html+=`<div class="list-item ${state.selectedId===c.id?'selected':''}" onclick="selectCertItem('${c.id}')" style="border-left-color:${state.selectedId===c.id?'var(--blue)':borderCol}">
-      <div style="font-size:20px;width:32px;text-align:center;flex-shrink:0;">${catIcons[c.category]||'📋'}</div>
+      <div style="font-size:16px;width:28px;text-align:center;flex-shrink:0;color:var(--brand);"><i class="fa-solid ${certTypeIcons[c.certCategory]||'fa-certificate'}"></i></div>
       <div class="list-item-body">
         <div class="list-item-title">${c.equipName}</div>
-        <div class="list-item-desc">${c.certType}</div>
+        <div class="list-item-desc">${c.certType}${c.jobNumber?' · '+c.jobNumber:''}</div>
       </div>
-      <div class="list-item-right">
+      <div class="list-item-right" style="gap:4px">
+        ${showApproval?approvalPill(c):''}
         ${certStatusPill(c)}
         <div class="list-item-date" style="margin-top:3px;">${daysCell(c)}</div>
+        ${showClient&&c.client?`<span style="font-size:10px;color:var(--text-sec);">${c.client}</span>`:''}
       </div>
     </div>`;
   });
@@ -1368,49 +1439,334 @@ function renderCertDetail(c){
   const statusColors={valid:'var(--success)',expiring:'var(--warning)',renewal:'var(--purple)',expired:'var(--error)'};
   const statusLabels={valid:'✔ Valid',expiring:'⚠ Expiring Soon',renewal:'🔄 Due for Renewal',expired:'✘ Expired'};
   const col=statusColors[c.status]||'var(--text-sec)';
-  const catIcons={'Rotating':'🔁','Static':'🏗️','Lifting':'🏋️','Electrical':'⚡','Pressure':'💧','Fire & Safety':'🔥','Instrumentation':'📡','Vehicles':'🚗'};
+  const catIcons={'Rotating':'fa-rotate','Static':'fa-industry','Lifting':'fa-weight-hanging','Electrical':'fa-bolt','Pressure':'fa-gauge-high','Fire & Safety':'fa-fire-extinguisher','Instrumentation':'fa-sliders','Vehicles':'fa-truck'};
+  const certTypeIcons={'CAT III':'fa-shield','CAT IV':'fa-shield','LIFTING':'fa-weight-hanging','LOAD TEST':'fa-dumbbell','NDT':'fa-chart-line','TUBULAR':'fa-pipe','ORIGINAL COC':'fa-file-circle-check'};
+  const apprLabels={pending:'⏳ Pending',approved:'✅ Approved',rejected:'❌ Rejected'};
+  const apprColors={pending:'var(--warning)',approved:'var(--success)',rejected:'var(--error)'};
+
+  const qrUrl = c.id ? `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin+'/?cert='+c.id)}` : '';
 
   let html=`<div class="obj-header">
     <div class="obj-header-top">
-      <div style="font-size:36px;width:52px;text-align:center;">${catIcons[c.category]||'📋'}</div>
-      <div style="flex:1;"><h2>${c.equipName}</h2><div class="obj-sub">${c.assetTag} · ${c.certType}</div></div>
-      <span style="font-weight:700;color:${col};font-size:13px;">${statusLabels[c.status]}</span>
+      <div style="font-size:32px;width:48px;text-align:center;color:var(--brand);"><i class="fa-solid ${certTypeIcons[c.certCategory]||'fa-certificate'}"></i></div>
+      <div style="flex:1;"><h2>${c.equipName}</h2><div class="obj-sub">${c.assetTag} · ${c.certType}${c.jobNumber?' · Job: '+c.jobNumber:''}</div></div>
+      <div style="text-align:right;">
+        <div style="font-weight:700;color:${col};font-size:13px;">${statusLabels[c.status]}</div>
+        <div style="font-size:11px;margin-top:2px;color:${apprColors[c.approvalStatus]||'var(--text-sec)'};">${apprLabels[c.approvalStatus]||'—'}</div>
+      </div>
     </div>
     <div class="obj-kv">
       <div class="obj-kv-item"><span class="obj-kv-label">Cert ID</span><span class="obj-kv-value">${c.id}</span></div>
-      <div class="obj-kv-item"><span class="obj-kv-label">Category</span><span class="obj-kv-value">${c.category}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">Cert. Category</span><span class="obj-kv-value"><span class="pill pill-valid">${c.certCategory}</span></span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">Equipment Category</span><span class="obj-kv-value">${c.category}</span></div>
       <div class="obj-kv-item"><span class="obj-kv-label">Site</span><span class="obj-kv-value">${c.site}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">Client</span><span class="obj-kv-value">${c.client||'—'}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">Job Number</span><span class="obj-kv-value">${c.jobNumber||'—'}</span></div>
       <div class="obj-kv-item"><span class="obj-kv-label">Issuing Authority</span><span class="obj-kv-value">${c.issuer}</span></div>
-      <div class="obj-kv-item"><span class="obj-kv-label">Expiry Date</span><span class="obj-kv-value" style="color:${col};font-weight:700;">${fmtDate(c.expiryDate)}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">${c.liftingSubtype?'Lifting Subtype':'Expiry Date'}</span><span class="obj-kv-value" style="${c.liftingSubtype?'':'color:'+col+';font-weight:700'}">${c.liftingSubtype||fmtDate(c.expiryDate)}</span></div>
+      ${c.liftingSubtype?`<div class="obj-kv-item"><span class="obj-kv-label">Expiry Date</span><span class="obj-kv-value" style="color:${col};font-weight:700;">${fmtDate(c.expiryDate)}</span></div>`:''}
       <div class="obj-kv-item"><span class="obj-kv-label">Days Remaining</span><span class="obj-kv-value" style="color:${col};font-weight:700;">${c.daysRemaining<0?'Expired '+Math.abs(c.daysRemaining)+'d ago':c.daysRemaining+' days'}</span></div>
     </div>
   </div>
   <div class="detail-tab-body">
     <div class="sec-card"><div class="sec-card-head">Certificate Details
-      <div style="display:flex;gap:8px;">
-        ${c.pdfUrl?`<button class="btn btn-ghost btn-sm" onclick="showToast('Opening ${c.pdfUrl}','info')"><i class="fa-solid fa-file-pdf"></i> View PDF</button>`:'<span style="font-size:12px;color:var(--text-sec);font-style:italic;">No PDF attached</span>'}
+      <div style="display:flex;gap:8px;align-items:center;">
+        ${c.fileName||c.pdfUrl?`<button class="btn btn-ghost btn-sm" onclick="showToast('Opening ${c.fileName||c.pdfUrl}','info')"><i class="fa-solid fa-file-pdf"></i> View PDF</button>`:'<span style="font-size:12px;color:var(--text-sec);font-style:italic;">No PDF attached</span>'}
         <button class="btn btn-primary btn-sm" onclick="showToast('Renewal initiated for ${c.id}','success')"><i class="fa-solid fa-rotate"></i> Renew</button>
+        ${c.approvalStatus==='pending'?`
+          <button class="btn btn-success btn-sm" onclick="approveCert('${c.id}')"><i class="fa-solid fa-check"></i> Approve</button>
+          <button class="btn btn-danger btn-sm" onclick="rejectCert('${c.id}')"><i class="fa-solid fa-xmark"></i> Reject</button>
+        `:''}
       </div>
     </div>
     <div class="sec-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;">
-      ${[['Certificate ID',c.id],['Equipment Name',c.equipName],['Asset Tag',c.assetTag],['Category',c.category],['Site / Location',c.site],['Certificate Type',c.certType],['Issuing Authority',c.issuer],['Issue Date',fmtDate(c.issueDate)],['Expiry Date',fmtDate(c.expiryDate)],['Responsible Engineer',c.engineer],['PDF Attached',c.pdfUrl?'Yes – '+c.pdfUrl:'No']].map(([k,v])=>`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">${k}</div><div style="font-size:13px;">${v}</div></div>`).join('')}
+      ${[
+        ['Certificate ID',c.id],
+        ['Equipment Name',c.equipName],
+        ['Asset Tag',c.assetTag],
+        ['Equipment Category',c.category],
+        ['Cert. Category',`<span class="pill pill-valid">${c.certCategory}</span>`],
+        c.liftingSubtype?['Lifting Subtype',c.liftingSubtype]:null,
+        ['Site / Location',c.site],
+        ['Client',c.client||'—'],
+        ['Job Number',c.jobNumber||'—'],
+        ['Certificate Type',c.certType],
+        ['Issuing Authority',c.issuer],
+        ['Issue Date',fmtDate(c.issueDate)],
+        ['Expiry Date',fmtDate(c.expiryDate)],
+        ['Responsible Engineer',c.engineer],
+        ['Approval Status',`<span style="color:${apprColors[c.approvalStatus]||'var(--text-sec)'};font-weight:600;">${apprLabels[c.approvalStatus]||'—'}</span>`],
+        ['PDF',c.fileName||c.pdfUrl?'Yes – '+(c.fileName||c.pdfUrl):'No'],
+      ].filter(Boolean).map(([k,v])=>`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">${k}</div><div style="font-size:13px;">${v}</div></div>`).join('')}
     </div></div>
     ${c.remarks?`<div class="sec-card"><div class="sec-card-head">Remarks / Inspector Notes</div><div class="sec-card-body" style="font-size:13px;line-height:1.7;">${c.remarks}</div></div>`:''}
-    <div class="sec-card"><div class="sec-card-head">Expiry Status</div><div class="sec-card-body">
+    <div class="sec-card"><div class="sec-card-head">Expiry Timeline</div><div class="sec-card-body">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
         <div style="flex:1;height:10px;background:#e0e0e0;border-radius:5px;overflow:hidden;">
           <div style="height:100%;width:${Math.max(0,Math.min(100,c.daysRemaining>0?Math.min(100,c.daysRemaining/365*100):0))}%;background:${col};border-radius:5px;"></div>
         </div>
         <span style="font-size:13px;font-weight:700;color:${col};">${c.daysRemaining<0?'Expired':'Valid'}</span>
       </div>
-      <div style="display:flex;gap:16px;font-size:11px;">
-        <span style="color:var(--success);">● Valid: &gt;90 days</span>
-        <span style="color:var(--purple);">● Due Renewal: 31–90 days</span>
-        <span style="color:var(--warning);">● Expiring: ≤30 days</span>
-        <span style="color:var(--error);">● Expired</span>
+      <div style="display:flex;gap:16px;font-size:11px;flex-wrap:wrap;">
+        <span style="color:var(--success);"><i class="fa-solid fa-circle" style="font-size:8px;"></i> Valid: &gt;90 days</span>
+        <span style="color:var(--purple);"><i class="fa-solid fa-circle" style="font-size:8px;"></i> Due Renewal: 31–90 days</span>
+        <span style="color:var(--warning);"><i class="fa-solid fa-circle" style="font-size:8px;"></i> Expiring: ≤30 days</span>
+        <span style="color:var(--error);"><i class="fa-solid fa-circle" style="font-size:8px;"></i> Expired</span>
+      </div>
+    </div></div>
+    <div class="sec-card"><div class="sec-card-head">QR Code</div><div class="sec-card-body" style="text-align:center;">
+      <img src="${qrUrl}" alt="QR for ${c.id}" style="width:100px;height:100px;border:1px solid var(--border);border-radius:6px;" onerror="this.style.display='none'"/>
+      <div style="font-size:10px;color:var(--text-sec);margin-top:4px;">Scan to view certificate</div>
+    </div></div>
+  </div>`;
+  return html;
+}
+
+function approveCert(id){
+  const c=DATA.certificates.find(x=>x.id===id);
+  if(!c) return;
+  c.approvalStatus='approved';
+  showToast(`Certificate ${id} approved`,'success');
+  rerenderSection();
+}
+
+function rejectCert(id){
+  const c=DATA.certificates.find(x=>x.id===id);
+  if(!c) return;
+  c.approvalStatus='rejected';
+  showToast(`Certificate ${id} rejected`,'warning');
+  rerenderSection();
+}
+
+/* ═══════════════════════════════════════════════
+   NOTIFICATION SETTINGS (Push)
+═══════════════════════════════════════════════ */
+function renderCertNotifications(){
+  const pushSupported = 'serviceWorker' in navigator && 'PushManager' in window;
+  const notifSupported = 'Notification' in window;
+  const perm = notifSupported ? Notification.permission : 'denied';
+
+  let html=`<div class="fade-in">
+    <div class="sec-card"><div class="sec-card-head"><i class="fa-solid fa-bell"></i> Push Notification Preferences</div>
+    <div class="sec-card-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">`;
+
+  // Browser support status
+  html+=`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-sec);margin-bottom:6px;">Browser Support</div>
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Service Worker</span>
+        <span style="color:${pushSupported?'var(--success)':'var(--error)'};">${pushSupported?'✅ Available':'❌ Not available'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Push API</span>
+        <span style="color:${pushSupported?'var(--success)':'var(--error)'};">${pushSupported?'✅ Supported':'❌ Not supported'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Notification Permission</span>
+        <span style="color:${perm==='granted'?'var(--success)':perm==='denied'?'var(--error)':'var(--warning)'};">${perm}</span>
+      </div>
+    </div></div>`;
+
+  // Controls
+  const canSubscribe = pushSupported && perm==='granted';
+  html+=`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-sec);margin-bottom:6px;">Push Notifications</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+        <input type="checkbox" ${state.pushEnabled?'checked':''} ${canSubscribe?'':'disabled'} onchange="togglePushNotif(this.checked)" style="width:18px;height:18px;">
+        <span style="font-size:13px;">Enable push alerts for certificate expiry</span>
+      </label>
+      ${!canSubscribe?`<div style="font-size:12px;color:var(--warning);padding:8px 12px;background:#fff8e1;border-radius:4px;">
+        <i class="fa-solid fa-triangle-exclamation"></i> ${perm==='denied'?'Notifications blocked in browser settings. Allow notifications in your browser site settings.':'Push notifications not supported in this browser.'}
+      </div>`:''}
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <button class="btn btn-secondary btn-sm" onclick="checkPushHealth()"><i class="fa-solid fa-stethoscope"></i> Check Health</button>
+        <button class="btn btn-ghost btn-sm" onclick="requestNotifPermission()"><i class="fa-solid fa-key"></i> Request Permission</button>
+      </div>
+    </div></div>`;
+
+  // Expiry notification rules
+  html+=`</div></div></div>
+    <div class="sec-card"><div class="sec-card-head">Expiry Alert Rules</div>
+    <div class="sec-card-body" style="font-size:13px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+        <div style="padding:12px;background:#fef3e2;border-radius:6px;">
+          <div style="font-weight:700;color:var(--warning);">7 Days</div>
+          <div style="font-size:11px;color:var(--text-sec);margin-top:4px;">Critical alert when certificate expires within 7 days</div>
+        </div>
+        <div style="padding:12px;background:#fff8e1;border-radius:6px;">
+          <div style="font-weight:700;color:var(--warning);">30 Days</div>
+          <div style="font-size:11px;color:var(--text-sec);margin-top:4px;">Warning alert when certificate expires within 30 days</div>
+        </div>
+        <div style="padding:12px;background:#fbe9e7;border-radius:6px;">
+          <div style="font-weight:700;color:var(--error);">Expired</div>
+          <div style="font-size:11px;color:var(--text-sec);margin-top:4px;">Immediate alert on certificate expiry</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="sec-card"><div class="sec-card-head">Client-side Expiry Check</div>
+    <div class="sec-card-body">
+      <div style="font-size:13px;color:var(--text-sec);margin-bottom:8px;">The following certificates require attention:</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        ${DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring').map(c=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:${c.status==='expired'?'#fbe9e7':'#fff8e1'};border-radius:4px;font-size:12px;">
+            <span><strong>${c.equipName}</strong> — ${c.certType}</span>
+            <span style="color:${c.status==='expired'?'var(--error)':'var(--warning)'};font-weight:700;">${c.status==='expired'?'Expired '+Math.abs(c.daysRemaining)+'d ago':c.daysRemaining+'d left'}</span>
+          </div>`).join('')}
       </div>
     </div></div>
   </div>`;
+  return html;
+}
+
+function togglePushNotif(enabled){
+  if(enabled){
+    if('Notification' in window && Notification.permission==='granted' && state._swReg){
+      state._swReg.pushManager.subscribe({userVisibleOnly:true}).then(sub=>{
+        state.pushSubscribed = true;
+        state.pushEnabled = true;
+        showToast('Push notifications enabled','success');
+        rerenderSection();
+      }).catch(err=>{
+        showToast('Failed to subscribe: '+err.message,'error');
+      });
+    } else if('Notification' in window && Notification.permission==='default'){
+      Notification.requestPermission().then(perm=>{
+        if(perm==='granted') togglePushNotif(true);
+        else showToast('Notification permission denied','error');
+      });
+    }
+  } else {
+    if(state._swReg){
+      state._swReg.pushManager.getSubscription().then(sub=>{
+        if(sub){
+          sub.unsubscribe().then(()=>{
+            state.pushSubscribed = false;
+            state.pushEnabled = false;
+            showToast('Push notifications disabled','info');
+            rerenderSection();
+          });
+        }
+      });
+    }
+  }
+}
+
+function checkPushHealth(){
+  let info = `Service Worker: ${'serviceWorker' in navigator?'✅':'❌'}\n`;
+  info += `Push API: ${'PushManager' in window?'✅':'❌'}\n`;
+  info += `Notification: ${'Notification' in window?Notification.permission:'N/A'}\n`;
+  info += `Subscribed: ${state.pushSubscribed?'✅':'❌'}\n`;
+  if(state._swReg){
+    state._swReg.pushManager.getSubscription().then(sub=>{
+      if(sub){
+        info += `\n--- Subscription Details ---\n`;
+        info += `Endpoint: ${sub.endpoint.slice(0,50)}...\n`;
+        const keyJson = sub.toJSON();
+        info += `p256dh: ${keyJson.keys?.p256dh?'✅ Set':'❌ Missing'}\n`;
+        info += `auth: ${keyJson.keys?.auth?'✅ Set':'❌ Missing'}\n`;
+      }
+      showToast(info.replace(/\n/g,'<br>'),'info');
+    });
+  } else {
+    showToast(info.replace(/\n/g,'<br>'),'info');
+  }
+}
+
+function requestNotifPermission(){
+  if('Notification' in window){
+    Notification.requestPermission().then(perm=>{
+      if(perm==='granted'){
+        showToast('Notification permission granted','success');
+        rerenderSection();
+      } else {
+        showToast('Notification permission denied','error');
+      }
+    });
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   CERTIFICATE GANTT / TIMELINE VIEW
+═══════════════════════════════════════════════ */
+function renderCertGantt(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const months = [];
+  for(let i=-1;i<=12;i++){
+    const m = new Date(today.getFullYear(), today.getMonth()+i, 1);
+    months.push(m);
+  }
+  const monthLabels = months.map(m=>m.toLocaleString('default',{month:'short',year:'2-digit'}));
+  const certTypeIcons={'CAT III':'fa-shield','CAT IV':'fa-shield','LIFTING':'fa-weight-hanging','LOAD TEST':'fa-dumbbell','NDT':'fa-chart-line','TUBULAR':'fa-pipe','ORIGINAL COC':'fa-file-circle-check'};
+  const statusColors={valid:'var(--success)',expiring:'var(--warning)',renewal:'var(--purple)',expired:'var(--error)'};
+
+  // Group certs by certCategory
+  const byType = {};
+  DATA.certificates.forEach(c=>{
+    byType[c.certCategory] = byType[c.certCategory]||[];
+    byType[c.certCategory].push(c);
+  });
+
+  let html=`<div class="fade-in">
+    <div class="kpi-grid">
+      <div class="kpi-card"><span class="kpi-label">Total</span><span class="kpi-value">${DATA.certificates.length}</span></div>
+      <div class="kpi-card green"><span class="kpi-label">By Type</span><span class="kpi-value">${Object.keys(byType).length}</span></div>
+    </div>
+    <div class="sec-card"><div class="sec-card-head">Expiry Timeline — Next 12 Months
+      <button class="btn btn-ghost btn-sm" onclick="switchSection('allCerts')"><i class="fa-solid fa-table"></i> Table View</button>
+    </div>
+    <div class="sec-card-body" style="overflow-x:auto;">
+      <div style="min-width:700px;">
+        <div style="display:grid;grid-template-columns:200px repeat(${months.length},1fr);gap:2px;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-sec);border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:6px;">
+          <div style="padding:4px 8px;">Certificate</div>
+          ${monthLabels.map(ml=>`<div style="text-align:center;padding:4px 0;">${ml}</div>`).join('')}
+        </div>`;
+  const sortedCerts = [...DATA.certificates].sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate));
+  sortedCerts.forEach(c=>{
+    const exp = new Date(c.expiryDate); exp.setHours(0,0,0,0);
+    const expMonthIdx = months.findIndex(m=>m.getFullYear()===exp.getFullYear()&&m.getMonth()===exp.getMonth());
+    const col = statusColors[c.status]||'var(--text-sec)';
+    const tip = `${c.equipName} — expires ${c.expiryDate} (${c.daysRemaining}d)`;
+    html+=`<div style="display:grid;grid-template-columns:200px repeat(${months.length},1fr);gap:2px;font-size:11px;align-items:center;border-bottom:1px solid #f0f0f0;padding:4px 0;">
+      <div style="display:flex;align-items:center;gap:6px;padding:0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+        <i class="fa-solid ${certTypeIcons[c.certCategory]||'fa-certificate'}" style="font-size:10px;color:${col};"></i>
+        <span title="${c.equipName}">${c.equipName.length>22?c.equipName.slice(0,22)+'...':c.equipName}</span>
+      </div>`;
+    for(let mi=0; mi<months.length; mi++){
+      if(mi===expMonthIdx){
+        const barCol = c.status==='expired'?'var(--error)':c.status==='expiring'?'var(--warning)':c.status==='renewal'?'var(--purple)':'var(--success)';
+        const barW = c.status==='expired'?Math.max(20,Math.min(95,Math.abs(c.daysRemaining)/30*100)):90;
+        html+=`<div style="position:relative;height:20px;display:flex;align-items:center;justify-content:center;">
+          <div style="width:${barW}%;height:14px;background:${barCol};border-radius:3px;opacity:0.85;" title="${tip}"></div>
+        </div>`;
+      } else {
+        html+=`<div></div>`;
+      }
+    }
+    html+=`</div>`;
+  });
+  html+=`</div></div></div>`;
+
+  // Chart.js type distribution
+  html+=`<div class="sec-card"><div class="sec-card-head">Certificates by Type</div><div class="sec-card-body"><canvas id="certTypeChart" style="max-height:200px;"></canvas></div></div>`;
+
+  html+=`</div>`;
+
+  // Defer chart rendering
+  setTimeout(()=>{
+    const ctx = document.getElementById('certTypeChart');
+    if(!ctx||typeof Chart==='undefined') return;
+    const labels = Object.keys(byType);
+    const data = labels.map(l=>byType[l].length);
+    const colors = ['#2563eb','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#db2777'];
+    if(window._certTypeChart) window._certTypeChart.destroy();
+    window._certTypeChart = new Chart(ctx,{
+      type:'doughnut',
+      data:{labels, datasets:[{data, backgroundColor:colors.slice(0,labels.length), borderWidth:0}]},
+      options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}}
+    });
+  }, 50);
+
   return html;
 }
 
@@ -1427,12 +1783,33 @@ function openNewCertModal(){
       <div class="form-group"><label class="form-label">Equipment Category</label>
         <select class="form-select" id="nc-cat"><option>Rotating</option><option>Static</option><option>Lifting</option><option>Electrical</option><option>Pressure</option><option>Fire & Safety</option><option>Instrumentation</option><option>Vehicles</option></select>
       </div>
-      <div class="form-group"><label class="form-label">Site / Location</label>
-        <select class="form-select" id="nc-site"><option>Block 15 – Rig Alpha</option><option>Block 7 – Offshore Platform</option><option>Onshore Processing Facility – South</option><option>Gas Treatment Plant – North</option><option>Head Office – Muscat</option><option>Block 3 – Exploration Camp</option></select>
+      <div class="form-group"><label class="form-label">Cert. Category (Rigways)</label>
+        <select class="form-select" id="nc-certCat" onchange="document.getElementById('nc-liftSubtype').style.display=this.value==='LIFTING'?'block':'none'">
+          <option value="CAT III">CAT III – Inspection</option>
+          <option value="CAT IV">CAT IV – Inspection</option>
+          <option value="LIFTING">LIFTING – Equipment</option>
+          <option value="LOAD TEST">LOAD TEST</option>
+          <option value="NDT">NDT – Non-Destructive</option>
+          <option value="TUBULAR">TUBULAR – Inspection</option>
+          <option value="ORIGINAL COC">ORIGINAL COC</option>
+        </select>
       </div>
     </div>
     <div class="form-row">
+      <div class="form-group"><label class="form-label">Site / Location</label>
+        <select class="form-select" id="nc-site"><option>Block 15 – Rig Alpha</option><option>Block 7 – Offshore Platform</option><option>Onshore Processing Facility – South</option><option>Gas Treatment Plant – North</option><option>Head Office – Muscat</option><option>Block 3 – Exploration Camp</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">Client</label><input class="form-input" id="nc-client" placeholder="e.g. ADNOC, OCC"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Job Number</label><input class="form-input" id="nc-job" placeholder="e.g. JOB-2025-001"></div>
       <div class="form-group"><label class="form-label">Certificate Type</label><input class="form-input" id="nc-type" placeholder="e.g. API 510, LOLER, IEC 60079"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" id="nc-liftSubtype" style="display:none;">
+        <label class="form-label">Lifting Subtype</label>
+        <select class="form-select" id="nc-liftType"><option>LIFTING GEAR</option><option>LIFTING PERSONNEL</option><option>LIFTING EQUIPMENT</option></select>
+      </div>
       <div class="form-group"><label class="form-label">Issuing Authority</label><input class="form-input" id="nc-issuer" placeholder="e.g. Bureau Veritas, DNV, SGS"></div>
     </div>
     <div class="form-row">
@@ -1459,7 +1836,10 @@ async function submitNewCert(){
   const newId='CERT-'+String(DATA.certificates.length+1).padStart(3,'0');
   const days=Math.round((new Date(expiry)-new Date())/(1000*60*60*24));
   const status=days<0?'expired':days<=30?'expiring':days<=90?'renewal':'valid';
-  
+  const certCategory=$('#nc-certCat').value;
+  let liftingSubtype='';
+  if(certCategory==='LIFTING'&&document.getElementById('nc-liftType')) liftingSubtype=document.getElementById('nc-liftType').value;
+
   // Phase 5: File Upload Mock
   let uploadedPdfUrl = $('#nc-pdf').value;
   if(fileInput && fileInput.files.length > 0) {
@@ -1467,13 +1847,135 @@ async function submitNewCert(){
     showToast('File securely uploaded to Supabase Storage Bucket', 'success');
   }
 
-  const cert={id:newId,equipName:name,assetTag:$('#nc-tag').value,category:$('#nc-cat').value,site:$('#nc-site').value,certType:$('#nc-type').value,issuer:$('#nc-issuer').value,issueDate:$('#nc-issue').value,expiryDate:expiry,daysRemaining:days,status,engineer:$('#nc-eng').value,pdfUrl:uploadedPdfUrl,remarks:$('#nc-remarks').value};
+  const cert={id:newId,equipName:name,assetTag:$('#nc-tag').value,category:$('#nc-cat').value,certCategory, liftingSubtype,client:$('#nc-client').value,jobNumber:$('#nc-job').value,site:$('#nc-site').value,certType:$('#nc-type').value,issuer:$('#nc-issuer').value,issueDate:$('#nc-issue').value,expiryDate:expiry,daysRemaining:days,status,approvalStatus:'pending',engineer:$('#nc-eng').value,fileName:uploadedPdfUrl,pdfUrl:uploadedPdfUrl,remarks:$('#nc-remarks').value};
   if(supabase){
     const{error}=await supabase.from('certificates').insert({id:newId,employee_id:null,cert_type:cert.certType,expiry_date:expiry,status});
     if(error){showToast('Error saving certificate','error');return;}
   }
   DATA.certificates.push(cert);
   closeModal();state.selectedId=newId;state.section='allCerts';showToast(name+' certificate added','success');rerenderSection();
+}
+
+/* ═══════════════════════════════════════════════
+   BULK CERTIFICATE CREATION (Rigways style)
+═══════════════════════════════════════════════ */
+let BULK_CERTS = [];
+
+function openBulkCertModal(){
+  BULK_CERTS = [];
+  const html=`<div style="margin-bottom:12px;">
+    <button class="btn btn-secondary btn-sm" onclick="addBulkRow()"><i class="fa-solid fa-plus"></i> Add Row</button>
+    <button class="btn btn-primary btn-sm" onclick="batchSetDefaults()" style="margin-left:8px;"><i class="fa-solid fa-pen"></i> Set Defaults</button>
+  </div>
+  <div id="bulkRows" style="max-height:400px;overflow-y:auto;"></div>
+  <div id="bulkSummary" style="margin-top:10px;font-size:12px;color:var(--text-sec);"></div>`;
+  const footer=`<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitBulkCerts()"><i class="fa-solid fa-check"></i> Create All</button>`;
+  openModal('Bulk Create Certificates',html,footer);
+  addBulkRow();
+}
+
+function addBulkRow(){
+  const idx = BULK_CERTS.length;
+  BULK_CERTS.push({ assetId:`AST-${String(BULK_CERTS.length+1).padStart(4,'0')}`, name:'', type:'CAT III', date:new Date().toISOString().split('T')[0], expiryDate:'', liftingSubtype:'', inspector:'' });
+  renderBulkRows();
+}
+
+function removeBulkRow(idx){
+  BULK_CERTS.splice(idx,1);
+  renderBulkRows();
+}
+
+function updateBulkItem(idx,field,val){
+  if(BULK_CERTS[idx]) BULK_CERTS[idx][field]=val;
+  renderBulkSummary();
+}
+
+function renderBulkRows(){
+  const container = document.getElementById('bulkRows');
+  if(!container) return;
+  let html = '<table class="data-table" style="width:100%;font-size:12px;"><thead><tr><th>Asset</th><th>Name</th><th>Type</th><th>Lifting Sub</th><th>Inspector</th><th>Date</th><th>Expiry</th><th></th></tr></thead><tbody>';
+  BULK_CERTS.forEach((item,idx)=>{
+    html+=`<tr>
+      <td><input class="sap-input" style="width:70px;height:28px;font-size:11px;" value="${item.assetId}" onchange="updateBulkItem(${idx},'assetId',this.value)"/></td>
+      <td><input class="sap-input" style="width:120px;height:28px;font-size:11px;" value="${item.name}" placeholder="Cert name" onchange="updateBulkItem(${idx},'name',this.value)"/></td>
+      <td><select class="sap-input" style="width:80px;height:28px;font-size:11px;" onchange="updateBulkItem(${idx},'type',this.value)">
+        ${['CAT III','CAT IV','LIFTING','LOAD TEST','NDT','TUBULAR','ORIGINAL COC'].map(t=>`<option value="${t}" ${item.type===t?'selected':''}>${t}</option>`).join('')}
+      </select></td>
+      <td>
+        <select class="sap-input" style="width:90px;height:28px;font-size:11px;" onchange="updateBulkItem(${idx},'liftingSubtype',this.value)">
+          <option value="">—</option>
+          <option value="LIFTING GEAR" ${item.liftingSubtype==='LIFTING GEAR'?'selected':''}>LIFTING GEAR</option>
+          <option value="LIFTING PERSONNEL" ${item.liftingSubtype==='LIFTING PERSONNEL'?'selected':''}>LIFTING PERSONNEL</option>
+          <option value="LIFTING EQUIPMENT" ${item.liftingSubtype==='LIFTING EQUIPMENT'?'selected':''}>LIFTING EQUIPMENT</option>
+        </select>
+      </td>
+      <td><input class="sap-input" style="width:90px;height:28px;font-size:11px;" value="${item.inspector}" placeholder="Inspector" onchange="updateBulkItem(${idx},'inspector',this.value)"/></td>
+      <td><input type="date" class="sap-input" style="width:110px;height:28px;font-size:11px;" value="${item.date}" onchange="updateBulkItem(${idx},'date',this.value);calcBulkExpiry(${idx})"/></td>
+      <td><input type="date" class="sap-input" style="width:110px;height:28px;font-size:11px;" value="${item.expiryDate}" onchange="updateBulkItem(${idx},'expiryDate',this.value)"/></td>
+      <td><button class="btn btn-danger btn-sm" onclick="removeBulkRow(${idx})"><i class="fa-solid fa-trash"></i></button></td>
+    </tr>`;
+  });
+  html+=`</tbody></table>`;
+  container.innerHTML = html;
+  renderBulkSummary();
+}
+
+function renderBulkSummary(){
+  const el = document.getElementById('bulkSummary');
+  if(!el) return;
+  const valid = BULK_CERTS.filter(item=>item.name&&item.date&&item.expiryDate);
+  el.innerHTML = `${BULK_CERTS.length} rows · ${valid.length} complete · <span style="color:${valid.length===BULK_CERTS.length&&BULK_CERTS.length>0?'var(--success)':'var(--warning)'}">${valid.length===BULK_CERTS.length?'Ready to create':'Incomplete rows highlighted'}</span>`;
+}
+
+function calcBulkExpiry(idx){
+  const item = BULK_CERTS[idx];
+  if(!item||!item.date) return;
+  const d = new Date(item.date);
+  d.setMonth(d.getMonth() + 12);
+  item.expiryDate = d.toISOString().split('T')[0];
+  renderBulkRows();
+}
+
+function batchSetDefaults(){
+  const type = prompt('Default cert type (CAT III, LIFTING, NDT, etc.):','CAT III');
+  if(!type) return;
+  const inspector = prompt('Default inspector name:','');
+  const months = parseInt(prompt('Default validity period in months (e.g. 12):','12'),10);
+  BULK_CERTS.forEach(item=>{
+    item.type = type;
+    if(inspector) item.inspector = inspector;
+    if(months&&item.date){
+      const d = new Date(item.date);
+      d.setMonth(d.getMonth() + months);
+      item.expiryDate = d.toISOString().split('T')[0];
+    }
+  });
+  renderBulkRows();
+}
+
+function submitBulkCerts(){
+  const incomplete = BULK_CERTS.filter(item=>!item.name||!item.date||!item.expiryDate);
+  if(incomplete.length>0){ showToast(`${incomplete.length} row(s) incomplete — fill all fields first`,'error'); return; }
+  if(BULK_CERTS.length===0){ showToast('No rows to create','error'); return; }
+  const newCerts = BULK_CERTS.map((item,idx)=>{
+    const newId = 'CERT-'+String(DATA.certificates.length+1+idx).padStart(3,'0');
+    const days = Math.round((new Date(item.expiryDate)-new Date())/(1000*60*60*24));
+    const status = days<0?'expired':days<=30?'expiring':days<=90?'renewal':'valid';
+    return {
+      id:newId, equipName:item.name, assetTag:item.assetId, category:item.type==='LIFTING'?'Lifting':'General',
+      certCategory:item.type, liftingSubtype:item.liftingSubtype||'',
+      client:'', jobNumber:'', site:'Block 15 – Rig Alpha',
+      certType:item.type, issuer:item.inspector||'In-house',
+      issueDate:item.date, expiryDate:item.expiryDate,
+      daysRemaining:days, status, approvalStatus:'pending',
+      engineer:item.inspector||'—', fileName:'', pdfUrl:'', remarks:'Created via bulk import'
+    };
+  });
+  DATA.certificates.push(...newCerts);
+  closeModal();
+  showToast(`${newCerts.length} certificates created via bulk import`,'success');
+  state.section='pendingApproval';
+  rerenderSection();
 }
 
 /* ═══════════════════════════════════════════════
@@ -2990,8 +3492,16 @@ function renderContent(){
   }
   else if(state.module==='certificates'){
     if(state.section==='allCerts') html=renderCertificates();
+    else if(state.section==='certGantt') html=renderCertGantt();
+    else if(state.section==='certNotifications') html=renderCertNotifications();
     else if(state.section==='expiredCerts') html=renderCertificates(c=>c.status==='expired');
     else if(state.section==='expiringSoon') html=renderCertificates(c=>c.status==='expiring');
+    else if(state.section==='pendingApproval') html=renderCertificates(c=>c.approvalStatus==='pending');
+    else if(state.section.startsWith('certType_')){
+      const ctMap={'certType_CATIII':'CAT III','certType_CATIV':'CAT IV','certType_LIFTING':'LIFTING','certType_LOADTEST':'LOAD TEST','certType_NDT':'NDT','certType_TUBULAR':'TUBULAR','certType_ORIGINALCOC':'ORIGINAL COC'};
+      const ct=ctMap[state.section];
+      html=ct?renderCertificates(c=>c.certCategory===ct):renderCertificates();
+    }
     else if(state.section.startsWith('cat_')){
       const catMap={'cat_Rotating':'Rotating','cat_Static':'Static','cat_Lifting':'Lifting','cat_Electrical':'Electrical','cat_Pressure':'Pressure','cat_FireSafety':'Fire & Safety','cat_Instrumentation':'Instrumentation','cat_Vehicles':'Vehicles'};
       const cat=catMap[state.section]||state.section.replace('cat_','');
@@ -3099,7 +3609,7 @@ document.addEventListener('keydown',e=>{
    AI ASSISTANT — OPENROUTER / GEMINI
 ═══════════════════════════════════════════════ */
 const AI = {
-  model: 'google/gemini-2.0-flash-exp',
+  model: 'google/gemini-2.5-flash',
   endpoint: 'https://openrouter.ai/api/v1/chat/completions',
   history: [],
   isOpen: false,
@@ -6110,6 +6620,18 @@ window.submitNewAccount = submitNewAccount;
 window.selectCertItem = selectCertItem;
 window.openNewCertModal = openNewCertModal;
 window.submitNewCert = submitNewCert;
+window.approveCert = approveCert;
+window.rejectCert = rejectCert;
+window.openBulkCertModal = openBulkCertModal;
+window.addBulkRow = addBulkRow;
+window.removeBulkRow = removeBulkRow;
+window.updateBulkItem = updateBulkItem;
+window.batchSetDefaults = batchSetDefaults;
+window.calcBulkExpiry = calcBulkExpiry;
+window.submitBulkCerts = submitBulkCerts;
+window.togglePushNotif = togglePushNotif;
+window.checkPushHealth = checkPushHealth;
+window.requestNotifPermission = requestNotifPermission;
 window.toggleAIPanel = toggleAIPanel;
 window.saveAPIKey = saveAPIKey;
 window.clearAPIKey = clearAPIKey;

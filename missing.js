@@ -25,8 +25,16 @@ function renderContent(){
   }
   else if(state.module==='certificates'){
     if(state.section==='allCerts') html=renderCertificates();
+    else if(state.section==='certGantt') html=renderCertGantt();
+    else if(state.section==='certNotifications') html=renderCertNotifications();
     else if(state.section==='expiredCerts') html=renderCertificates(c=>c.status==='expired');
     else if(state.section==='expiringSoon') html=renderCertificates(c=>c.status==='expiring');
+    else if(state.section==='pendingApproval') html=renderCertificates(c=>c.approvalStatus==='pending');
+    else if(state.section.startsWith('certType_')){
+      const ctMap={'certType_CATIII':'CAT III','certType_CATIV':'CAT IV','certType_LIFTING':'LIFTING','certType_LOADTEST':'LOAD TEST','certType_NDT':'NDT','certType_TUBULAR':'TUBULAR','certType_ORIGINALCOC':'ORIGINAL COC'};
+      const ct=ctMap[state.section];
+      html=ct?renderCertificates(c=>c.certCategory===ct):renderCertificates();
+    }
     else if(state.section.startsWith('cat_')){
       const catMap={'cat_Rotating':'Rotating','cat_Static':'Static','cat_Lifting':'Lifting','cat_Electrical':'Electrical','cat_Pressure':'Pressure','cat_FireSafety':'Fire & Safety','cat_Instrumentation':'Instrumentation','cat_Vehicles':'Vehicles'};
       const cat=catMap[state.section]||state.section.replace('cat_','');

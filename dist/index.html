@@ -7,20 +7,51 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-BSe86dyV.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-D7QCDr1D.css">
+  <script type="module" crossorigin src="/assets/index-DVElU82E.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-KprLkoYS.css">
 </head>
 <body>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay hidden">
+  <div class="loading-ring-container">
+    <svg class="loading-ring" viewBox="0 0 200 200">
+      <defs>
+        <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#d4a843"/>
+          <stop offset="100%" stop-color="#f0d080"/>
+        </linearGradient>
+        <linearGradient id="ringGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#d4a843" stop-opacity="0.15"/>
+          <stop offset="100%" stop-color="#f0d080" stop-opacity="0.4"/>
+        </linearGradient>
+      </defs>
+      <circle class="loading-ring-track" cx="100" cy="100" r="82" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6"/>
+      <circle class="loading-ring-fill" id="loadingRingFill" cx="100" cy="100" r="82" fill="none" stroke="url(#ringGrad)" stroke-width="6" stroke-linecap="round" stroke-dasharray="515" stroke-dashoffset="515" transform="rotate(-90 100 100)"/>
+      <circle class="loading-ring-glow" cx="100" cy="100" r="82" fill="none" stroke="url(#ringGrad2)" stroke-width="14" stroke-linecap="round" stroke-dasharray="515" stroke-dashoffset="515" transform="rotate(-90 100 100)" style="filter:blur(6px)"/>
+    </svg>
+    <div class="loading-logo">AM</div>
+    <div class="loading-percent" id="loadingPercent">0%</div>
+  </div>
+  <div class="loading-title">AMICI ERP</div>
+  <div class="loading-sub">Empowering Operations</div>
+  <div class="loading-bar-track"><div class="loading-bar-fill" id="loadingBarFill"></div></div>
+  <div class="loading-orbits">
+    <div class="orbit-dot" style="--angle:0deg;--delay:0s"></div>
+    <div class="orbit-dot" style="--angle:120deg;--delay:0.4s"></div>
+    <div class="orbit-dot" style="--angle:240deg;--delay:0.8s"></div>
+  </div>
+</div>
 
 <div id="authOverlay" class="auth-overlay">
   <div class="auth-card">
     <div class="auth-logo">AM</div>
     <h2>AMICI ERP</h2>
     <p>Sign in to access your dashboard</p>
-    <div class="auth-form">
-      <input type="email" id="authEmail" placeholder="Email address" />
-      <input type="password" id="authPassword" placeholder="Password" />
-      <button id="authLoginBtn" type="button">Sign In</button>
+    <div class="auth-form" id="authForm">
+      <input type="email" id="authEmail" placeholder="Email address" autocomplete="email" />
+      <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password" />
+      <button id="authLoginBtn" type="button"><span id="authBtnText">Sign In</span><span id="authBtnSpinner" style="display:none"><i class="fa-solid fa-spinner fa-spin"></i> Signing in...</span></button>
       <div id="authError" class="auth-error"></div>
     </div>
   </div>

@@ -1,6 +1,27 @@
 import { supabase } from './supabase.js';
 
 /* ═══════════════════════════════════════════════
+   STATE — GLOBAL ROUTER STATE
+═══════════════════════════════════════════════ */
+const state = {
+  module:'hr', section:'allEmployees', selectedId:null, detailTab:'info',
+  filters:{}, sortCol:null, sortDir:'asc', charts:[], currentUserRole:'Admin',
+  pushEnabled:false, pushSubscribed:false,
+};
+
+/* ── Register Service Worker for Push Notifications ── */
+if('serviceWorker' in navigator && 'PushManager' in window){
+  navigator.serviceWorker.register('/sw.js').then(reg=>{
+    state._swReg = reg;
+    // Check if already subscribed
+    reg.pushManager.getSubscription().then(sub=>{
+      state.pushSubscribed = !!sub;
+      state.pushEnabled = !!sub;
+    });
+  }).catch(()=>{});
+}
+
+/* ═══════════════════════════════════════════════
    i18n — BILINGUAL STRINGS
 ═══════════════════════════════════════════════ */
 const i18n = {
@@ -69,6 +90,134 @@ function toggleLang(){
    DATA — HR MODULE (Oil & Gas / AMICI)
 ═══════════════════════════════════════════════ */
 let DATA = {
+  leads: [
+    {id:'LD-001', name:'Acme Corp', email:'info@acme.com', phone:'+1 555-0198', status:'New', source:'Website'}
+  ],
+  deals: [
+    {id:'DL-001', title:'Acme SaaS Deal', lead_id:'LD-001', account_id:null, value:15000, stage:'Prospecting', expected_close_date:'2026-08-01', invoice_id:null, sales_person:'Ahmed Al-Riyami', territory:'Oman North', lost_reason:'', notes:'Initial SaaS opportunity'},
+    {id:'DL-002', title:'Block 15 Drilling Consumables', lead_id:null, account_id:'ACC-001', value:98000, stage:'Negotiation', expected_close_date:'2026-07-15', invoice_id:null, sales_person:'Noor Al-Balushi', territory:'Oman South', lost_reason:'', notes:'Competitive bid, pricing discussion ongoing'},
+    {id:'DL-003', title:'H2S Safety Training – PDO', lead_id:null, account_id:'ACC-003', value:42000, stage:'Proposal', expected_close_date:'2026-08-20', invoice_id:null, sales_person:'Ahmed Al-Riyami', territory:'Oman South', lost_reason:'', notes:'Technical proposal submitted'},
+    {id:'DL-004', title:'Corrosion Monitoring – Shell', lead_id:null, account_id:'ACC-005', value:65000, stage:'Qualification', expected_close_date:'2026-09-01', invoice_id:null, sales_person:'Noor Al-Balushi', territory:'Oman North', lost_reason:'', notes:'Initial meetings completed'},
+    {id:'DL-005', title:'Flow Assurance Study – Total', lead_id:null, account_id:'ACC-002', value:35000, stage:'Closed Lost', expected_close_date:'2026-06-01', invoice_id:null, sales_person:'Ahmed Al-Riyami', territory:'Oman South', lost_reason:'Budget constraints – client postponed indefinitely', notes:'Lost to budget freeze'},
+  ],
+  tasks: [
+    {id:'TSK-001', description:'Follow up with Acme', due_date:'2026-06-25', status:'pending', assigned_to:'EMP-001', related_lead_id:'LD-001', related_deal_id:null}
+  ],
+  contacts: [
+    {id:'CON-001',account_id:'ACC-001',salutation:'Mr',first_name:'Sultan',last_name:'Al-Habsi',email:'sultan@oq.om',phone:'+968 91234567',mobile:'+968 99887766',designation:'Procurement Director',department:'Supply Chain',is_primary:true,nationality:'Omani',notes:''},
+    {id:'CON-002',account_id:'ACC-001',salutation:'Ms',first_name:'Laila',last_name:'Al-Zadjali',email:'laila@oq.om',phone:'+968 92345678',mobile:'',designation:'Contracts Manager',department:'Legal',is_primary:false,nationality:'Omani',notes:''},
+    {id:'CON-003',account_id:'ACC-003',salutation:'Mr',first_name:'Tariq',last_name:'Al-Balushi',email:'tariq@pdo.co.om',phone:'+968 93456789',mobile:'+968 91122334',designation:'Field Operations Manager',department:'Operations',is_primary:true,nationality:'Omani',notes:''},
+    {id:'CON-004',account_id:'ACC-005',salutation:'Dr',first_name:'Fatima',last_name:'Al-Said',email:'fatima@shell.om',phone:'+968 94567890',mobile:'',designation:'HSE Director',department:'HSE',is_primary:true,nationality:'Omani',notes:''},
+  ],
+  quotations: [
+    {id:'QTN-001',deal_id:'DL-001',account_id:'ACC-001',account_name:'OQ (Oman Oil & Gas)',lead_id:null,date:'2025-06-10',valid_till:'2025-07-10',items:[{item:'Drilling Consumables Package',description:'PDC bits + mud pump parts',qty:1,rate:45000,amount:45000},{item:'On-site Technical Support',description:'2 engineers × 30 days',qty:60,rate:850,amount:51000}],tax_rate:5,tax_amount:4800,discount_percent:0,discount_amount:0,grand_total:100800,status:'Sent',notes:'Competitive pricing for Block 15'},
+    {id:'QTN-002',deal_id:null,account_id:'ACC-003',account_name:'PDO (Petroleum Development Oman)',lead_id:null,date:'2025-06-12',valid_till:'2025-07-12',items:[{item:'H2S Safety Training Program',description:'10-day certification course',qty:1,rate:28000,amount:28000},{item:'PPE Starter Kits',description:'Full PPE sets for 25 personnel',qty:25,rate:650,amount:16250}],tax_rate:5,tax_amount:2212.5,discount_percent:10,discount_amount:4425,grand_total:42037.5,status:'Draft',notes:'Awaiting budget approval'},
+  ],
+  prospects: [
+    {id:'PRO-001',company_name:'TotalEnergies Oman',industry:'Oil & Gas',website:'totalenergies.om',phone:'+968 95678901',email:'info@total.om',territory:'Oman South',prospect_owner:'Ahmed Al-Riyami',status:'Qualified',notes:'Potential Block 12 operator',created_date:'2025-05-20'},
+    {id:'PRO-002',company_name:'Oman LNG',industry:'LNG / Gas',website:'omanlng.om',phone:'+968 96789012',email:'contact@omanlng.om',territory:'Oman North',prospect_owner:'Noor Al-Balushi',status:'New',notes:'New facility planned for 2027',created_date:'2025-06-01'},
+  ],
+  communications: [
+    {id:'COM-001',reference_type:'Account',reference_id:'ACC-001',type:'Meeting',subject:'Q3 Contract Review',content:'Discussed pricing for Block 15 drilling consumables. Client requested volume discount.',date:'2025-06-14',sender:'Ahmed Al-Riyami',recipients:'Sultan Al-Habsi, Laila Al-Zadjali'},
+    {id:'COM-002',reference_type:'Deal',reference_id:'DL-001',type:'Email',subject:'Proposal Follow-up',content:'Sent revised pricing for Acme SaaS package. Awaiting feedback.',date:'2025-06-13',sender:'Noor Al-Balushi',recipients:'info@acme.com'},
+    {id:'COM-003',reference_type:'Lead',reference_id:'LD-001',type:'Call',subject:'Initial Outreach',content:'Called Acme Corp to introduce AMICI services. Interested in safety training.',date:'2025-06-10',sender:'Ahmed Al-Riyami',recipients:'John (Acme Corp)'},
+  ],
+  attendance: [
+    {id:'ATT-001', employee_id:'EMP-001', date:new Date().toISOString().split('T')[0], status:'Present', check_in_time:'08:00', check_out_time:null}
+  ],
+  expenses: [
+    {id:'EXP-001', employee_id:'EMP-001', date:'2026-06-15', amount:250, category:'Travel', description:'Flight to site', status:'Pending'}
+  ],
+  salarySlips: [
+    {id:'SAL-001', employee_id:'EMP-001', month:6, year:2026, base_pay:5000, allowances:1000, deductions:500, net_pay:5500, status:'Paid', payment_id:null}
+  ],
+  invoices: [
+    {id:'INV-001', type:'Sales', party_name:'Acme Corp', date:'2026-05-01', due_date:'2026-06-01', total_amount:15000, status:'Unpaid', deal_id:null, cost_center_id:'CC-DRL-001', tax_template_id:'TAX-VAT-5', tax_rate:5, tax_amount:750, items:[{item:'Field Engineering Support', description:'Block 15 Rig Alpha - Q2 2026', qty:1, rate:15000, amount:15000}]},
+    {id:'INV-002', type:'Sales', party_name:'TotalEnergies E&P Oman', date:'2026-05-15', due_date:'2026-06-15', total_amount:22000, status:'Unpaid', deal_id:null, cost_center_id:'CC-HSE-001', tax_template_id:'TAX-VAT-10', tax_rate:10, tax_amount:2200, items:[{item:'HSE Consultancy Retainer', description:'Monthly HSE advisory', qty:1, rate:12000, amount:12000},{item:'Site Inspection Services', description:'Block 6 quarterly', qty:1, rate:10000, amount:10000}]},
+    {id:'INV-003', type:'Sales', party_name:'PDO', date:'2026-04-01', due_date:'2026-04-30', total_amount:8500, status:'Unpaid', deal_id:null, cost_center_id:'CC-GEO-001', tax_template_id:'TAX-VAT-5', tax_rate:5, tax_amount:425, items:[{item:'Corrosion Monitoring Report', description:'Q1 2026 analysis', qty:1, rate:8500, amount:8500}]},
+    {id:'INV-004', type:'Sales', party_name:'BP Oman', date:'2026-06-10', due_date:'2026-07-10', total_amount:5000, status:'Unpaid', deal_id:null, cost_center_id:'CC-OPS-001', items:[{item:'Process Safety Audit', description:'Gas Train A preliminary', qty:1, rate:5000, amount:5000}]},
+    {id:'PINV-001', type:'Purchase', party_name:'DrillTech Supplies', date:'2026-06-01', due_date:'2026-06-15', total_amount:4500, status:'Unpaid', deal_id:null, cost_center_id:'CC-DRL-001', items:[{item:'Drill Bits 8.5" Tricone', description:'For Block 15', qty:3, rate:1500, amount:4500}]},
+    {id:'PINV-002', type:'Purchase', party_name:'Nalco Champion', date:'2026-06-05', due_date:'2026-07-05', total_amount:12000, status:'Unpaid', deal_id:null, cost_center_id:'CC-PRD-002', tax_template_id:'TAX-WHT-3', tax_rate:3, tax_amount:360, items:[{item:'Corrosion Inhibitor CI-4400', description:'Bulk supply', qty:600, rate:20, amount:12000}]}
+  ],
+  payments: [
+    {id:'PAY-001', invoice_id:'INV-001', date:'2026-06-15', amount:5000, payment_method:'Bank Transfer', salary_slip_id:null}
+  ],
+  openPositions: [
+    {id:'OP-001', title:'Senior Geologist', department:'Exploration', status:'Open', posted_date:'2026-06-01'}
+  ],
+  performanceReviews: [
+    {id:'PR-001', employee_name:'Khalid Al-Rashidi', period:'Q2 2026', rating:'Exceeds Expectations', status:'Completed'}
+  ],
+  hseTraining: [
+    {id:'TR-001', employee_name:'Khalid Al-Rashidi', course:'H2S Awareness', date:'2026-05-10', status:'Passed'}
+  ],
+  orgUnits: [
+    {id:'OU-001', name:'Drilling', head_count:45, manager:'EMP-010'}
+  ],
+  costCenters: [
+    {id:'CC-DRL-001', name:'Drilling Operations', dept:'Drilling'},
+    {id:'CC-PRD-002', name:'Production Operations', dept:'Production'},
+    {id:'CC-HSE-001', name:'HSE', dept:'HSE'},
+    {id:'CC-FIN-001', name:'Finance & Admin', dept:'Finance'},
+    {id:'CC-SCM-001', name:'Supply Chain', dept:'Procurement'},
+    {id:'CC-OPS-001', name:'Operations Management', dept:'Operations'},
+    {id:'CC-MNT-001', name:'Maintenance', dept:'Maintenance'},
+    {id:'CC-INS-001', name:'Instrumentation', dept:'Instrumentation'},
+    {id:'CC-GEO-001', name:'Geology & Exploration', dept:'Geology'},
+    {id:'CC-IT-001', name:'IT', dept:'IT'},
+  ],
+  taxTemplates: [
+    {id:'TAX-VAT-5', name:'VAT 5%', rate:5, account:'Output VAT'},
+    {id:'TAX-VAT-10', name:'VAT 10%', rate:10, account:'Output VAT'},
+    {id:'TAX-WHT-3', name:'WHT 3%', rate:3, account:'Withholding Tax'},
+  ],
+  chartAccounts: [
+    {id:'ACC-ASSET', name:'Assets', type:'Asset', parent_id:null, is_group:true, balance:0},
+    {id:'ACC-AR', name:'Accounts Receivable', type:'Asset', parent_id:'ACC-ASSET', is_group:false, balance:0},
+    {id:'ACC-BANK', name:'Bank', type:'Asset', parent_id:'ACC-ASSET', is_group:false, balance:0},
+    {id:'ACC-FA', name:'Fixed Assets', type:'Asset', parent_id:'ACC-ASSET', is_group:true, balance:0},
+    {id:'ACC-LIAB', name:'Liabilities', type:'Liability', parent_id:null, is_group:true, balance:0},
+    {id:'ACC-AP', name:'Accounts Payable', type:'Liability', parent_id:'ACC-LIAB', is_group:false, balance:0},
+    {id:'ACC-EQUITY', name:'Equity', type:'Equity', parent_id:null, is_group:true, balance:0},
+    {id:'ACC-RE', name:'Retained Earnings', type:'Equity', parent_id:'ACC-EQUITY', is_group:false, balance:0},
+    {id:'ACC-INCOME', name:'Income', type:'Income', parent_id:null, is_group:true, balance:0},
+    {id:'ACC-REV', name:'Revenue', type:'Income', parent_id:'ACC-INCOME', is_group:false, balance:0},
+    {id:'ACC-EXP', name:'Expenses', type:'Expense', parent_id:null, is_group:true, balance:0},
+    {id:'ACC-OPEX', name:'Operating Expenses', type:'Expense', parent_id:'ACC-EXP', is_group:false, balance:0},
+  ],
+  journalEntries: [
+    {id:'JE-001', date:'2026-06-01', reference:'INV-001', description:'Invoice INV-001 auto-posting', entries:[{account_id:'ACC-AR', debit:15000, credit:0},{account_id:'ACC-REV', debit:0, credit:15000}]},
+    {id:'JE-002', date:'2026-06-15', reference:'PAY-001', description:'Payment PAY-001 auto-posting', entries:[{account_id:'ACC-BANK', debit:5000, credit:0},{account_id:'ACC-AR', debit:0, credit:5000}]},
+  ],
+  fixedAssets: [
+    {id:'FA-001', name:'Mud Pump Rig Alpha', type:'Machinery & Equipment', purchase_date:'2024-01-15', cost:850000, salvage_value:50000, useful_life_years:10, depreciation_method:'Straight Line', accumulated_depreciation:127500, net_book_value:722500, status:'In Use', supplier_id:'SUP-002'},
+    {id:'FA-002', name:'BOP Stack 13-5/8"', type:'Safety Equipment', purchase_date:'2023-06-01', cost:1200000, salvage_value:100000, useful_life_years:15, depreciation_method:'Straight Line', accumulated_depreciation:256667, net_book_value:943333, status:'In Use', supplier_id:'SUP-009'},
+    {id:'FA-003', name:'Forklift Toyota 5-ton', type:'Transport & Material Handling', purchase_date:'2025-03-01', cost:45000, salvage_value:5000, useful_life_years:5, depreciation_method:'Straight Line', accumulated_depreciation:3000, net_book_value:42000, status:'In Use', supplier_id:'SUP-015'},
+  ],
+  qualityInspections: [
+    {id:'QI-001',poRef:'PO-2025-001',itemId:'INV-001',itemName:'Corrosion Inhibitor CI-4400',inspectionType:'Incoming',inspector:'Ahmed Al-Riyami',date:'2025-06-01',status:'Passed',parameters:[{param:'Viscosity (cP)',min:30,max:50,actual:42,result:'Pass'},{param:'Density (g/cm³)',min:0.9,max:1.1,actual:1.02,result:'Pass'},{param:'pH',min:6.5,max:8.5,actual:7.1,result:'Pass'}],notes:'All parameters within spec'},
+    {id:'QI-002',poRef:'PO-2025-003',itemId:'INV-005',itemName:'Anti-H2S Coveralls',inspectionType:'Incoming',inspector:'Noor Al-Balushi',date:'2025-06-12',status:'Passed',parameters:[{param:'Material Thickness (mm)',min:0.3,max:0.5,actual:0.42,result:'Pass'},{param:'Seam Strength (N)',min:200,max:500,actual:380,result:'Pass'}],notes:'Visual inspection OK'},
+    {id:'QI-003',poRef:'PO-2025-005',itemId:'INV-018',itemName:'Portable Fire Extinguisher 9kg',inspectionType:'Incoming',inspector:'Khalid Al-Maawali',date:'2025-06-18',status:'Failed',parameters:[{param:'Pressure (bar)',min:12,max:15,actual:9.2,result:'Fail'},{param:'Weight (kg)',min:8.5,max:10.5,actual:9.8,result:'Pass'}],notes:'Pressure below minimum — rejected'},
+    {id:'QI-004',poRef:'PO-2025-002',itemId:'INV-002',itemName:'Scale Inhibitor SI-210',inspectionType:'Incoming',inspector:'Ahmed Al-Riyami',date:'2025-06-20',status:'Pending',parameters:[{param:'Viscosity (cP)',min:25,max:45,actual:0,result:'Pending'},{param:'Density (g/cm³)',min:0.85,max:1.05,actual:0,result:'Pending'}],notes:'Awaiting lab results'},
+  ],
+  landedCostVouchers: [
+    {id:'LCV-001',poRef:'PO-2025-002',date:'2025-06-10',charges:{freight:12500,insurance:3400,duty:8900,handling:2100},totalCharges:26900,distribution:'By Value',items:[{itemId:'INV-001',itemName:'Corrosion Inhibitor CI-4400',proportion:0.6,allocated:16140},{itemId:'INV-002',itemName:'Scale Inhibitor SI-210',proportion:0.4,allocated:10760}]},
+    {id:'LCV-002',poRef:'PO-2025-003',date:'2025-06-15',charges:{freight:5800,insurance:1200,duty:0,handling:800},totalCharges:7800,distribution:'By Value',items:[{itemId:'INV-005',itemName:'Anti-H2S Coveralls',proportion:0.7,allocated:5460},{itemId:'INV-016',itemName:'Safety Boots',proportion:0.3,allocated:2340}]},
+  ],
+  reorderRules: [
+    {id:'RR-001',itemId:'INV-002',itemName:'Scale Inhibitor SI-210',supplierId:'SUP-003',minQty:1500,maxQty:4000,leadTimeDays:14,autoCreatePO:true,lastTriggered:null},
+    {id:'RR-002',itemId:'INV-004',itemName:'Mud Pump Liner 7.5"',supplierId:'SUP-002',minQty:4,maxQty:8,leadTimeDays:30,autoCreatePO:true,lastTriggered:null},
+    {id:'RR-003',itemId:'INV-006',itemName:'SCBA Set (complete)',supplierId:'SUP-008',minQty:10,maxQty:20,leadTimeDays:21,autoCreatePO:false,lastTriggered:'2025-05-01'},
+    {id:'RR-004',itemId:'INV-008',itemName:'H2S Gas Detector – Portable',supplierId:'SUP-013',minQty:10,maxQty:25,leadTimeDays:45,autoCreatePO:true,lastTriggered:null},
+    {id:'RR-005',itemId:'INV-010',itemName:'Control Valve – Fisher V250 4"',supplierId:'SUP-005',minQty:1,maxQty:4,leadTimeDays:60,autoCreatePO:true,lastTriggered:null},
+  ],
+  uomConversions: [
+    {from:'Litre', to:'Barrel', factor:0.00629},
+    {from:'Litre', to:'Gallon', factor:0.264172},
+    {from:'Unit', to:'Dozen', factor:12},
+    {from:'Kilogram', to:'Ton', factor:0.001},
+    {from:'Metre', to:'Feet', factor:3.28084},
+  ],
   employees: [
     {id:'EMP-001',firstName:'Khalid',lastName:'Al-Rashidi',name:'Khalid Al-Rashidi',dept:'Drilling',position:'Senior Drilling Engineer',email:'k.alrashidi@amici.com',phone:'+968 9100 1001',status:'active',empType:'Full-time',site:'Block 15 – Rig Alpha',rotation:'28/28',crew:'Offshore',startDate:'2018-03-10',manager:'EMP-010',salaryBand:'G6',costCenter:'CC-DRL-001',nationality:'Omani',visa:'N/A',h2sLevel:'Level 3',medFit:true,medExpiry:'2025-12-01',workPermit:'N/A',
       leave:{annual:{used:8,total:30},sick:{used:2,total:15},remote:{used:4,total:10},training:{used:5,total:10}},
@@ -178,21 +327,9 @@ let DATA = {
     {icon:'fa-triangle-exclamation',color:'var(--warning)',text:'3 equipment certificates expiring within 30 days',time:'2 hours ago'},
     {icon:'fa-user-clock',color:'var(--blue)',text:'Leave request pending: Omar Al-Kindi (28 days)',time:'5 hours ago'},
     {icon:'fa-circle-xmark',color:'var(--error)',text:'Certificate CERT-007 (H2S Detector) — EXPIRED',time:'1 day ago'},
-  ]
-};
-
-/* ═══════════════════════════════════════════════
-   STATE
-═══════════════════════════════════════════════ */
-const state = {
-  module: 'hr',
-  section: 'allEmployees',
-  selectedId: null,
-  detailTab: 'info',
-  filters: {},
-  sortCol: null,
-  sortDir: 'asc',
-  charts: []
+  ],
+  fieldServiceLogs: [],
+  partners: [],
 };
 
 /* ═══════════════════════════════════════════════
@@ -200,8 +337,38 @@ const state = {
 ═══════════════════════════════════════════════ */
 function $(s){ return document.querySelector(s); }
 function $$(s){ return document.querySelectorAll(s); }
-function fmt(n){ return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:0}).format(n); }
-function fmtDate(d){ if(!d) return '—'; const dt=new Date(d+'T00:00:00'); return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+const fmt=n=>n?parseFloat(n).toLocaleString():'0';
+const fmtDate=d=>{if(!d)return'';const dt=new Date(d);return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});};
+const stockCol=s=>s==='low'?'var(--warning)':s==='critical'||s==='out'?'var(--error)':'var(--text-sec)';
+
+// Export generic HTML table to CSV
+function exportToCSV(filename = 'export.csv') {
+  const table = document.querySelector('.data-table') || document.querySelector('.table');
+  if(!table) return showToast('No table found to export', 'error');
+  
+  let csv = [];
+  const rows = table.querySelectorAll('tr');
+  for (let i = 0; i < rows.length; i++) {
+    let row = [], cols = rows[i].querySelectorAll('td, th');
+    for (let j = 0; j < cols.length; j++) {
+      let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, '').trim();
+      data = data.replace(/"/g, '""');
+      row.push('"' + data + '"');
+    }
+    csv.push(row.join(','));
+  }
+  
+  const csvFile = new Blob([csv.join('\n')], {type: 'text/csv'});
+  const downloadLink = document.createElement('a');
+  downloadLink.download = filename;
+  downloadLink.href = window.URL.createObjectURL(csvFile);
+  downloadLink.style.display = 'none';
+  document.body.appendChild(downloadLink);
+  downloadLink.click();
+  document.body.removeChild(downloadLink);
+  showToast('Export successful', 'success');
+}
+
 function daysFromNow(d){ if(!d) return null; return Math.round((new Date(d+'T00:00:00')-new Date())/(1000*60*60*24)); }
 function initials(name){ return name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
 function avatarColor(name){ const colors=['#0070f2','#188918','#e9730c','#6b3fa0','#0f6c6c','#354a5e','#bb0000','#0047ab']; let h=0; for(const c of name) h=(h*31+c.charCodeAt(0))&0xffffff; return colors[Math.abs(h)%colors.length]; }
@@ -225,6 +392,13 @@ function statusPill(status){
 function sortIcon(col){ if(state.sortCol!==col) return '<i class="fa-solid fa-sort sort-icon"></i>'; return state.sortDir==='asc'?'<i class="fa-solid fa-sort-up sort-icon"></i>':'<i class="fa-solid fa-sort-down sort-icon"></i>';}
 function sortedCls(col){ return state.sortCol===col?'sorted':''; }
 function sortBy(col){ if(state.sortCol===col){state.sortDir=state.sortDir==='asc'?'desc':'asc';}else{state.sortCol=col;state.sortDir='asc';} rerenderSection(); }
+function autoResizeTextarea(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,100)+'px'; }
+function closeToast(button){
+  const toast = button.closest('.toast');
+  if(!toast) return;
+  toast.classList.add('is-exiting');
+  setTimeout(()=>toast.remove(),200);
+}
 
 /* ═══════════════════════════════════════════════
    TOAST
@@ -233,8 +407,9 @@ function showToast(msg, type='info'){
   const div=document.createElement('div');
   div.className=`toast ${type}`;
   const icons={success:'fa-check-circle',error:'fa-circle-xmark',warning:'fa-triangle-exclamation',info:'fa-circle-info'};
-  div.innerHTML=`<i class="fa-solid ${icons[type]||icons.info}" style="font-size:15px;color:var(--${type==='info'?'blue':type==='success'?'success':type==='error'?'error':'warning'});"></i><span>${msg}</span><button class="toast-close" onclick="this.parentElement.remove()">×</button>`;
+  div.innerHTML=`<i class="fa-solid ${icons[type]||icons.info}" style="font-size:15px;color:var(--${type==='info'?'blue':type==='success'?'success':type==='error'?'error':'warning'});"></i><span>${msg}</span><button class="toast-close" type="button" aria-label="Dismiss notification" data-action="close-toast">×</button>`;
   $('#toastContainer').appendChild(div);
+  setTimeout(()=>{ if(div.isConnected) div.classList.add('is-exiting'); },3800);
   setTimeout(()=>div.remove(),4000);
 }
 
@@ -242,7 +417,7 @@ function showToast(msg, type='info'){
    MODAL
 ═══════════════════════════════════════════════ */
 function openModal(title, body, footer){
-  $('#modalBox').innerHTML=`<div class="modal-header"><h3>${title}</h3><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body">${body}</div><div class="modal-footer">${footer}</div>`;
+  $('#modalBox').innerHTML=`<div class="modal-header"><h3>${title}</h3><button class="modal-close" type="button" aria-label="Close dialog" data-action="close-modal">×</button></div><div class="modal-body">${body}</div><div class="modal-footer">${footer}</div>`;
   $('#modalOverlay').classList.add('open');
 }
 function closeModal(){ $('#modalOverlay').classList.remove('open'); }
@@ -272,6 +447,7 @@ const MODULES = [
   {id:'crm',icon:'fa-handshake',labelKey:'crm'},
   {id:'certificates',icon:'fa-certificate',labelKey:'certificates'},
   {id:'supply',icon:'fa-truck',labelKey:'supplyChain'},
+  {id:'fin',icon:'fa-file-invoice-dollar',labelKey:'finance'},
 ];
 
 function renderTabBar(){
@@ -284,7 +460,7 @@ function renderTabBar(){
 function switchModule(mod){
   destroyCharts();
   state.module=mod;
-  state.section=mod==='hr'?'allEmployees':mod==='crm'?'allAccounts':mod==='certificates'?'allCerts':'scDashboard';
+  state.section=mod==='hr'?'allEmployees':mod==='crm'?'allAccounts':mod==='certificates'?'allCerts':mod==='fin'?'finDashboard':'scDashboard';
   state.selectedId=null;
   state.filters={};
   state.sortCol=null;
@@ -313,6 +489,7 @@ function renderHRSidebar(){
       {id:'performanceCycle',icon:'fa-chart-line',label:t('performanceCycle')},
       {id:'trainingHSE',icon:'fa-hard-hat',label:t('trainingHSE')},
       {id:'compensation',icon:'fa-money-bill-wave',label:t('compensation')},
+      {id:'expenseClaims',icon:'fa-file-invoice-dollar',label:'Expense Claims'},
       {id:'orgUnits',icon:'fa-sitemap',label:t('orgUnits')},
     ]},
     {group:'Admin', items:[
@@ -367,6 +544,12 @@ function renderHRKPIs(){
 function renderAllEmployees(){
   const f=state.filters;
   let items=[...DATA.employees];
+  if(state.section==='onProbation') {
+    // Show people hired within last 90 days or status is probation
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    items = items.filter(e => e.status === 'probation' || new Date(e.startDate) > ninetyDaysAgo);
+  }
   if(f.search){ const s=f.search.toLowerCase(); items=items.filter(e=>e.name.toLowerCase().includes(s)||e.dept.toLowerCase().includes(s)||e.position.toLowerCase().includes(s)||e.site.toLowerCase().includes(s)||e.id.toLowerCase().includes(s)); }
   if(f.dept&&f.dept!=='all') items=items.filter(e=>e.dept===f.dept);
   if(f.status&&f.status!=='all') items=items.filter(e=>e.status===f.status);
@@ -601,15 +784,73 @@ async function submitNewEmployee(){
 ═══════════════════════════════════════════════ */
 function renderLeaveRequests(){
   const items=DATA.leaveRequests;
-  let html=`<div class="fade-in"><div class="sec-card"><div class="sec-card-head">${t('leaveRequests')} <span style="font-size:12px;color:var(--text-sec);font-weight:400;">${items.length} requests</span></div>
-  <div style="overflow-x:auto;"><table class="data-table">
-    <thead><tr><th>Request ID</th><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Approver</th><th>Status</th></tr></thead>
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Leave Requests <span style="font-size:12px;color:var(--text-sec);font-weight:400;">(${items.length})</span></h2>
+    <button class="btn btn-primary" onclick="openNewLeaveModal()">+ Request Leave</button>
+  </div>
+  <div class="sec-card">
+  <div style="overflow-x:auto;"><table class="data-table table">
+    <thead><tr><th>Request ID</th><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Approver</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody>`;
-  items.forEach(l=>{ html+=`<tr><td style="font-weight:500">${l.id}</td><td>${l.empName}</td><td>${l.type}</td><td>${fmtDate(l.from)}</td><td>${fmtDate(l.to)}</td><td>${l.days}</td><td>${l.approver}</td><td>${statusPill(l.status)}</td></tr>`; });
+  items.forEach(l=>{ html+=`<tr><td style="font-weight:500">${l.id}</td><td>${l.employeeName||l.empName||'Unknown'}</td><td>${l.type}</td><td>${fmtDate(l.startDate||l.from)}</td><td>${fmtDate(l.endDate||l.to)}</td><td>${l.days}</td><td>${l.approver}</td><td>${statusPill(l.status)}</td>
+    <td>${l.status==='Pending'?`<button class="btn btn-primary btn-sm" onclick="approveLeave('${l.id}')">Approve</button>`:''}</td></tr>`; });
   html+=`</tbody></table></div></div></div>`;
   return html;
 }
 
+function openNewLeaveModal() {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="nl-emp" placeholder="Employee Name" value="${DATA.employees[0].name}" />
+    <select class="filter-select" id="nl-type">
+      <option>Annual Leave</option><option>Sick Leave</option><option>Unpaid Leave</option>
+    </select>
+    <div style="display:flex;gap:10px;">
+      <input class="filter-input" id="nl-from" type="date" />
+      <input class="filter-input" id="nl-to" type="date" />
+    </div>
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitLeaveRequest()">Submit Request</button>`;
+  openModal('Request Leave', body, footer);
+}
+
+async function submitLeaveRequest() {
+  const from=$('#nl-from').value, to=$('#nl-to').value, empName=$('#nl-emp').value;
+  if(!from||!to) { showToast('Dates required', 'error'); return; }
+  
+  // Phase 6.2 Prevent double-booking
+  const conflict = DATA.leaveRequests.some(l => l.employeeName === empName && l.status !== 'Rejected' && 
+    ((from >= l.startDate && from <= l.endDate) || (to >= l.startDate && to <= l.endDate)));
+  if(conflict) {
+    showToast('Date conflict: Employee already has active leave during this period', 'error');
+    return;
+  }
+  
+  const days = Math.round((new Date(to) - new Date(from))/(1000*60*60*24)) + 1;
+  const newReq = { id:'LR-'+Date.now(), employeeName:empName, type:$('#nl-type').value, startDate:from, endDate:to, days, status:'Pending' };
+  
+  if(supabase) await supabase.from('leave_requests').insert(newReq);
+  DATA.leaveRequests.push(newReq);
+  closeModal(); showToast('Leave requested successfully', 'success'); rerenderSection();
+}
+
+window.approveLeave = async function(id) {
+  const req = DATA.leaveRequests.find(l => l.id === id);
+  if(req) {
+    req.status = 'Approved';
+    if(supabase) await supabase.from('leave_requests').update({status:'Approved'}).eq('id', id);
+    
+    // Auto-update attendance
+    const emp = DATA.employees.find(e => e.name === (req.employeeName||req.empName));
+    if(emp) {
+      const attId = 'ATT-'+Date.now();
+      const newAtt = { id: attId, employee_id: emp.id, date: (req.startDate||req.from), check_in: null, check_out: null, status: 'On Leave' };
+      if(supabase) await supabase.from('hr_attendance').insert(newAtt);
+      DATA.attendance.push(newAtt);
+      showToast('Leave Approved. Attendance updated.', 'success');
+    }
+    rerenderSection();
+  }
+}
 function renderHRStub(label){
   return `<div class="fade-in"><div class="empty-state" style="padding:80px 20px;"><i class="fa-solid fa-hard-hat" style="font-size:48px;opacity:.2;margin-bottom:16px;"></i><p style="font-size:15px;font-weight:600;">${label}</p><p style="margin-top:6px;font-size:13px;">This section is planned for Chunk 3.</p></div></div>`;
 }
@@ -618,7 +859,7 @@ function renderHRStub(label){
    DATA — CRM MODULE
 ═══════════════════════════════════════════════ */
 DATA.accounts = [
-  {id:'ACC-001',name:'OQ (Oman Oil & Gas)',type:'Operator',country:'Oman',region:'Middle East',owner:'Khalid Al-Rashidi',status:'active',contractValue:4200000,rating:'Hot',blockRef:'Block 15',openOpps:2,
+  {id:'ACC-001',name:'OQ (Oman Oil & Gas)',type:'Operator',country:'Oman',territory:'Oman South',region:'Middle East',owner:'Khalid Al-Rashidi',status:'active',contractValue:4200000,rating:'Hot',blockRef:'Block 15',openOpps:2,
     contacts:[{name:'Saif Al-Habsi',role:'VP Upstream',email:'s.alhabsi@oq.com'},{name:'Muna Al-Lawati',role:'Contracts Manager',email:'m.allawati@oq.com'}],
     opps:[{id:'OPP-001',title:'Integrated Well Services – Phase 3',value:2100000,stage:'Negotiation',closeDate:'2025-09-30',prob:75},{id:'OPP-002',title:'Production Optimisation Study',value:480000,stage:'Technical Bid',closeDate:'2025-11-15',prob:45}],
     activities:[{type:'Meeting',date:'2025-06-02',desc:'Quarterly review at OQ HQ – discussed Phase 3 scope'},{type:'Call',date:'2025-05-20',desc:'Follow-up on contract terms with Saif Al-Habsi'},{type:'Site Visit',date:'2025-04-10',desc:'Joint inspection at Block 15 Rig Alpha'}],
@@ -633,7 +874,7 @@ DATA.accounts = [
     opps:[{id:'OPP-006',title:'Process Safety Audit – Gas Train A',value:280000,stage:'Qualification',closeDate:'2026-01-15',prob:30}],
     activities:[{type:'Meeting',date:'2025-05-15',desc:'JV steering committee – FEED review for Block 61'},{type:'Email',date:'2025-04-20',desc:'Sent NDA for shared subsurface data access'}],
   },
-  {id:'ACC-004',name:'PDO – Petroleum Development Oman',type:'Operator',country:'Oman',region:'Middle East',owner:'Khalid Al-Rashidi',status:'active',contractValue:11500000,rating:'Hot',blockRef:'South Oman',openOpps:4,
+  {id:'ACC-004',name:'PDO – Petroleum Development Oman',type:'Operator',country:'Oman',territory:'Oman South',region:'Middle East',owner:'Khalid Al-Rashidi',status:'active',contractValue:11500000,rating:'Hot',blockRef:'South Oman',openOpps:4,
     contacts:[{name:'Hamood Al-Toubi',role:'Head of Drilling',email:'h.altoubi@pdo.co.om'},{name:'Noor Al-Kalbani',role:'Contracts Specialist',email:'n.alkalbani@pdo.co.om'}],
     opps:[{id:'OPP-007',title:'Enhanced Oil Recovery – Pilot Phase',value:4800000,stage:'Commercial Bid',closeDate:'2025-10-30',prob:65},{id:'OPP-008',title:'Corrosion Management Services',value:1100000,stage:'Award',closeDate:'2025-07-15',prob:92},{id:'OPP-009',title:'Produced Water Treatment Study',value:550000,stage:'Negotiation',closeDate:'2025-09-01',prob:80},{id:'OPP-010',title:'Rig Inspection & Certification',value:220000,stage:'Technical Bid',closeDate:'2025-11-30',prob:35}],
     activities:[{type:'Site Visit',date:'2025-06-01',desc:'Visited Marmul field – EOR pilot site walk-through'},{type:'Proposal',date:'2025-05-25',desc:'Submitted commercial bid for EOR pilot'},{type:'Meeting',date:'2025-05-05',desc:'Annual account review at PDO HQ Muscat'}],
@@ -734,6 +975,13 @@ DATA.allOpps = DATA.accounts.flatMap(a=>a.opps||[]).map(o=>{
     const days = Math.round((new Date(c.expiryDate)-new Date())/(1000*60*60*24));
     c.daysRemaining = days;
     c.status = days<0?'expired':days<=30?'expiring':days<=90?'renewal':'valid';
+    /* ── Rigways integration fields ── */
+    c.jobNumber       = c.jobNumber       || '';
+    c.certCategory    = c.certCategory    || {'Rotating':'LOAD TEST','Static':'CAT IV','Lifting':'LIFTING','Electrical':'CAT III','Pressure':'CAT IV','Fire & Safety':'ORIGINAL COC','Instrumentation':'CAT III','Vehicles':'LOAD TEST'}[c.category]||'CAT III';
+    c.liftingSubtype  = c.liftingSubtype  || (c.category==='Lifting'?{'Overhead Crane 10T – CR-01':'LIFTING EQUIPMENT','Man Riding Winch – WN-02':'LIFTING GEAR','Pedestal Crane – PC-02':'LIFTING PERSONNEL'}[c.equipName]||'LIFTING EQUIPMENT':'');
+    c.approvalStatus  = c.approvalStatus  || 'approved';
+    c.client          = c.client          || {'Block 15 – Rig Alpha':'ADNOC','Block 7 – Offshore Platform':'ADNOC','Onshore Processing Facility – South':'ADNOC','Gas Treatment Plant – North':'OCC','Head Office – Muscat':'AMICI','Block 3 – Exploration Camp':'OCC'}[c.site]||'ADNOC';
+    c.fileName        = c.fileName        || c.pdfUrl || '';
   });
 })();
 
@@ -763,29 +1011,45 @@ Object.assign(i18n.en,{
   totalCerts:'Total Certificates',validCerts:'Valid',expiringIn30:'Expiring in 30 Days',expiredCount:'Expired (Critical)',complianceRate:'Compliance Rate',
   equipName:'Equipment Name',assetTag:'Asset Tag',category:'Category',certType:'Certificate Type',issuer:'Issuing Authority',issueDate:'Issue Date',expiryDate:'Expiry Date',daysRemaining:'Days Remaining',responsibleEngineer:'Engineer',
   newCertificate:'New Certificate',
+  /* Rigways integration */
+  certCategory:'Cert. Category',pendingApproval:'Pending Approval',approved:'Approved',rejected:'Rejected',jobNumber:'Job Number',client:'Client',liftingSubtype:'Lifting Subtype',approvalStatus:'Approval Status',
+  catCATIII:'CAT III Inspection',catCATIV:'CAT IV Inspection',catLIFTING:'Lifting Equipment',catLOADTEST:'Load Test',catNDT:'NDT Inspection',catTUBULAR:'Tubular Inspection',catORIGINALCOC:'Original COC',
 });
 Object.assign(i18n.ar,{
   allCerts:'كل الشهادات',expiredCerts:'منتهية الصلاحية',expiringSoon:'تنتهي قريباً',catRotating:'المعدات الدوارة',catStatic:'المعدات الثابتة',catLifting:'معدات الرفع',catElectrical:'المعدات الكهربائية',catPressure:'أنظمة الضغط',catFire:'الحريق والسلامة',catInstrumentation:'الأجهزة والقياس',catVehicles:'المركبات',uploadCert:'رفع شهادة',complianceReport:'تقرير الامتثال',
   totalCerts:'إجمالي الشهادات',validCerts:'سارية',expiringIn30:'تنتهي خلال 30 يوم',expiredCount:'منتهية (حرجة)',complianceRate:'معدل الامتثال',
   equipName:'اسم المعدة',assetTag:'رقم الأصل',category:'الفئة',certType:'نوع الشهادة',issuer:'جهة الإصدار',issueDate:'تاريخ الإصدار',expiryDate:'تاريخ الانتهاء',daysRemaining:'الأيام المتبقية',responsibleEngineer:'المهندس',
   newCertificate:'شهادة جديدة',
+  /* Rigways integration */
+  certCategory:'تصنيف الشهادة',pendingApproval:'قيد الموافقة',approved:'معتمدة',rejected:'مرفوضة',jobNumber:'رقم الوظيفة',client:'العميل',liftingSubtype:'نوع الرفع',approvalStatus:'حالة الموافقة',
+  catCATIII:'فحص CAT III',catCATIV:'فحص CAT IV',catLIFTING:'معدات الرفع',catLOADTEST:'اختبار تحميل',catNDT:'فحص NDT',catTUBULAR:'فحص الأنابيب',catORIGINALCOC:'شهادة المنشأ',
 });
 
 /* ═══════════════════════════════════════════════
    CRM SIDEBAR
 ═══════════════════════════════════════════════ */
 function renderCRMSidebar(){
-  const openContracts = DATA.accounts.filter(a=>a.status==='active'&&a.contractValue>0).length;
-  const overdueCount = 2;
+  const overdueCount = DATA.tasks.filter(t=>t.status!=='completed'&&t.due_date&&t.due_date<new Date().toISOString().split('T')[0]).length;
   const sections=[
     {group:null,items:[
+      {id:'crmLeads',icon:'fa-users-viewfinder',label:'Leads'},
+      {id:'crmDeals',icon:'fa-kanban',label:'Deals Pipeline'},
       {id:'allAccounts',icon:'fa-building',label:t('allAccounts')},
+      {id:'crmContacts',icon:'fa-address-card',label:'Contacts'},
+      {id:'crmQuotations',icon:'fa-file-invoice',label:'Quotations'},
       {id:'myFavorites',icon:'fa-star',label:t('myFavorites')},
-      {id:'openContracts',icon:'fa-file-signature',label:t('openContracts'),badge:openContracts,badgeCls:'blue'},
       {id:'wonThisQuarter',icon:'fa-trophy',label:t('wonThisQuarter')},
     ]},
+    {group:'Pipeline',items:[
+      {id:'crmProspects',icon:'fa-binoculars',label:'Prospects'},
+      {id:'crmCommunications',icon:'fa-comments',label:'Communications'},
+    ]},
+    {group:'Analytics',items:[
+      {id:'crmWinLoss',icon:'fa-chart-simple',label:'Win/Loss Analysis'},
+      {id:'crmTerritory',icon:'fa-map-location-dot',label:'Territory View'},
+    ]},
     {group:'Activities',items:[
-      {id:'myTasks',icon:'fa-list-check',label:t('myTasks'),badge:overdueCount},
+      {id:'myTasks',icon:'fa-list-check',label:t('myTasks'),badge:overdueCount,badgeCls:'red'},
       {id:'fieldServiceLogs',icon:'fa-screwdriver-wrench',label:t('fieldServiceLogs')},
       {id:'partnersJVs',icon:'fa-handshake',label:t('partnersJVs')},
     ]},
@@ -828,9 +1092,10 @@ function renderCRMKPIs(){
 /* ═══════════════════════════════════════════════
    CRM — ALL ACCOUNTS (Master-Detail)
 ═══════════════════════════════════════════════ */
-function renderAllAccounts(){
+function renderAllAccounts(filterFn){
   const f=state.filters;
   let items=[...DATA.accounts];
+  if(filterFn) items=items.filter(filterFn);
   if(f.search){const s=f.search.toLowerCase();items=items.filter(a=>a.name.toLowerCase().includes(s)||a.country.toLowerCase().includes(s)||a.owner.toLowerCase().includes(s)||a.id.toLowerCase().includes(s));}
   if(f.type&&f.type!=='all') items=items.filter(a=>a.type===f.type);
   if(f.rating&&f.rating!=='all') items=items.filter(a=>a.rating===f.rating);
@@ -1016,13 +1281,25 @@ function renderCertSidebar(){
   const certs=DATA.certificates;
   const expired=certs.filter(c=>c.status==='expired').length;
   const expiring=certs.filter(c=>c.status==='expiring').length;
+  const pending=certs.filter(c=>c.approvalStatus==='pending').length;
   const cats=['Rotating','Static','Lifting','Electrical','Pressure','Fire & Safety','Instrumentation','Vehicles'];
   const catIcons={'Rotating':'fa-rotate','Static':'fa-industry','Lifting':'fa-weight-hanging','Electrical':'fa-bolt','Pressure':'fa-gauge-high','Fire & Safety':'fa-fire-extinguisher','Instrumentation':'fa-sliders','Vehicles':'fa-truck'};
   const catKeys={'Rotating':'catRotating','Static':'catStatic','Lifting':'catLifting','Electrical':'catElectrical','Pressure':'catPressure','Fire & Safety':'catFire','Instrumentation':'catInstrumentation','Vehicles':'catVehicles'};
+  /* ── Rigways cert type sidebar ── */
+  const certTypes=['CAT III','CAT IV','LIFTING','LOAD TEST','NDT','TUBULAR','ORIGINAL COC'];
+  const typeIcons={'CAT III':'fa-shield','CAT IV':'fa-shield','LIFTING':'fa-weight-hanging','LOAD TEST':'fa-dumbbell','NDT':'fa-chart-line','TUBULAR':'fa-pipe','ORIGINAL COC':'fa-file-circle-check'};
+  const typeKeys={'CAT III':'catCATIII','CAT IV':'catCATIV','LIFTING':'catLIFTING','LOAD TEST':'catLOADTEST','NDT':'catNDT','TUBULAR':'catTUBULAR','ORIGINAL COC':'catORIGINALCOC'};
   let html=`<div class="sidebar-item ${state.section==='allCerts'?'active':''}" onclick="switchSection('allCerts')"><i class="fa-solid fa-certificate"></i><span style="flex:1">${t('allCerts')}</span></div>
     <div class="sidebar-item ${state.section==='expiredCerts'?'active':''}" onclick="switchSection('expiredCerts')"><i class="fa-solid fa-circle-xmark" style="color:var(--error)"></i><span style="flex:1">${t('expiredCerts')}</span><span class="sidebar-badge">${expired}</span></div>
     <div class="sidebar-item ${state.section==='expiringSoon'?'active':''}" onclick="switchSection('expiringSoon')"><i class="fa-solid fa-clock" style="color:var(--warning)"></i><span style="flex:1">${t('expiringSoon')}</span><span class="sidebar-badge orange">${expiring}</span></div>
-    <div class="sidebar-group">Equipment Categories</div>`;
+    <div class="sidebar-item ${state.section==='pendingApproval'?'active':''}" onclick="switchSection('pendingApproval')"><i class="fa-solid fa-hourglass-half" style="color:var(--purple)"></i><span style="flex:1">${t('pendingApproval')}</span><span class="sidebar-badge purple">${pending}</span></div>
+    <div class="sidebar-group">${t('certCategory')}</div>`;
+  certTypes.forEach(ct=>{
+    const id='certType_'+ct.replace(/[^a-z0-9]/gi,'');
+    const cnt=certs.filter(c=>c.certCategory===ct).length;
+    html+=`<div class="sidebar-item ${state.section===id?'active':''}" onclick="switchSection('${id}')"><i class="fa-solid ${typeIcons[ct]||'fa-tag'}"></i><span style="flex:1">${t(typeKeys[ct])}</span><span class="sidebar-badge blue">${cnt}</span></div>`;
+  });
+  html+=`<div class="sidebar-group">Equipment Categories</div>`;
   cats.forEach(cat=>{
     const id='cat_'+cat.replace(/[^a-z]/gi,'');
     const cnt=certs.filter(c=>c.category===cat).length;
@@ -1030,6 +1307,9 @@ function renderCertSidebar(){
   });
   html+=`<div class="sidebar-group">Actions</div>
     <div class="sidebar-item" onclick="openNewCertModal()"><i class="fa-solid fa-upload"></i><span>${t('uploadCert')}</span></div>
+    <div class="sidebar-item" onclick="openBulkCertModal()"><i class="fa-solid fa-layer-group"></i><span>Bulk Create</span></div>
+    <div class="sidebar-item ${state.section==='certGantt'?'active':''}" onclick="switchSection('certGantt')"><i class="fa-solid fa-chart-bar"></i><span>Expiry Timeline</span></div>
+    <div class="sidebar-item ${state.section==='certNotifications'?'active':''}" onclick="switchSection('certNotifications')"><i class="fa-solid fa-bell"></i><span>Notifications</span></div>
     <div class="sidebar-item" onclick="showToast('Generating compliance report...','info')"><i class="fa-solid fa-chart-bar"></i><span>${t('complianceReport')}</span></div>`;
   return html;
 }
@@ -1043,12 +1323,14 @@ function renderCertKPIs(){
   const valid=certs.filter(c=>c.status==='valid').length;
   const expiring=certs.filter(c=>c.status==='expiring').length;
   const expired=certs.filter(c=>c.status==='expired').length;
+  const pending=certs.filter(c=>c.approvalStatus==='pending').length;
   const compliance=Math.round((valid+certs.filter(c=>c.status==='renewal').length)/total*100);
   return `<div class="kpi-grid">
     <div class="kpi-card"><span class="kpi-label">${t('totalCerts')}</span><span class="kpi-value">${total}</span><span class="kpi-change" style="color:var(--text-sec)"><i class="fa-solid fa-certificate"></i> Registered</span></div>
     <div class="kpi-card green"><span class="kpi-label">${t('validCerts')}</span><span class="kpi-value">${valid}</span><span class="kpi-change kpi-up"><i class="fa-solid fa-check-circle"></i> In compliance</span></div>
     <div class="kpi-card orange"><span class="kpi-label">${t('expiringIn30')}</span><span class="kpi-value">${expiring}</span><span class="kpi-change kpi-warn"><i class="fa-solid fa-triangle-exclamation"></i> Action required</span></div>
     <div class="kpi-card red"><span class="kpi-label">${t('expiredCount')}</span><span class="kpi-value">${expired}</span><span class="kpi-change kpi-down"><i class="fa-solid fa-circle-xmark"></i> Immediate action!</span></div>
+    <div class="kpi-card purple"><span class="kpi-label">${t('pendingApproval')}</span><span class="kpi-value">${pending}</span><span class="kpi-change kpi-warn"><i class="fa-solid fa-hourglass-half"></i> Awaiting review</span></div>
     <div class="kpi-card ${compliance>=90?'green':compliance>=75?'orange':'red'}"><span class="kpi-label">${t('complianceRate')}</span><span class="kpi-value">${compliance}%</span><span class="kpi-change ${compliance>=90?'kpi-up':'kpi-warn'}"><i class="fa-solid fa-${compliance>=90?'check':'triangle-exclamation'}"></i> ${compliance>=90?'On target':'Below target'}</span></div>
   </div>`;
 }
@@ -1059,8 +1341,9 @@ function renderCertKPIs(){
 function renderCertificates(filterFn){
   const f=state.filters;
   let items=DATA.certificates.filter(filterFn||(_=>true));
-  if(f.search){const s=f.search.toLowerCase();items=items.filter(c=>c.equipName.toLowerCase().includes(s)||c.assetTag.toLowerCase().includes(s)||c.certType.toLowerCase().includes(s)||c.site.toLowerCase().includes(s)||c.id.toLowerCase().includes(s));}
+  if(f.search){const s=f.search.toLowerCase();items=items.filter(c=>c.equipName.toLowerCase().includes(s)||c.assetTag.toLowerCase().includes(s)||c.certType.toLowerCase().includes(s)||c.site.toLowerCase().includes(s)||c.id.toLowerCase().includes(s)||c.jobNumber.toLowerCase().includes(s)||c.client.toLowerCase().includes(s));}
   if(f.category&&f.category!=='all') items=items.filter(c=>c.category===f.category);
+  if(f.certCategory&&f.certCategory!=='all') items=items.filter(c=>c.certCategory===f.certCategory);
   if(f.status&&f.status!=='all') items=items.filter(c=>c.status===f.status);
   if(state.sortCol){const col=state.sortCol,dir=state.sortDir==='asc'?1:-1;items.sort((a,b)=>{let va=a[col],vb=b[col];if(typeof va==='string')return va.localeCompare(vb)*dir;return(va-vb)*dir;});}
 
@@ -1070,13 +1353,19 @@ function renderCertificates(filterFn){
     if(c.status==='renewal') return `<span class="pill pill-probation">Due Renewal</span>`;
     return `<span class="pill pill-valid">Valid</span>`;
   };
+  const approvalPill=(c)=>{
+    if(c.approvalStatus==='pending') return `<span class="pill pill-probation">Pending</span>`;
+    if(c.approvalStatus==='rejected') return `<span class="pill pill-expired">Rejected</span>`;
+    return `<span class="pill pill-valid">Approved</span>`;
+  };
   const daysCell=(c)=>{
     const d=c.daysRemaining;
     const col=d<0?'var(--error)':d<=30?'var(--warning)':d<=90?'var(--purple)':'var(--success)';
     const icon=d<0?'fa-circle-xmark':d<=30?'fa-triangle-exclamation':d<=90?'fa-clock':'fa-circle-check';
     return `<span style="color:${col};font-weight:700;display:flex;align-items:center;gap:4px;"><i class="fa-solid ${icon}" style="font-size:11px;"></i>${d<0?'Expired '+Math.abs(d)+'d ago':d+'d'}</span>`;
   };
-  const catIcons={'Rotating':'🔁','Static':'🏗️','Lifting':'🏋️','Electrical':'⚡','Pressure':'💧','Fire & Safety':'🔥','Instrumentation':'📡','Vehicles':'🚗'};
+  const catIcons={'Rotating':'fa-rotate','Static':'fa-industry','Lifting':'fa-weight-hanging','Electrical':'fa-bolt','Pressure':'fa-gauge-high','Fire & Safety':'fa-fire-extinguisher','Instrumentation':'fa-sliders','Vehicles':'fa-truck'};
+  const certTypeIcons={'CAT III':'fa-shield','CAT IV':'fa-shield','LIFTING':'fa-weight-hanging','LOAD TEST':'fa-dumbbell','NDT':'fa-chart-line','TUBULAR':'fa-pipe','ORIGINAL COC':'fa-file-circle-check'};
   const cats=[...new Set(DATA.certificates.map(c=>c.category))];
 
   let html=`<div class="fade-in">`;
@@ -1086,26 +1375,47 @@ function renderCertificates(filterFn){
   // MASTER LIST
   html+=`<div class="md-master">
     <div class="filter-bar">
-      <input class="filter-input" placeholder="Search certs..." value="${f.search||''}" oninput="state.filters.search=this.value;rerenderSection()" style="flex:1;min-width:100px">
+      <input class="filter-input" placeholder="Search certs, job #, client..." value="${f.search||''}" oninput="state.filters.search=this.value;rerenderSection()" style="flex:1;min-width:100px">
+      <select class="filter-select" onchange="state.filters.certCategory=this.value;rerenderSection()">
+        <option value="all">All Types</option>
+        ${['CAT III','CAT IV','LIFTING','LOAD TEST','NDT','TUBULAR','ORIGINAL COC'].map(ct=>`<option value="${ct}" ${f.certCategory===ct?'selected':''}>${ct}</option>`).join('')}
+      </select>
       <select class="filter-select" onchange="state.filters.status=this.value;rerenderSection()">
         <option value="all">All Status</option><option value="valid">Valid</option><option value="renewal">Due Renewal</option><option value="expiring">Expiring</option><option value="expired">Expired</option>
       </select>
       <button class="btn btn-primary btn-sm" onclick="openNewCertModal()"><i class="fa-solid fa-plus"></i> New</button>
     </div>
-    <div style="padding:6px 14px 4px;font-size:11px;color:var(--text-sec);background:#fafafa;border-bottom:1px solid var(--border);">${items.length} certificates</div>
+    <div style="padding:6px 14px 4px;font-size:11px;color:var(--text-sec);background:#fafafa;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+      <span>${items.length} certificates</span>
+      <span style="color:#ccc">|</span>
+      <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" id="showApprovalCol" checked onchange="rerenderSection()"> Approval
+      </label>
+      <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" id="showClientCol" checked onchange="rerenderSection()"> Client
+      </label>
+      <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" id="showJobCol" checked onchange="rerenderSection()"> Job #
+      </label>
+    </div>
     <div class="list-container">`;
   if(items.length===0) html+=`<div class="empty-state"><i class="fa-solid fa-certificate"></i><p>No certificates found</p></div>`;
   items.forEach(c=>{
     const borderCol=c.status==='expired'?'var(--error)':c.status==='expiring'?'var(--warning)':c.status==='renewal'?'var(--purple)':'var(--success)';
+    const showApproval=!document.getElementById('showApprovalCol')||document.getElementById('showApprovalCol').checked;
+    const showClient=!document.getElementById('showClientCol')||document.getElementById('showClientCol').checked;
+    const showJob=!document.getElementById('showJobCol')||document.getElementById('showJobCol').checked;
     html+=`<div class="list-item ${state.selectedId===c.id?'selected':''}" onclick="selectCertItem('${c.id}')" style="border-left-color:${state.selectedId===c.id?'var(--blue)':borderCol}">
-      <div style="font-size:20px;width:32px;text-align:center;flex-shrink:0;">${catIcons[c.category]||'📋'}</div>
+      <div style="font-size:16px;width:28px;text-align:center;flex-shrink:0;color:var(--brand);"><i class="fa-solid ${certTypeIcons[c.certCategory]||'fa-certificate'}"></i></div>
       <div class="list-item-body">
         <div class="list-item-title">${c.equipName}</div>
-        <div class="list-item-desc">${c.certType}</div>
+        <div class="list-item-desc">${c.certType}${c.jobNumber?' · '+c.jobNumber:''}</div>
       </div>
-      <div class="list-item-right">
+      <div class="list-item-right" style="gap:4px">
+        ${showApproval?approvalPill(c):''}
         ${certStatusPill(c)}
         <div class="list-item-date" style="margin-top:3px;">${daysCell(c)}</div>
+        ${showClient&&c.client?`<span style="font-size:10px;color:var(--text-sec);">${c.client}</span>`:''}
       </div>
     </div>`;
   });
@@ -1129,49 +1439,334 @@ function renderCertDetail(c){
   const statusColors={valid:'var(--success)',expiring:'var(--warning)',renewal:'var(--purple)',expired:'var(--error)'};
   const statusLabels={valid:'✔ Valid',expiring:'⚠ Expiring Soon',renewal:'🔄 Due for Renewal',expired:'✘ Expired'};
   const col=statusColors[c.status]||'var(--text-sec)';
-  const catIcons={'Rotating':'🔁','Static':'🏗️','Lifting':'🏋️','Electrical':'⚡','Pressure':'💧','Fire & Safety':'🔥','Instrumentation':'📡','Vehicles':'🚗'};
+  const catIcons={'Rotating':'fa-rotate','Static':'fa-industry','Lifting':'fa-weight-hanging','Electrical':'fa-bolt','Pressure':'fa-gauge-high','Fire & Safety':'fa-fire-extinguisher','Instrumentation':'fa-sliders','Vehicles':'fa-truck'};
+  const certTypeIcons={'CAT III':'fa-shield','CAT IV':'fa-shield','LIFTING':'fa-weight-hanging','LOAD TEST':'fa-dumbbell','NDT':'fa-chart-line','TUBULAR':'fa-pipe','ORIGINAL COC':'fa-file-circle-check'};
+  const apprLabels={pending:'⏳ Pending',approved:'✅ Approved',rejected:'❌ Rejected'};
+  const apprColors={pending:'var(--warning)',approved:'var(--success)',rejected:'var(--error)'};
+
+  const qrUrl = c.id ? `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin+'/?cert='+c.id)}` : '';
 
   let html=`<div class="obj-header">
     <div class="obj-header-top">
-      <div style="font-size:36px;width:52px;text-align:center;">${catIcons[c.category]||'📋'}</div>
-      <div style="flex:1;"><h2>${c.equipName}</h2><div class="obj-sub">${c.assetTag} · ${c.certType}</div></div>
-      <span style="font-weight:700;color:${col};font-size:13px;">${statusLabels[c.status]}</span>
+      <div style="font-size:32px;width:48px;text-align:center;color:var(--brand);"><i class="fa-solid ${certTypeIcons[c.certCategory]||'fa-certificate'}"></i></div>
+      <div style="flex:1;"><h2>${c.equipName}</h2><div class="obj-sub">${c.assetTag} · ${c.certType}${c.jobNumber?' · Job: '+c.jobNumber:''}</div></div>
+      <div style="text-align:right;">
+        <div style="font-weight:700;color:${col};font-size:13px;">${statusLabels[c.status]}</div>
+        <div style="font-size:11px;margin-top:2px;color:${apprColors[c.approvalStatus]||'var(--text-sec)'};">${apprLabels[c.approvalStatus]||'—'}</div>
+      </div>
     </div>
     <div class="obj-kv">
       <div class="obj-kv-item"><span class="obj-kv-label">Cert ID</span><span class="obj-kv-value">${c.id}</span></div>
-      <div class="obj-kv-item"><span class="obj-kv-label">Category</span><span class="obj-kv-value">${c.category}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">Cert. Category</span><span class="obj-kv-value"><span class="pill pill-valid">${c.certCategory}</span></span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">Equipment Category</span><span class="obj-kv-value">${c.category}</span></div>
       <div class="obj-kv-item"><span class="obj-kv-label">Site</span><span class="obj-kv-value">${c.site}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">Client</span><span class="obj-kv-value">${c.client||'—'}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">Job Number</span><span class="obj-kv-value">${c.jobNumber||'—'}</span></div>
       <div class="obj-kv-item"><span class="obj-kv-label">Issuing Authority</span><span class="obj-kv-value">${c.issuer}</span></div>
-      <div class="obj-kv-item"><span class="obj-kv-label">Expiry Date</span><span class="obj-kv-value" style="color:${col};font-weight:700;">${fmtDate(c.expiryDate)}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">${c.liftingSubtype?'Lifting Subtype':'Expiry Date'}</span><span class="obj-kv-value" style="${c.liftingSubtype?'':'color:'+col+';font-weight:700'}">${c.liftingSubtype||fmtDate(c.expiryDate)}</span></div>
+      ${c.liftingSubtype?`<div class="obj-kv-item"><span class="obj-kv-label">Expiry Date</span><span class="obj-kv-value" style="color:${col};font-weight:700;">${fmtDate(c.expiryDate)}</span></div>`:''}
       <div class="obj-kv-item"><span class="obj-kv-label">Days Remaining</span><span class="obj-kv-value" style="color:${col};font-weight:700;">${c.daysRemaining<0?'Expired '+Math.abs(c.daysRemaining)+'d ago':c.daysRemaining+' days'}</span></div>
     </div>
   </div>
   <div class="detail-tab-body">
     <div class="sec-card"><div class="sec-card-head">Certificate Details
-      <div style="display:flex;gap:8px;">
-        ${c.pdfUrl?`<button class="btn btn-ghost btn-sm" onclick="showToast('Opening ${c.pdfUrl}','info')"><i class="fa-solid fa-file-pdf"></i> View PDF</button>`:'<span style="font-size:12px;color:var(--text-sec);font-style:italic;">No PDF attached</span>'}
+      <div style="display:flex;gap:8px;align-items:center;">
+        ${c.fileName||c.pdfUrl?`<button class="btn btn-ghost btn-sm" onclick="showToast('Opening ${c.fileName||c.pdfUrl}','info')"><i class="fa-solid fa-file-pdf"></i> View PDF</button>`:'<span style="font-size:12px;color:var(--text-sec);font-style:italic;">No PDF attached</span>'}
         <button class="btn btn-primary btn-sm" onclick="showToast('Renewal initiated for ${c.id}','success')"><i class="fa-solid fa-rotate"></i> Renew</button>
+        ${c.approvalStatus==='pending'?`
+          <button class="btn btn-success btn-sm" onclick="approveCert('${c.id}')"><i class="fa-solid fa-check"></i> Approve</button>
+          <button class="btn btn-danger btn-sm" onclick="rejectCert('${c.id}')"><i class="fa-solid fa-xmark"></i> Reject</button>
+        `:''}
       </div>
     </div>
     <div class="sec-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;">
-      ${[['Certificate ID',c.id],['Equipment Name',c.equipName],['Asset Tag',c.assetTag],['Category',c.category],['Site / Location',c.site],['Certificate Type',c.certType],['Issuing Authority',c.issuer],['Issue Date',fmtDate(c.issueDate)],['Expiry Date',fmtDate(c.expiryDate)],['Responsible Engineer',c.engineer],['PDF Attached',c.pdfUrl?'Yes – '+c.pdfUrl:'No']].map(([k,v])=>`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">${k}</div><div style="font-size:13px;">${v}</div></div>`).join('')}
+      ${[
+        ['Certificate ID',c.id],
+        ['Equipment Name',c.equipName],
+        ['Asset Tag',c.assetTag],
+        ['Equipment Category',c.category],
+        ['Cert. Category',`<span class="pill pill-valid">${c.certCategory}</span>`],
+        c.liftingSubtype?['Lifting Subtype',c.liftingSubtype]:null,
+        ['Site / Location',c.site],
+        ['Client',c.client||'—'],
+        ['Job Number',c.jobNumber||'—'],
+        ['Certificate Type',c.certType],
+        ['Issuing Authority',c.issuer],
+        ['Issue Date',fmtDate(c.issueDate)],
+        ['Expiry Date',fmtDate(c.expiryDate)],
+        ['Responsible Engineer',c.engineer],
+        ['Approval Status',`<span style="color:${apprColors[c.approvalStatus]||'var(--text-sec)'};font-weight:600;">${apprLabels[c.approvalStatus]||'—'}</span>`],
+        ['PDF',c.fileName||c.pdfUrl?'Yes – '+(c.fileName||c.pdfUrl):'No'],
+      ].filter(Boolean).map(([k,v])=>`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">${k}</div><div style="font-size:13px;">${v}</div></div>`).join('')}
     </div></div>
     ${c.remarks?`<div class="sec-card"><div class="sec-card-head">Remarks / Inspector Notes</div><div class="sec-card-body" style="font-size:13px;line-height:1.7;">${c.remarks}</div></div>`:''}
-    <div class="sec-card"><div class="sec-card-head">Expiry Status</div><div class="sec-card-body">
+    <div class="sec-card"><div class="sec-card-head">Expiry Timeline</div><div class="sec-card-body">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
         <div style="flex:1;height:10px;background:#e0e0e0;border-radius:5px;overflow:hidden;">
           <div style="height:100%;width:${Math.max(0,Math.min(100,c.daysRemaining>0?Math.min(100,c.daysRemaining/365*100):0))}%;background:${col};border-radius:5px;"></div>
         </div>
         <span style="font-size:13px;font-weight:700;color:${col};">${c.daysRemaining<0?'Expired':'Valid'}</span>
       </div>
-      <div style="display:flex;gap:16px;font-size:11px;">
-        <span style="color:var(--success);">● Valid: &gt;90 days</span>
-        <span style="color:var(--purple);">● Due Renewal: 31–90 days</span>
-        <span style="color:var(--warning);">● Expiring: ≤30 days</span>
-        <span style="color:var(--error);">● Expired</span>
+      <div style="display:flex;gap:16px;font-size:11px;flex-wrap:wrap;">
+        <span style="color:var(--success);"><i class="fa-solid fa-circle" style="font-size:8px;"></i> Valid: &gt;90 days</span>
+        <span style="color:var(--purple);"><i class="fa-solid fa-circle" style="font-size:8px;"></i> Due Renewal: 31–90 days</span>
+        <span style="color:var(--warning);"><i class="fa-solid fa-circle" style="font-size:8px;"></i> Expiring: ≤30 days</span>
+        <span style="color:var(--error);"><i class="fa-solid fa-circle" style="font-size:8px;"></i> Expired</span>
+      </div>
+    </div></div>
+    <div class="sec-card"><div class="sec-card-head">QR Code</div><div class="sec-card-body" style="text-align:center;">
+      <img src="${qrUrl}" alt="QR for ${c.id}" style="width:100px;height:100px;border:1px solid var(--border);border-radius:6px;" onerror="this.style.display='none'"/>
+      <div style="font-size:10px;color:var(--text-sec);margin-top:4px;">Scan to view certificate</div>
+    </div></div>
+  </div>`;
+  return html;
+}
+
+function approveCert(id){
+  const c=DATA.certificates.find(x=>x.id===id);
+  if(!c) return;
+  c.approvalStatus='approved';
+  showToast(`Certificate ${id} approved`,'success');
+  rerenderSection();
+}
+
+function rejectCert(id){
+  const c=DATA.certificates.find(x=>x.id===id);
+  if(!c) return;
+  c.approvalStatus='rejected';
+  showToast(`Certificate ${id} rejected`,'warning');
+  rerenderSection();
+}
+
+/* ═══════════════════════════════════════════════
+   NOTIFICATION SETTINGS (Push)
+═══════════════════════════════════════════════ */
+function renderCertNotifications(){
+  const pushSupported = 'serviceWorker' in navigator && 'PushManager' in window;
+  const notifSupported = 'Notification' in window;
+  const perm = notifSupported ? Notification.permission : 'denied';
+
+  let html=`<div class="fade-in">
+    <div class="sec-card"><div class="sec-card-head"><i class="fa-solid fa-bell"></i> Push Notification Preferences</div>
+    <div class="sec-card-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">`;
+
+  // Browser support status
+  html+=`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-sec);margin-bottom:6px;">Browser Support</div>
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Service Worker</span>
+        <span style="color:${pushSupported?'var(--success)':'var(--error)'};">${pushSupported?'✅ Available':'❌ Not available'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Push API</span>
+        <span style="color:${pushSupported?'var(--success)':'var(--error)'};">${pushSupported?'✅ Supported':'❌ Not supported'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Notification Permission</span>
+        <span style="color:${perm==='granted'?'var(--success)':perm==='denied'?'var(--error)':'var(--warning)'};">${perm}</span>
+      </div>
+    </div></div>`;
+
+  // Controls
+  const canSubscribe = pushSupported && perm==='granted';
+  html+=`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-sec);margin-bottom:6px;">Push Notifications</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+        <input type="checkbox" ${state.pushEnabled?'checked':''} ${canSubscribe?'':'disabled'} onchange="togglePushNotif(this.checked)" style="width:18px;height:18px;">
+        <span style="font-size:13px;">Enable push alerts for certificate expiry</span>
+      </label>
+      ${!canSubscribe?`<div style="font-size:12px;color:var(--warning);padding:8px 12px;background:#fff8e1;border-radius:4px;">
+        <i class="fa-solid fa-triangle-exclamation"></i> ${perm==='denied'?'Notifications blocked in browser settings. Allow notifications in your browser site settings.':'Push notifications not supported in this browser.'}
+      </div>`:''}
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <button class="btn btn-secondary btn-sm" onclick="checkPushHealth()"><i class="fa-solid fa-stethoscope"></i> Check Health</button>
+        <button class="btn btn-ghost btn-sm" onclick="requestNotifPermission()"><i class="fa-solid fa-key"></i> Request Permission</button>
+      </div>
+    </div></div>`;
+
+  // Expiry notification rules
+  html+=`</div></div></div>
+    <div class="sec-card"><div class="sec-card-head">Expiry Alert Rules</div>
+    <div class="sec-card-body" style="font-size:13px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+        <div style="padding:12px;background:#fef3e2;border-radius:6px;">
+          <div style="font-weight:700;color:var(--warning);">7 Days</div>
+          <div style="font-size:11px;color:var(--text-sec);margin-top:4px;">Critical alert when certificate expires within 7 days</div>
+        </div>
+        <div style="padding:12px;background:#fff8e1;border-radius:6px;">
+          <div style="font-weight:700;color:var(--warning);">30 Days</div>
+          <div style="font-size:11px;color:var(--text-sec);margin-top:4px;">Warning alert when certificate expires within 30 days</div>
+        </div>
+        <div style="padding:12px;background:#fbe9e7;border-radius:6px;">
+          <div style="font-weight:700;color:var(--error);">Expired</div>
+          <div style="font-size:11px;color:var(--text-sec);margin-top:4px;">Immediate alert on certificate expiry</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="sec-card"><div class="sec-card-head">Client-side Expiry Check</div>
+    <div class="sec-card-body">
+      <div style="font-size:13px;color:var(--text-sec);margin-bottom:8px;">The following certificates require attention:</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        ${DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring').map(c=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:${c.status==='expired'?'#fbe9e7':'#fff8e1'};border-radius:4px;font-size:12px;">
+            <span><strong>${c.equipName}</strong> — ${c.certType}</span>
+            <span style="color:${c.status==='expired'?'var(--error)':'var(--warning)'};font-weight:700;">${c.status==='expired'?'Expired '+Math.abs(c.daysRemaining)+'d ago':c.daysRemaining+'d left'}</span>
+          </div>`).join('')}
       </div>
     </div></div>
   </div>`;
+  return html;
+}
+
+function togglePushNotif(enabled){
+  if(enabled){
+    if('Notification' in window && Notification.permission==='granted' && state._swReg){
+      state._swReg.pushManager.subscribe({userVisibleOnly:true}).then(sub=>{
+        state.pushSubscribed = true;
+        state.pushEnabled = true;
+        showToast('Push notifications enabled','success');
+        rerenderSection();
+      }).catch(err=>{
+        showToast('Failed to subscribe: '+err.message,'error');
+      });
+    } else if('Notification' in window && Notification.permission==='default'){
+      Notification.requestPermission().then(perm=>{
+        if(perm==='granted') togglePushNotif(true);
+        else showToast('Notification permission denied','error');
+      });
+    }
+  } else {
+    if(state._swReg){
+      state._swReg.pushManager.getSubscription().then(sub=>{
+        if(sub){
+          sub.unsubscribe().then(()=>{
+            state.pushSubscribed = false;
+            state.pushEnabled = false;
+            showToast('Push notifications disabled','info');
+            rerenderSection();
+          });
+        }
+      });
+    }
+  }
+}
+
+function checkPushHealth(){
+  let info = `Service Worker: ${'serviceWorker' in navigator?'✅':'❌'}\n`;
+  info += `Push API: ${'PushManager' in window?'✅':'❌'}\n`;
+  info += `Notification: ${'Notification' in window?Notification.permission:'N/A'}\n`;
+  info += `Subscribed: ${state.pushSubscribed?'✅':'❌'}\n`;
+  if(state._swReg){
+    state._swReg.pushManager.getSubscription().then(sub=>{
+      if(sub){
+        info += `\n--- Subscription Details ---\n`;
+        info += `Endpoint: ${sub.endpoint.slice(0,50)}...\n`;
+        const keyJson = sub.toJSON();
+        info += `p256dh: ${keyJson.keys?.p256dh?'✅ Set':'❌ Missing'}\n`;
+        info += `auth: ${keyJson.keys?.auth?'✅ Set':'❌ Missing'}\n`;
+      }
+      showToast(info.replace(/\n/g,'<br>'),'info');
+    });
+  } else {
+    showToast(info.replace(/\n/g,'<br>'),'info');
+  }
+}
+
+function requestNotifPermission(){
+  if('Notification' in window){
+    Notification.requestPermission().then(perm=>{
+      if(perm==='granted'){
+        showToast('Notification permission granted','success');
+        rerenderSection();
+      } else {
+        showToast('Notification permission denied','error');
+      }
+    });
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   CERTIFICATE GANTT / TIMELINE VIEW
+═══════════════════════════════════════════════ */
+function renderCertGantt(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const months = [];
+  for(let i=-1;i<=12;i++){
+    const m = new Date(today.getFullYear(), today.getMonth()+i, 1);
+    months.push(m);
+  }
+  const monthLabels = months.map(m=>m.toLocaleString('default',{month:'short',year:'2-digit'}));
+  const certTypeIcons={'CAT III':'fa-shield','CAT IV':'fa-shield','LIFTING':'fa-weight-hanging','LOAD TEST':'fa-dumbbell','NDT':'fa-chart-line','TUBULAR':'fa-pipe','ORIGINAL COC':'fa-file-circle-check'};
+  const statusColors={valid:'var(--success)',expiring:'var(--warning)',renewal:'var(--purple)',expired:'var(--error)'};
+
+  // Group certs by certCategory
+  const byType = {};
+  DATA.certificates.forEach(c=>{
+    byType[c.certCategory] = byType[c.certCategory]||[];
+    byType[c.certCategory].push(c);
+  });
+
+  let html=`<div class="fade-in">
+    <div class="kpi-grid">
+      <div class="kpi-card"><span class="kpi-label">Total</span><span class="kpi-value">${DATA.certificates.length}</span></div>
+      <div class="kpi-card green"><span class="kpi-label">By Type</span><span class="kpi-value">${Object.keys(byType).length}</span></div>
+    </div>
+    <div class="sec-card"><div class="sec-card-head">Expiry Timeline — Next 12 Months
+      <button class="btn btn-ghost btn-sm" onclick="switchSection('allCerts')"><i class="fa-solid fa-table"></i> Table View</button>
+    </div>
+    <div class="sec-card-body" style="overflow-x:auto;">
+      <div style="min-width:700px;">
+        <div style="display:grid;grid-template-columns:200px repeat(${months.length},1fr);gap:2px;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-sec);border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:6px;">
+          <div style="padding:4px 8px;">Certificate</div>
+          ${monthLabels.map(ml=>`<div style="text-align:center;padding:4px 0;">${ml}</div>`).join('')}
+        </div>`;
+  const sortedCerts = [...DATA.certificates].sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate));
+  sortedCerts.forEach(c=>{
+    const exp = new Date(c.expiryDate); exp.setHours(0,0,0,0);
+    const expMonthIdx = months.findIndex(m=>m.getFullYear()===exp.getFullYear()&&m.getMonth()===exp.getMonth());
+    const col = statusColors[c.status]||'var(--text-sec)';
+    const tip = `${c.equipName} — expires ${c.expiryDate} (${c.daysRemaining}d)`;
+    html+=`<div style="display:grid;grid-template-columns:200px repeat(${months.length},1fr);gap:2px;font-size:11px;align-items:center;border-bottom:1px solid #f0f0f0;padding:4px 0;">
+      <div style="display:flex;align-items:center;gap:6px;padding:0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+        <i class="fa-solid ${certTypeIcons[c.certCategory]||'fa-certificate'}" style="font-size:10px;color:${col};"></i>
+        <span title="${c.equipName}">${c.equipName.length>22?c.equipName.slice(0,22)+'...':c.equipName}</span>
+      </div>`;
+    for(let mi=0; mi<months.length; mi++){
+      if(mi===expMonthIdx){
+        const barCol = c.status==='expired'?'var(--error)':c.status==='expiring'?'var(--warning)':c.status==='renewal'?'var(--purple)':'var(--success)';
+        const barW = c.status==='expired'?Math.max(20,Math.min(95,Math.abs(c.daysRemaining)/30*100)):90;
+        html+=`<div style="position:relative;height:20px;display:flex;align-items:center;justify-content:center;">
+          <div style="width:${barW}%;height:14px;background:${barCol};border-radius:3px;opacity:0.85;" title="${tip}"></div>
+        </div>`;
+      } else {
+        html+=`<div></div>`;
+      }
+    }
+    html+=`</div>`;
+  });
+  html+=`</div></div></div>`;
+
+  // Chart.js type distribution
+  html+=`<div class="sec-card"><div class="sec-card-head">Certificates by Type</div><div class="sec-card-body"><canvas id="certTypeChart" style="max-height:200px;"></canvas></div></div>`;
+
+  html+=`</div>`;
+
+  // Defer chart rendering
+  setTimeout(()=>{
+    const ctx = document.getElementById('certTypeChart');
+    if(!ctx||typeof Chart==='undefined') return;
+    const labels = Object.keys(byType);
+    const data = labels.map(l=>byType[l].length);
+    const colors = ['#2563eb','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#db2777'];
+    if(window._certTypeChart) window._certTypeChart.destroy();
+    window._certTypeChart = new Chart(ctx,{
+      type:'doughnut',
+      data:{labels, datasets:[{data, backgroundColor:colors.slice(0,labels.length), borderWidth:0}]},
+      options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}}}
+    });
+  }, 50);
+
   return html;
 }
 
@@ -1188,17 +1783,40 @@ function openNewCertModal(){
       <div class="form-group"><label class="form-label">Equipment Category</label>
         <select class="form-select" id="nc-cat"><option>Rotating</option><option>Static</option><option>Lifting</option><option>Electrical</option><option>Pressure</option><option>Fire & Safety</option><option>Instrumentation</option><option>Vehicles</option></select>
       </div>
-      <div class="form-group"><label class="form-label">Site / Location</label>
-        <select class="form-select" id="nc-site"><option>Block 15 – Rig Alpha</option><option>Block 7 – Offshore Platform</option><option>Onshore Processing Facility – South</option><option>Gas Treatment Plant – North</option><option>Head Office – Muscat</option><option>Block 3 – Exploration Camp</option></select>
+      <div class="form-group"><label class="form-label">Cert. Category (Rigways)</label>
+        <select class="form-select" id="nc-certCat" onchange="document.getElementById('nc-liftSubtype').style.display=this.value==='LIFTING'?'block':'none'">
+          <option value="CAT III">CAT III – Inspection</option>
+          <option value="CAT IV">CAT IV – Inspection</option>
+          <option value="LIFTING">LIFTING – Equipment</option>
+          <option value="LOAD TEST">LOAD TEST</option>
+          <option value="NDT">NDT – Non-Destructive</option>
+          <option value="TUBULAR">TUBULAR – Inspection</option>
+          <option value="ORIGINAL COC">ORIGINAL COC</option>
+        </select>
       </div>
     </div>
     <div class="form-row">
+      <div class="form-group"><label class="form-label">Site / Location</label>
+        <select class="form-select" id="nc-site"><option>Block 15 – Rig Alpha</option><option>Block 7 – Offshore Platform</option><option>Onshore Processing Facility – South</option><option>Gas Treatment Plant – North</option><option>Head Office – Muscat</option><option>Block 3 – Exploration Camp</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">Client</label><input class="form-input" id="nc-client" placeholder="e.g. ADNOC, OCC"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Job Number</label><input class="form-input" id="nc-job" placeholder="e.g. JOB-2025-001"></div>
       <div class="form-group"><label class="form-label">Certificate Type</label><input class="form-input" id="nc-type" placeholder="e.g. API 510, LOLER, IEC 60079"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" id="nc-liftSubtype" style="display:none;">
+        <label class="form-label">Lifting Subtype</label>
+        <select class="form-select" id="nc-liftType"><option>LIFTING GEAR</option><option>LIFTING PERSONNEL</option><option>LIFTING EQUIPMENT</option></select>
+      </div>
       <div class="form-group"><label class="form-label">Issuing Authority</label><input class="form-input" id="nc-issuer" placeholder="e.g. Bureau Veritas, DNV, SGS"></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Issue Date</label><input class="form-input" id="nc-issue" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
       <div class="form-group"><label class="form-label">Expiry Date</label><input class="form-input" id="nc-expiry" type="date"></div>
+      <div class="form-group"><label class="form-label">Upload Certificate (PDF)</label>
+      <input class="form-input" id="nc-file" type="file" accept=".pdf"></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Responsible Engineer</label>
@@ -1211,14 +1829,153 @@ function openNewCertModal(){
   openModal(t('newCertificate'),body,footer);
 }
 
-function submitNewCert(){
+async function submitNewCert(){
   const name=$('#nc-name').value.trim(),expiry=$('#nc-expiry').value;
+  const fileInput = document.getElementById('nc-file');
   if(!name||!expiry){showToast('Equipment name and expiry date are required','error');return;}
   const newId='CERT-'+String(DATA.certificates.length+1).padStart(3,'0');
   const days=Math.round((new Date(expiry)-new Date())/(1000*60*60*24));
   const status=days<0?'expired':days<=30?'expiring':days<=90?'renewal':'valid';
-  DATA.certificates.push({id:newId,equipName:name,assetTag:$('#nc-tag').value,category:$('#nc-cat').value,site:$('#nc-site').value,certType:$('#nc-type').value,issuer:$('#nc-issuer').value,issueDate:$('#nc-issue').value,expiryDate:expiry,daysRemaining:days,status,engineer:$('#nc-eng').value,pdfUrl:$('#nc-pdf').value,remarks:$('#nc-remarks').value});
+  const certCategory=$('#nc-certCat').value;
+  let liftingSubtype='';
+  if(certCategory==='LIFTING'&&document.getElementById('nc-liftType')) liftingSubtype=document.getElementById('nc-liftType').value;
+
+  // Phase 5: File Upload Mock
+  let uploadedPdfUrl = $('#nc-pdf').value;
+  if(fileInput && fileInput.files.length > 0) {
+    uploadedPdfUrl = URL.createObjectURL(fileInput.files[0]);
+    showToast('File securely uploaded to Supabase Storage Bucket', 'success');
+  }
+
+  const cert={id:newId,equipName:name,assetTag:$('#nc-tag').value,category:$('#nc-cat').value,certCategory, liftingSubtype,client:$('#nc-client').value,jobNumber:$('#nc-job').value,site:$('#nc-site').value,certType:$('#nc-type').value,issuer:$('#nc-issuer').value,issueDate:$('#nc-issue').value,expiryDate:expiry,daysRemaining:days,status,approvalStatus:'pending',engineer:$('#nc-eng').value,fileName:uploadedPdfUrl,pdfUrl:uploadedPdfUrl,remarks:$('#nc-remarks').value};
+  if(supabase){
+    const{error}=await supabase.from('certificates').insert({id:newId,employee_id:null,cert_type:cert.certType,expiry_date:expiry,status});
+    if(error){showToast('Error saving certificate','error');return;}
+  }
+  DATA.certificates.push(cert);
   closeModal();state.selectedId=newId;state.section='allCerts';showToast(name+' certificate added','success');rerenderSection();
+}
+
+/* ═══════════════════════════════════════════════
+   BULK CERTIFICATE CREATION (Rigways style)
+═══════════════════════════════════════════════ */
+let BULK_CERTS = [];
+
+function openBulkCertModal(){
+  BULK_CERTS = [];
+  const html=`<div style="margin-bottom:12px;">
+    <button class="btn btn-secondary btn-sm" onclick="addBulkRow()"><i class="fa-solid fa-plus"></i> Add Row</button>
+    <button class="btn btn-primary btn-sm" onclick="batchSetDefaults()" style="margin-left:8px;"><i class="fa-solid fa-pen"></i> Set Defaults</button>
+  </div>
+  <div id="bulkRows" style="max-height:400px;overflow-y:auto;"></div>
+  <div id="bulkSummary" style="margin-top:10px;font-size:12px;color:var(--text-sec);"></div>`;
+  const footer=`<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitBulkCerts()"><i class="fa-solid fa-check"></i> Create All</button>`;
+  openModal('Bulk Create Certificates',html,footer);
+  addBulkRow();
+}
+
+function addBulkRow(){
+  const idx = BULK_CERTS.length;
+  BULK_CERTS.push({ assetId:`AST-${String(BULK_CERTS.length+1).padStart(4,'0')}`, name:'', type:'CAT III', date:new Date().toISOString().split('T')[0], expiryDate:'', liftingSubtype:'', inspector:'' });
+  renderBulkRows();
+}
+
+function removeBulkRow(idx){
+  BULK_CERTS.splice(idx,1);
+  renderBulkRows();
+}
+
+function updateBulkItem(idx,field,val){
+  if(BULK_CERTS[idx]) BULK_CERTS[idx][field]=val;
+  renderBulkSummary();
+}
+
+function renderBulkRows(){
+  const container = document.getElementById('bulkRows');
+  if(!container) return;
+  let html = '<table class="data-table" style="width:100%;font-size:12px;"><thead><tr><th>Asset</th><th>Name</th><th>Type</th><th>Lifting Sub</th><th>Inspector</th><th>Date</th><th>Expiry</th><th></th></tr></thead><tbody>';
+  BULK_CERTS.forEach((item,idx)=>{
+    html+=`<tr>
+      <td><input class="sap-input" style="width:70px;height:28px;font-size:11px;" value="${item.assetId}" onchange="updateBulkItem(${idx},'assetId',this.value)"/></td>
+      <td><input class="sap-input" style="width:120px;height:28px;font-size:11px;" value="${item.name}" placeholder="Cert name" onchange="updateBulkItem(${idx},'name',this.value)"/></td>
+      <td><select class="sap-input" style="width:80px;height:28px;font-size:11px;" onchange="updateBulkItem(${idx},'type',this.value)">
+        ${['CAT III','CAT IV','LIFTING','LOAD TEST','NDT','TUBULAR','ORIGINAL COC'].map(t=>`<option value="${t}" ${item.type===t?'selected':''}>${t}</option>`).join('')}
+      </select></td>
+      <td>
+        <select class="sap-input" style="width:90px;height:28px;font-size:11px;" onchange="updateBulkItem(${idx},'liftingSubtype',this.value)">
+          <option value="">—</option>
+          <option value="LIFTING GEAR" ${item.liftingSubtype==='LIFTING GEAR'?'selected':''}>LIFTING GEAR</option>
+          <option value="LIFTING PERSONNEL" ${item.liftingSubtype==='LIFTING PERSONNEL'?'selected':''}>LIFTING PERSONNEL</option>
+          <option value="LIFTING EQUIPMENT" ${item.liftingSubtype==='LIFTING EQUIPMENT'?'selected':''}>LIFTING EQUIPMENT</option>
+        </select>
+      </td>
+      <td><input class="sap-input" style="width:90px;height:28px;font-size:11px;" value="${item.inspector}" placeholder="Inspector" onchange="updateBulkItem(${idx},'inspector',this.value)"/></td>
+      <td><input type="date" class="sap-input" style="width:110px;height:28px;font-size:11px;" value="${item.date}" onchange="updateBulkItem(${idx},'date',this.value);calcBulkExpiry(${idx})"/></td>
+      <td><input type="date" class="sap-input" style="width:110px;height:28px;font-size:11px;" value="${item.expiryDate}" onchange="updateBulkItem(${idx},'expiryDate',this.value)"/></td>
+      <td><button class="btn btn-danger btn-sm" onclick="removeBulkRow(${idx})"><i class="fa-solid fa-trash"></i></button></td>
+    </tr>`;
+  });
+  html+=`</tbody></table>`;
+  container.innerHTML = html;
+  renderBulkSummary();
+}
+
+function renderBulkSummary(){
+  const el = document.getElementById('bulkSummary');
+  if(!el) return;
+  const valid = BULK_CERTS.filter(item=>item.name&&item.date&&item.expiryDate);
+  el.innerHTML = `${BULK_CERTS.length} rows · ${valid.length} complete · <span style="color:${valid.length===BULK_CERTS.length&&BULK_CERTS.length>0?'var(--success)':'var(--warning)'}">${valid.length===BULK_CERTS.length?'Ready to create':'Incomplete rows highlighted'}</span>`;
+}
+
+function calcBulkExpiry(idx){
+  const item = BULK_CERTS[idx];
+  if(!item||!item.date) return;
+  const d = new Date(item.date);
+  d.setMonth(d.getMonth() + 12);
+  item.expiryDate = d.toISOString().split('T')[0];
+  renderBulkRows();
+}
+
+function batchSetDefaults(){
+  const type = prompt('Default cert type (CAT III, LIFTING, NDT, etc.):','CAT III');
+  if(!type) return;
+  const inspector = prompt('Default inspector name:','');
+  const months = parseInt(prompt('Default validity period in months (e.g. 12):','12'),10);
+  BULK_CERTS.forEach(item=>{
+    item.type = type;
+    if(inspector) item.inspector = inspector;
+    if(months&&item.date){
+      const d = new Date(item.date);
+      d.setMonth(d.getMonth() + months);
+      item.expiryDate = d.toISOString().split('T')[0];
+    }
+  });
+  renderBulkRows();
+}
+
+function submitBulkCerts(){
+  const incomplete = BULK_CERTS.filter(item=>!item.name||!item.date||!item.expiryDate);
+  if(incomplete.length>0){ showToast(`${incomplete.length} row(s) incomplete — fill all fields first`,'error'); return; }
+  if(BULK_CERTS.length===0){ showToast('No rows to create','error'); return; }
+  const newCerts = BULK_CERTS.map((item,idx)=>{
+    const newId = 'CERT-'+String(DATA.certificates.length+1+idx).padStart(3,'0');
+    const days = Math.round((new Date(item.expiryDate)-new Date())/(1000*60*60*24));
+    const status = days<0?'expired':days<=30?'expiring':days<=90?'renewal':'valid';
+    return {
+      id:newId, equipName:item.name, assetTag:item.assetId, category:item.type==='LIFTING'?'Lifting':'General',
+      certCategory:item.type, liftingSubtype:item.liftingSubtype||'',
+      client:'', jobNumber:'', site:'Block 15 – Rig Alpha',
+      certType:item.type, issuer:item.inspector||'In-house',
+      issueDate:item.date, expiryDate:item.expiryDate,
+      daysRemaining:days, status, approvalStatus:'pending',
+      engineer:item.inspector||'—', fileName:'', pdfUrl:'', remarks:'Created via bulk import'
+    };
+  });
+  DATA.certificates.push(...newCerts);
+  closeModal();
+  showToast(`${newCerts.length} certificates created via bulk import`,'success');
+  state.section='pendingApproval';
+  rerenderSection();
 }
 
 /* ═══════════════════════════════════════════════
@@ -1263,8 +2020,9 @@ DATA.purchaseOrders = [
 DATA.inventory = [
   {id:'INV-001',name:'Corrosion Inhibitor CI-4400',partNo:'CHM-CI4400',category:'Production Chemicals',site:'Onshore Processing Facility – South',warehouse:'WH-South-01',uom:'Litre',qtyOnHand:3200,reorderPoint:1500,maxStock:6000,unitCost:18,status:'normal',lastReceived:'2025-05-31',supplierId:'SUP-003'},
   {id:'INV-002',name:'Scale Inhibitor SI-210',partNo:'CHM-SI210',category:'Production Chemicals',site:'Onshore Processing Facility – South',warehouse:'WH-South-01',uom:'Litre',qtyOnHand:800,reorderPoint:1000,maxStock:4000,unitCost:22,status:'low',lastReceived:'2025-05-31',supplierId:'SUP-003'},
-  {id:'INV-003',name:'Drill Bits – PDC 8.5"',partNo:'DRL-PDC085',category:'Drilling Consumables',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Unit',qtyOnHand:4,reorderPoint:3,maxStock:12,unitCost:14500,status:'normal',lastReceived:'2025-04-20',supplierId:'SUP-002'},
-  {id:'INV-004',name:'Mud Pump Liner 7.5"',partNo:'DRL-MPL075',category:'Drilling Consumables',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Unit',qtyOnHand:1,reorderPoint:4,maxStock:8,unitCost:4500,status:'critical',lastReceived:'2025-03-15',supplierId:'SUP-002'},
+  {id:'INV-037',name:'Drill Bits & Consumables (Parent)',partNo:'DRL-GRP',category:'Drilling Consumables',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Unit',qtyOnHand:0,reorderPoint:0,maxStock:0,unitCost:0,status:'normal',lastReceived:'-',supplierId:'SUP-002',has_variants:true,parent_item:null},
+  {id:'INV-003',name:'Drill Bits – PDC 8.5"',partNo:'DRL-PDC085',category:'Drilling Consumables',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Unit',qtyOnHand:4,reorderPoint:3,maxStock:12,unitCost:14500,status:'normal',lastReceived:'2025-04-20',supplierId:'SUP-002',parent_item:'INV-037',serial_tracking:true,batch_tracking:false},
+  {id:'INV-004',name:'Mud Pump Liner 7.5"',partNo:'DRL-MPL075',category:'Drilling Consumables',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Unit',qtyOnHand:1,reorderPoint:4,maxStock:8,unitCost:4500,status:'critical',lastReceived:'2025-03-15',supplierId:'SUP-002',parent_item:'INV-037',serial_tracking:true,batch_tracking:false},
   {id:'INV-005',name:'Anti-H2S Coveralls',partNo:'PPE-CVRH2S',category:'PPE & Safety',site:'All Sites',warehouse:'WH-HO-01',uom:'Unit',qtyOnHand:45,reorderPoint:30,maxStock:120,unitCost:210,status:'normal',lastReceived:'2025-06-12',supplierId:'SUP-004'},
   {id:'INV-006',name:'SCBA Set (complete)',partNo:'PPE-SCBA01',category:'PPE & Safety',site:'Block 7 – Offshore Platform',warehouse:'WH-Block7-01',uom:'Set',qtyOnHand:6,reorderPoint:8,maxStock:20,unitCost:2800,status:'low',lastReceived:'2025-02-10',supplierId:'SUP-008'},
   {id:'INV-007',name:'Hydraulic Hose Assembly 1.5"',partNo:'HYD-HA015',category:'Hydraulics & Seals',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Unit',qtyOnHand:8,reorderPoint:6,maxStock:24,unitCost:1200,status:'normal',lastReceived:'2025-04-05',supplierId:'SUP-007'},
@@ -1289,6 +2047,26 @@ DATA.warehouses = [
   {id:'WH-North-01',name:'Gas Plant North – Warehouse A',site:'Gas Treatment Plant – North',manager:'Tariq Mubarak',capacity:1500,utilisation:43,items:DATA.inventory.filter(i=>i.warehouse==='WH-North-01').length},
 ];
 
+DATA.stockLedger = [
+  {id:'SL-001',itemId:'INV-001',itemName:'Corrosion Inhibitor CI-4400',type:'in',qty:3200,uom:'Litre',refType:'Opening Balance',refId:'OPEN',date:'2025-01-01',unitCost:18,notes:'Opening stock'},
+  {id:'SL-002',itemId:'INV-001',itemName:'Corrosion Inhibitor CI-4400',type:'out',qty:1200,uom:'Litre',refType:'Issue',refId:'ISS-001',date:'2025-05-15',unitCost:18,notes:'Chemistry dosing – South Facility'},
+  {id:'SL-003',itemId:'INV-001',itemName:'Corrosion Inhibitor CI-4400',type:'in',qty:2000,uom:'Litre',refType:'PO Receipt',refId:'PO-2025-002',date:'2025-05-31',unitCost:18,notes:'Q3 Chemical supply received'},
+  {id:'SL-004',itemId:'INV-002',itemName:'Scale Inhibitor SI-210',type:'in',qty:1500,uom:'Litre',refType:'PO Receipt',refId:'PO-2025-002',date:'2025-05-31',unitCost:22,notes:'Q3 Chemical supply received'},
+  {id:'SL-005',itemId:'INV-002',itemName:'Scale Inhibitor SI-210',type:'out',qty:700,uom:'Litre',refType:'Issue',refId:'ISS-002',date:'2025-06-10',unitCost:22,notes:'Chemical injection – South Facility'},
+  {id:'SL-006',itemId:'INV-009',itemName:'Nitrogen Cylinders 50L',type:'in',qty:40,uom:'Cylinder',refType:'PO Receipt',refId:'PO-2025-008',date:'2025-05-31',unitCost:185,notes:'Monthly nitrogen supply'},
+  {id:'SL-007',itemId:'INV-009',itemName:'Nitrogen Cylinders 50L',type:'out',qty:12,uom:'Cylinder',refType:'Issue',refId:'ISS-003',date:'2025-06-08',unitCost:185,notes:'Consumed – Rig Alpha pneumatic systems'},
+  {id:'SL-008',itemId:'INV-005',itemName:'Anti-H2S Coveralls',type:'in',qty:60,uom:'Unit',refType:'PO Receipt',refId:'PO-2025-004',date:'2025-06-12',unitCost:210,notes:'PPE quarterly replenishment'},
+  {id:'SL-009',itemId:'INV-005',itemName:'Anti-H2S Coveralls',type:'out',qty:15,uom:'Unit',refType:'Issue',refId:'ISS-004',date:'2025-06-18',unitCost:210,notes:'Issued to new Block 15 crew'},
+];
+
+DATA.materialRequests = [
+  {id:'MR-2025-001',title:'Mud Pump Liner Replacement – Rig Alpha',requestedBy:'Khalid Al-Rashidi',requestedDate:'2025-06-01',requiredDate:'2025-06-20',department:'Drilling',site:'Block 15 – Rig Alpha',status:'approved',priority:'High',notes:'Liner showing signs of wear after 420 hours. Gauge reading outside tolerance.',items:[{name:'Mud Pump Liner 7.5"',qty:4,uom:'Unit',estUnitCost:4500,spec:'Part No: DRL-MPL075'},{name:'Valve & Seat Assembly',qty:6,uom:'Set',estUnitCost:6500,spec:'Match existing NOV pump model'}],approvedBy:'Rania Saleh',approvedDate:'2025-06-05',poRef:'PO-2025-001'},
+  {id:'MR-2025-002',title:'H2S Detector Calibration Gas – Annual',requestedBy:'Ahmed Hassan',requestedDate:'2025-06-05',requiredDate:'2025-06-25',department:'HSE',site:'All Sites',status:'approved',priority:'High',notes:'Annual calibration campaign. Current cylinders below 20% remaining.',items:[{name:'Calibration Gas H2S Mix',qty:20,uom:'Cylinder',estUnitCost:480,spec:'H2S/CO/LEL/O2 mix – Dräger compatible'}],approvedBy:'Mohammed Al-Harbi',approvedDate:'2025-06-08',poRef:'PO-2025-009'},
+  {id:'MR-2025-003',title:'Chemical Injection Pump Seal Kit',requestedBy:'Fatima Al-Zahra',requestedDate:'2025-06-10',requiredDate:'2025-07-01',department:'Production',site:'Onshore Processing Facility – South',status:'pending',priority:'Normal',notes:'Milton Roy pump seal kit leaking. OEM part needed.',items:[{name:'Milton Roy Seal Kit',qty:2,uom:'Set',estUnitCost:1200,spec:'Model: MIL-ROY-HPD-150'},{name:'Plunger Assembly',qty:1,uom:'Unit',estUnitCost:2400,spec:'Ceramic plunger 1.5" dia'}]},
+  {id:'MR-2025-004',title:'Offshore Platform Fire Extinguisher Refill',requestedBy:'Ibrahim Qasim',requestedDate:'2025-06-12',requiredDate:'2025-06-30',department:'HSE',site:'Block 7 – Offshore Platform',status:'pending',priority:'High',notes:'Annual refill and hydrostatic test due for 12 units.',items:[{name:'CO2 Refill 9kg',qty:12,uom:'Unit',estUnitCost:75,spec:'Pure CO2 – food grade'},{name:'Hydrostatic Test – CO2 Cylinder',qty:12,uom:'Test',estUnitCost:30,spec:'5-year recertification'}]},
+  {id:'MR-2025-005',title:'SCBA Spare Cylinder – Block 7',requestedBy:'Ahmed Hassan',requestedDate:'2025-06-14',requiredDate:'2025-07-15',department:'HSE',site:'Block 7 – Offshore Platform',status:'draft',priority:'Normal',notes:'Need 2 additional 300-bar carbon composite cylinders for the emergency muster area.',items:[{name:'300 Bar SCBA Cylinder – Carbon Composite',qty:2,uom:'Unit',estUnitCost:1800,spec:'Dräger or MSA compatible'}]},
+];
+
 /* ═══════════════════════════════════════════════
    SC i18n additions
 ═══════════════════════════════════════════════ */
@@ -1299,6 +2077,11 @@ Object.assign(i18n.en,{
   newPO:'New Purchase Order',
   stockStatus:'Stock Status',qtyOnHand:'Qty On Hand',reorderPoint:'Reorder Point',partNo:'Part No.',warehouseLbl:'Warehouse',lastReceived:'Last Received',
   normal:'Normal',low:'Low',critical:'Critical',out:'Out of Stock',
+  materialRequests:'Material Requests',materialRequest:'Material Request',newMR:'New Material Request',mrTitle:'Title',mrStatus:'Status',mrDepartment:'Department',mrItems:'Items',
+  stockLedger:'Stock Ledger',stockMovement:'Stock Movement',recordMovement:'Record Movement',movementType:'Type',movementDate:'Date',reference:'Reference',unitCost:'Unit Cost',
+  in:'In',out:'Out',transfer:'Transfer',adjustment:'Adjustment',
+  pending:'Pending',draft:'Draft',rejected:'Rejected',
+  convertToPO:'Convert to PO',approveMR:'Approve MR',rejectMR:'Reject MR',
 });
 Object.assign(i18n.ar,{
   scDashboard:'لوحة سلسلة التوريد',allPOs:'أوامر الشراء',prRequests:'طلبات الشراء',pendingApprovalPO:'بانتظار الموافقة',orderedItems:'مطلوب / في الطريق',receivedItems:'مستلم',cancelledItems:'ملغي',allSuppliers:'الموردون',supplierPerformance:'أداء الموردين',inventoryItems:'المخزون',lowStockAlerts:'تنبيهات المخزون المنخفض',warehouses:'المستودعات',scSettings:'إعدادات سلسلة التوريد',
@@ -1307,6 +2090,11 @@ Object.assign(i18n.ar,{
   newPO:'أمر شراء جديد',
   stockStatus:'حالة المخزون',qtyOnHand:'الكمية المتوفرة',reorderPoint:'نقطة إعادة الطلب',partNo:'رقم القطعة',warehouseLbl:'المستودع',lastReceived:'آخر استلام',
   normal:'طبيعي',low:'منخفض',critical:'حرج',out:'نفد المخزون',
+  materialRequests:'طلبات المواد',materialRequest:'طلب مادة',newMR:'طلب مادة جديد',mrTitle:'العنوان',mrStatus:'الحالة',mrDepartment:'القسم',mrItems:'الأصناف',
+  stockLedger:'دفتر المخزون',stockMovement:'حركة المخزون',recordMovement:'تسجيل حركة',movementType:'النوع',movementDate:'التاريخ',reference:'المرجع',unitCost:'تكلفة الوحدة',
+  in:'وارد',out:'صادر',transfer:'تحويل',adjustment:'تسوية',
+  pending:'معلق',draft:'مسودة',rejected:'مرفوض',
+  convertToPO:'تحويل إلى أمر شراء',approveMR:'اعتماد طلب المواد',rejectMR:'رفض طلب المواد',
 });
 
 /* ═══════════════════════════════════════════════
@@ -1315,10 +2103,13 @@ Object.assign(i18n.ar,{
 function renderSCSidebar(){
   const pendingPOs = DATA.purchaseOrders.filter(p=>p.status==='draft').length;
   const lowStock = DATA.inventory.filter(i=>i.status==='low'||i.status==='critical'||i.status==='out').length;
+  const pendingMRs = DATA.materialRequests.filter(m=>m.status==='pending').length;
   const sections=[
     {group:null,items:[
       {id:'scDashboard',icon:'fa-gauge-high',label:t('scDashboard')},
+      {id:'materialRequests',icon:'fa-clipboard-list',label:t('materialRequests'),badge:pendingMRs},
       {id:'allPOs',icon:'fa-file-invoice',label:t('allPOs')},
+      {id:'qualityInspections',icon:'fa-flask',label:'Quality Inspections'},
       {id:'pendingApprovalPO',icon:'fa-clock',label:t('pendingApprovalPO'),badge:pendingPOs},
       {id:'orderedItems',icon:'fa-truck-fast',label:t('orderedItems'),badge:DATA.purchaseOrders.filter(p=>p.status==='ordered').length,badgeCls:'blue'},
       {id:'receivedItems',icon:'fa-box-archive',label:t('receivedItems')},
@@ -1330,7 +2121,10 @@ function renderSCSidebar(){
     {group:'Inventory',items:[
       {id:'inventoryItems',icon:'fa-boxes-stacked',label:t('inventoryItems')},
       {id:'lowStockAlerts',icon:'fa-triangle-exclamation',label:t('lowStockAlerts'),badge:lowStock},
+      {id:'stockLedger',icon:'fa-book',label:t('stockLedger')},
       {id:'warehouses',icon:'fa-warehouse',label:t('warehouses')},
+      {id:'landedCost',icon:'fa-ship',label:'Landed Cost'},
+      {id:'reorderRules',icon:'fa-cart-arrow-down',label:'Auto Reorder'},
     ]},
     {group:'Admin',items:[
       {id:'scSettings',icon:'fa-gear',label:t('scSettings')},
@@ -1357,13 +2151,13 @@ function renderSCKPIs(){
   const open = pos.filter(p=>['draft','approved','ordered'].includes(p.status)).length;
   const now = new Date(); const m = now.getMonth(); const y = now.getFullYear();
   const mtd = pos.filter(p=>{ const d=new Date(p.createdDate); return d.getMonth()===m&&d.getFullYear()===y&&p.status!=='cancelled'; }).reduce((s,p)=>s+p.amount,0);
-  const pending = pos.filter(p=>p.status==='draft').length;
+  const pendingMR = DATA.materialRequests.filter(m=>m.status==='pending').length;
   const lowStock = DATA.inventory.filter(i=>i.status==='low'||i.status==='critical'||i.status==='out').length;
   const activeSup = DATA.suppliers.filter(s=>s.status==='active').length;
   return `<div class="kpi-grid">
     <div class="kpi-card"><span class="kpi-label">${t('openPOs')}</span><span class="kpi-value">${open}</span><span class="kpi-change" style="color:var(--text-sec)"><i class="fa-solid fa-file-invoice"></i> Active orders</span></div>
     <div class="kpi-card green"><span class="kpi-label">${t('poValueMTD')}</span><span class="kpi-value" style="font-size:18px">${fmt(mtd)}</span><span class="kpi-change kpi-up"><i class="fa-solid fa-arrow-up"></i> This month</span></div>
-    <div class="kpi-card orange"><span class="kpi-label">${t('pendingPRs')}</span><span class="kpi-value">${pending}</span><span class="kpi-change kpi-warn"><i class="fa-solid fa-clock"></i> Awaiting approval</span></div>
+    <div class="kpi-card orange"><span class="kpi-label">${t('pendingPRs')}</span><span class="kpi-value">${pendingMR}</span><span class="kpi-change kpi-warn"><i class="fa-solid fa-clock"></i> Awaiting approval</span></div>
     <div class="kpi-card red"><span class="kpi-label">${t('lowStockItems')}</span><span class="kpi-value">${lowStock}</span><span class="kpi-change kpi-down"><i class="fa-solid fa-triangle-exclamation"></i> Below reorder point</span></div>
     <div class="kpi-card purple"><span class="kpi-label">${t('activeSuppliers')}</span><span class="kpi-value">${activeSup}</span><span class="kpi-change" style="color:var(--text-sec)"><i class="fa-solid fa-building-user"></i> Approved vendors</span></div>
   </div>`;
@@ -1527,7 +2321,8 @@ function renderPODetail(p){
     html+=`<div class="sec-card"><div class="sec-card-head">Purchase Order Details
       <div style="display:flex;gap:6px;">
         ${p.status==='draft'?`<button class="btn btn-primary btn-sm" onclick="approvePO('${p.id}')"><i class="fa-solid fa-check"></i> Approve</button>`:''}
-        <button class="btn btn-ghost btn-sm" onclick="showToast('Printing ${p.id}...','info')"><i class="fa-solid fa-print"></i> Print</button>
+        ${p.status==='approved'||p.status==='ordered'?`<button class="btn btn-primary btn-sm" onclick="receivePO('${p.id}')"><i class="fa-solid fa-box-open"></i> Receive</button>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>
       </div>
     </div>
     <div class="sec-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;">
@@ -1568,9 +2363,41 @@ function renderPODetail(p){
   return html;
 }
 
-function approvePO(id){
+window.approvePO = async function(id){
+  if(state.currentUserRole !== 'Manager' && state.currentUserRole !== 'Admin') {
+    return showToast('Access denied: Requires Manager role', 'error');
+  }
   const po=DATA.purchaseOrders.find(p=>p.id===id);
-  if(po){ po.status='approved'; po.approvedBy=DATA.employees[0].name; showToast(id+' approved','success'); rerenderSection(); }
+  if(po){
+    po.status='ordered'; po.approvedBy=DATA.employees[0]?.name||'Rania Saleh';
+    if(supabase) await supabase.from('purchase_orders').update({status:'ordered'}).eq('id',id);
+    showToast(id+' approved and ordered','success'); rerenderSection();
+  }
+}
+
+window.receivePO = async function(id) {
+  const po=DATA.purchaseOrders.find(p=>p.id===id);
+  if(po) {
+    po.status = 'received';
+    if(supabase) await supabase.from('purchase_orders').update({status:'received'}).eq('id', id);
+    
+    // Auto-update inventory + record in stock ledger
+    const itemName = po.description || 'Received Item';
+    let invItem = DATA.inventory.find(i => i.name.toLowerCase() === itemName.toLowerCase());
+    if(invItem) {
+      recordStockMovement(invItem.id, 'in', 1, invItem.unit || 'Lot', 'PO Receipt', id, 0, 'Received via PO ' + id);
+      showToast('PO Received. Inventory + stock ledger updated for ' + itemName, 'success');
+    } else {
+      const newInv = { id: 'INV-ITM-'+Date.now(), name: itemName, category: po.category, stock: 1, min: 5, unit: 'Lot', location: po.site };
+      DATA.inventory.push(newInv);
+      if(supabase) {
+        await supabase.from('inventory').insert({id: newInv.id, item_name: itemName, category: po.category, stock_level: 1, min_stock: 5, unit: 'Lot', location: po.site});
+      }
+      recordStockMovement(newInv.id, 'in', 1, 'Lot', 'PO Receipt', id, 0, 'Received via PO ' + id);
+      showToast('PO Received. New inventory item + stock ledger entry created for ' + itemName, 'success');
+    }
+    rerenderSection();
+  }
 }
 
 /* ═══════════════════════════════════════════════
@@ -1677,7 +2504,40 @@ function renderSupplierDetail(s){
 /* ═══════════════════════════════════════════════
    SC — INVENTORY TABLE
 ═══════════════════════════════════════════════ */
-function renderInventory(filterFn){
+function renderSCSettings() {
+  return `<div class="fade-in" style="max-width:600px">
+    <h2>Supply Chain Settings</h2>
+    <div class="sec-card" style="margin-top:20px"><div class="sec-card-body">
+      <div class="form-group"><label class="form-label">Auto-reorder Threshold (%)</label><input class="form-input" type="number" value="15"></div>
+      <div class="form-group"><label class="form-label">Default Warehouse</label>
+      <select class="form-input"><option>Central Hub</option><option>Rig Alpha Storage</option></select></div>
+      <button class="btn btn-primary" onclick="showToast('Settings saved','success')">Save Settings</button>
+    </div></div>
+  </div>`;
+}
+
+function renderWarehouseCapacity() {
+  let html = `<div class="fade-in"><div class="filter-bar"><h2>Warehouse Capacity</h2></div>
+  <table class="table">
+    <thead><tr><th>ID</th><th>Warehouse</th><th>Location</th><th>Manager</th><th>Capacity Used</th><th>Status</th></tr></thead>
+    <tbody>`;
+  DATA.warehouses.forEach(w => {
+    const pct = Math.round((w.capacity_used / w.capacity_total)*100);
+    html += `<tr><td><strong>${w.id}</strong></td><td>${w.name}</td><td>${w.location}</td><td>${w.manager_id}</td>
+      <td>
+        <div style="width:100%;background:#f0f0f0;height:8px;border-radius:4px;margin-top:6px">
+          <div style="width:${pct}%;background:${pct>90?'var(--danger)':pct>70?'var(--warning)':'var(--success)'};height:100%;border-radius:4px"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text-sec);margin-top:2px">${pct}% used</div>
+      </td>
+      <td><span class="status-pill status-${w.status.toLowerCase()}">${w.status}</span></td></tr>`;
+  });
+  if(DATA.warehouses.length===0) html += `<tr><td colspan="6" style="text-align:center">No warehouses found.</td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+function renderInventory(filterFn=null){
   const f=state.filters;
   let items=DATA.inventory.filter(filterFn||(_=>true));
   if(f.search){const s=f.search.toLowerCase();items=items.filter(i=>i.name.toLowerCase().includes(s)||i.partNo.toLowerCase().includes(s)||i.site.toLowerCase().includes(s));}
@@ -1686,6 +2546,10 @@ function renderInventory(filterFn){
   const cats=[...new Set(DATA.inventory.map(i=>i.category))].sort();
   const stockBadge=s=>s==='out'?'<span class="pill pill-expired">Out of Stock</span>':s==='critical'?'<span class="pill pill-expiring">Critical</span>':s==='low'?'<span class="pill pill-leave">Low</span>':'<span class="pill pill-valid">Normal</span>';
   const stockCol=s=>s==='out'?'var(--error)':s==='critical'?'var(--warning)':s==='low'?'#b35d00':'var(--success)';
+  const parentsFirst = (a,b) => (a.has_variants ? -1 : a.parent_item ? 1 : 0) - (b.has_variants ? -1 : b.parent_item ? 1 : 0);
+
+  // sort: parents first, then alphabetically
+  items.sort((a,b) => parentsFirst(a,b) || a.name.localeCompare(b.name));
 
   let html=`<div class="fade-in">`;
   html+=renderSCKPIs();
@@ -1698,13 +2562,15 @@ function renderInventory(filterFn){
       <select class="filter-select" onchange="state.filters.status=this.value;rerenderSection()">
         <option value="all">All Status</option><option value="normal">Normal</option><option value="low">Low</option><option value="critical">Critical</option><option value="out">Out of Stock</option>
       </select>
-      <button class="btn btn-primary btn-sm" onclick="showToast('Stock count export started','info')"><i class="fa-solid fa-download"></i> Export</button>
+      <button class="btn btn-primary btn-sm" onclick="openNewInventoryModal()"><i class="fa-solid fa-plus"></i> Add Item</button>
+      <button class="btn btn-sm btn-outline" onclick="showToast('Stock count export started','info')"><i class="fa-solid fa-download"></i> Export</button>
     </div>
   </div>
   <div style="overflow-x:auto;"><table class="data-table">
     <thead><tr>
       <th onclick="sortBy('name')" class="${sortedCls('name')}">Item ${sortIcon('name')}</th>
       <th onclick="sortBy('partNo')" class="${sortedCls('partNo')}">Part No. ${sortIcon('partNo')}</th>
+      <th>Tracking</th>
       <th onclick="sortBy('category')" class="${sortedCls('category')}">Category ${sortIcon('category')}</th>
       <th onclick="sortBy('site')" class="${sortedCls('site')}">Site ${sortIcon('site')}</th>
       <th onclick="sortBy('qtyOnHand')" class="${sortedCls('qtyOnHand')}">On Hand ${sortIcon('qtyOnHand')}</th>
@@ -1713,12 +2579,19 @@ function renderInventory(filterFn){
       <th>Stock Status</th>
       <th onclick="sortBy('lastReceived')" class="${sortedCls('lastReceived')}">Last Received ${sortIcon('lastReceived')}</th>
     </tr></thead><tbody>`;
-  if(!items.length) html+=`<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-sec);">No inventory items found</td></tr>`;
+  if(!items.length) html+=`<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-sec);">No inventory items found</td></tr>`;
   items.forEach(i=>{
     const col=stockCol(i.status);
+    const indent = i.parent_item ? 'padding-left:24px;' : '';
+    const icon = i.has_variants ? '<i class="fa-solid fa-layer-group" style="color:var(--primary);margin-right:4px"></i>' : i.parent_item ? '<i class="fa-regular fa-copy" style="color:var(--text-sec);margin-right:4px"></i>' : '<i class="fa-solid fa-box" style="color:var(--text-sec);margin-right:4px"></i>';
+    const trackBadges = [];
+    if (i.serial_tracking) trackBadges.push('<span class="pill pill-valid" style="font-size:10px">Serial</span>');
+    if (i.batch_tracking) trackBadges.push('<span class="pill pill-leave" style="font-size:10px">Batch</span>');
+    if (i.has_variants) trackBadges.push('<span class="pill pill-valid" style="font-size:10px;background:var(--primary);color:#fff">Has Variants</span>');
     html+=`<tr>
-      <td><div style="font-weight:600">${i.name}</div></td>
+      <td><div style="font-weight:600;${indent}">${icon}${i.name}</div></td>
       <td style="font-size:12px;color:var(--text-sec)">${i.partNo}</td>
+      <td>${trackBadges.join(' ')}</td>
       <td>${i.category}</td>
       <td style="font-size:12px">${i.site}</td>
       <td style="font-weight:700;color:${col}">${i.qtyOnHand} <span style="font-weight:400;font-size:11px;color:var(--text-sec)">${i.uom}</span></td>
@@ -1730,6 +2603,356 @@ function renderInventory(filterFn){
   });
   html+=`</tbody></table></div></div></div>`;
   return html;
+}
+
+function openNewInventoryModal() {
+  const cats = [...new Set(DATA.inventory.map(i=>i.category))].sort();
+  const parents = DATA.inventory.filter(i => i.has_variants || !i.parent_item);
+  const body = `<div style="display:flex;flex-direction:column;gap:10px">
+    <input class="filter-input" id="ni-name" placeholder="Item Name" />
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input class="filter-input" id="ni-part" placeholder="Part No." />
+      <select class="filter-input" id="ni-cat"><option value="">— Category —</option>${cats.map(c=>`<option>${c}</option>`).join('')}<option>New Category</option></select>
+    </div>
+    <select class="filter-input" id="ni-parent"><option value="">— Parent Item (optional) —</option>${parents.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <input class="filter-input" id="ni-uom" placeholder="UOM" value="Unit" />
+      <input class="filter-input" id="ni-cost" type="number" placeholder="Unit Cost ($)" step="0.01" />
+      <input class="filter-input" id="ni-site" placeholder="Site / Location" />
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <input class="filter-input" id="ni-qty" type="number" placeholder="Qty On Hand" value="0" />
+      <input class="filter-input" id="ni-reorder" type="number" placeholder="Reorder Point" value="0" />
+      <input class="filter-input" id="ni-max" type="number" placeholder="Max Stock" value="0" />
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="ni-serial" /> Serialized item (track by serial number)</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="ni-batch" /> Batched item (track by batch/lot)</label>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewInventory()">Add Item</button>`;
+  openModal('Add Inventory Item', body, footer);
+}
+
+function submitNewInventory() {
+  const name = $('#ni-name').value.trim();
+  if (!name) { showToast('Item name required', 'error'); return; }
+  const item = {
+    id: 'INV-' + String(DATA.inventory.length + 1).padStart(3, '0'),
+    name, partNo: $('#ni-part').value.trim() || 'N/A',
+    category: $('#ni-cat').value || 'Uncategorized',
+    site: $('#ni-site').value.trim() || 'All Sites',
+    warehouse: 'WH-HO-01',
+    uom: $('#ni-uom').value.trim() || 'Unit',
+    qtyOnHand: parseFloat($('#ni-qty').value) || 0,
+    reorderPoint: parseFloat($('#ni-reorder').value) || 0,
+    maxStock: parseFloat($('#ni-max').value) || 0,
+    unitCost: parseFloat($('#ni-cost').value) || 0,
+    status: 'normal',
+    lastReceived: new Date().toISOString().slice(0,10),
+    supplierId: null,
+    parent_item: $('#ni-parent').value || null,
+    serial_tracking: $('#ni-serial').checked,
+    batch_tracking: $('#ni-batch').checked,
+    has_variants: false,
+  };
+  DATA.inventory.push(item);
+  if (supabase) supabase.from('inventory').insert(item).catch(() => {});
+  closeModal(); showToast('Item added', 'success'); rerenderSection();
+}
+
+/* ── Quality Inspections ── */
+function renderQualityInspections() {
+  const qis = DATA.qualityInspections || [];
+  const now = new Date();
+  const pending = qis.filter(q => q.status === 'Pending').length;
+  const passed = qis.filter(q => q.status === 'Passed').length;
+  const failed = qis.filter(q => q.status === 'Failed').length;
+
+  let html = `<div class="fade-in"><div class="kpi-grid">
+    <div class="kpi-card blue"><span class="kpi-label">Total Inspections</span><span class="kpi-value">${qis.length}</span></div>
+    <div class="kpi-card orange"><span class="kpi-label">Pending</span><span class="kpi-value">${pending}</span></div>
+    <div class="kpi-card green"><span class="kpi-label">Passed</span><span class="kpi-value">${passed}</span></div>
+    <div class="kpi-card red"><span class="kpi-label">Failed</span><span class="kpi-value">${failed}</span></div>
+  </div>
+  <div class="sec-card"><div class="sec-card-head">Quality Inspections
+    <button class="btn btn-primary btn-sm" onclick="openNewQIModal()"><i class="fa-solid fa-plus"></i> New Inspection</button>
+  </div>
+  <div style="overflow-x:auto"><table class="data-table"><thead><tr>
+    <th>ID</th><th>Date</th><th>Item</th><th>Type</th><th>Inspector</th><th>PO Ref</th><th>Parameters</th><th>Result</th><th>Notes</th><th></th>
+  </tr></thead><tbody>`;
+  if (!qis.length) html += `<tr><td colspan="10" style="text-align:center;padding:30px">No inspections found.</td></tr>`;
+  qis.forEach(q => {
+    const allPass = q.parameters.every(p => p.result === 'Pass');
+    const hasFail = q.parameters.some(p => p.result === 'Fail');
+    const statusLabel = q.status === 'Passed' ? '<span class="pill pill-valid">Passed</span>' : q.status === 'Failed' ? '<span class="pill pill-expired">Failed</span>' : '<span class="pill pill-leave">Pending</span>';
+    html += `<tr>
+      <td><strong>${q.id}</strong></td>
+      <td style="font-size:12px">${q.date}</td>
+      <td>${q.itemName}</td>
+      <td>${q.inspectionType}</td>
+      <td>${q.inspector}</td>
+      <td style="font-size:12px">${q.poRef}</td>
+      <td><button class="btn btn-sm btn-ghost" onclick="showQIParams('${q.id}')">${q.parameters.length} params</button></td>
+      <td>${statusLabel}</td>
+      <td style="font-size:12px;color:var(--text-sec);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${q.notes || '-'}</td>
+      <td><button class="btn btn-sm btn-outline" onclick="openNewQIModal('${q.id}')">Edit</button></td>
+    </tr>`;
+  });
+  html += `</tbody></table></div></div></div>`;
+  return html;
+}
+
+function openNewQIModal(editId) {
+  const qi = editId ? DATA.qualityInspections.find(q => q.id === editId) : null;
+  const items = DATA.inventory.map(i => `<option value="${i.id}" ${qi && qi.itemId === i.id ? 'selected' : ''}>${i.name}</option>`).join('');
+  const pos = DATA.purchaseOrders.filter(p => p.status !== 'cancelled').map(p => `<option value="${p.id}" ${qi && qi.poRef === p.id ? 'selected' : ''}>${p.id}</option>`).join('');
+  const inspectors = ['Ahmed Al-Riyami','Noor Al-Balushi','Khalid Al-Maawali','Salim Al-Hashmi','Muna Al-Said'];
+  const inspOpts = inspectors.map(i => `<option ${qi && qi.inspector === i ? 'selected' : ''}>${i}</option>`).join('');
+  const body = `<div style="display:flex;flex-direction:column;gap:10px">
+    <input class="filter-input" id="nqi-date" type="date" value="${qi ? qi.date : new Date().toISOString().slice(0,10)}" />
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <select class="filter-input" id="nqi-item"><option value="">— Item —</option>${items}</select>
+      <select class="filter-input" id="nqi-po"><option value="">— PO Ref —</option>${pos}</select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <select class="filter-input" id="nqi-type"><option value="Incoming" ${qi && qi.inspectionType === 'Incoming' ? 'selected' : ''}>Incoming</option><option value="In Process" ${qi && qi.inspectionType === 'In Process' ? 'selected' : ''}>In Process</option><option value="Outgoing" ${qi && qi.inspectionType === 'Outgoing' ? 'selected' : ''}>Outgoing</option></select>
+      <select class="filter-input" id="nqi-inspector"><option value="">— Inspector —</option>${inspOpts}</select>
+    </div>
+    <textarea class="filter-input" id="nqi-notes" placeholder="Notes" rows="2">${qi ? qi.notes : ''}</textarea>
+    <div style="font-size:13px;font-weight:600;margin-top:6px">Inspection Parameters (JSON array)</div>
+    <textarea class="filter-input" id="nqi-params" rows="4" placeholder='[{"param":"Viscosity","min":30,"max":50}]'>${qi ? JSON.stringify(qi.parameters) : ''}</textarea>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewQI('${editId || ''}')">${editId ? 'Update' : 'Create'} Inspection</button>`;
+  openModal(editId ? 'Edit Quality Inspection' : 'New Quality Inspection', body, footer);
+}
+
+function submitNewQI(editId) {
+  const date = $('#nqi-date').value;
+  const itemId = $('#nqi-item').value;
+  if (!itemId) { showToast('Select an item', 'error'); return; }
+  const item = DATA.inventory.find(i => i.id === itemId);
+  let params = [];
+  try { params = JSON.parse($('#nqi-params').value || '[]'); } catch(e) { showToast('Invalid JSON parameters', 'error'); return; }
+  params.forEach(p => { if (p.actual === undefined) p.actual = 0; if (p.result === undefined) p.result = p.actual >= p.min && p.actual <= p.max ? 'Pass' : 'Fail'; });
+  const allPass = params.every(p => p.result === 'Pass');
+  const anyFail = params.some(p => p.result === 'Fail');
+  const status = params.length === 0 ? 'Pending' : anyFail ? 'Failed' : 'Passed';
+  const qi = {
+    id: editId || 'QI-' + String(DATA.qualityInspections.length + 1).padStart(3, '0'),
+    date, itemId, itemName: item ? item.name : itemId,
+    inspectionType: $('#nqi-type').value,
+    poRef: $('#nqi-po').value || null,
+    inspector: $('#nqi-inspector').value || 'N/A',
+    parameters: params, notes: $('#nqi-notes').value.trim(), status,
+  };
+  if (!editId) { DATA.qualityInspections.push(qi); if(supabase) supabase.from('quality_inspections').insert(qi).catch(() => {}); }
+  else { const idx = DATA.qualityInspections.findIndex(q => q.id === editId); DATA.qualityInspections[idx] = qi; if(supabase) supabase.from('quality_inspections').upsert(qi).catch(() => {}); }
+  closeModal(); showToast(editId ? 'Inspection updated' : 'Inspection created', 'success'); rerenderSection();
+}
+
+function showQIParams(id) {
+  const qi = DATA.qualityInspections.find(q => q.id === id);
+  if (!qi) return;
+  let body = `<table class="data-table"><thead><tr><th>Parameter</th><th>Min</th><th>Max</th><th>Actual</th><th>Result</th></tr></thead><tbody>`;
+  qi.parameters.forEach(p => {
+    const ok = p.result === 'Pass';
+    body += `<tr><td>${p.param}</td><td>${p.min}</td><td>${p.max}</td><td style="font-weight:600">${p.actual}</td><td>${ok ? '<span class="pill pill-valid">Pass</span>' : '<span class="pill pill-expired">Fail</span>'}</td></tr>`;
+  });
+  body += `</tbody></table>`;
+  openModal('Parameters — ' + qi.id, body, `<button class="btn btn-primary" onclick="closeModal()">OK</button>`);
+}
+
+/* ── Landed Cost ── */
+function renderLandedCost() {
+  let html = `<div class="fade-in"><div class="kpi-grid">
+    <div class="kpi-card blue"><span class="kpi-label">Total Vouchers</span><span class="kpi-value">${DATA.landedCostVouchers.length}</span></div>
+    <div class="kpi-card green"><span class="kpi-label">Total Charges</span><span class="kpi-value">${fmt(DATA.landedCostVouchers.reduce((s,v)=>s+v.totalCharges,0))}</span></div>
+  </div>
+  <div class="sec-card"><div class="sec-card-head">Landed Cost Vouchers
+    <button class="btn btn-primary btn-sm" onclick="openNewLCVModal()"><i class="fa-solid fa-plus"></i> New Voucher</button>
+  </div>
+  <div style="overflow-x:auto"><table class="data-table"><thead><tr>
+    <th>Voucher</th><th>Date</th><th>PO Ref</th><th>Freight</th><th>Insurance</th><th>Duty</th><th>Handling</th><th>Total</th><th>Distribution</th><th>Items</th><th></th>
+  </tr></thead><tbody>`;
+  if (!DATA.landedCostVouchers.length) html += `<tr><td colspan="11" style="text-align:center;padding:30px">No landed cost vouchers found.</td></tr>`;
+  DATA.landedCostVouchers.forEach(v => {
+    html += `<tr>
+      <td><strong>${v.id}</strong></td>
+      <td style="font-size:12px">${v.date}</td>
+      <td style="font-size:12px">${v.poRef}</td>
+      <td>${fmt(v.charges.freight)}</td>
+      <td>${fmt(v.charges.insurance)}</td>
+      <td>${fmt(v.charges.duty)}</td>
+      <td>${fmt(v.charges.handling)}</td>
+      <td style="font-weight:700">${fmt(v.totalCharges)}</td>
+      <td>${v.distribution}</td>
+      <td><button class="btn btn-sm btn-ghost" onclick="showLCVItems('${v.id}')">${v.items.length} items</button></td>
+      <td><button class="btn btn-sm btn-outline" onclick="openNewLCVModal('${v.id}')">Edit</button></td>
+    </tr>`;
+  });
+  html += `</tbody></table></div></div></div>`;
+  return html;
+}
+
+function openNewLCVModal(editId) {
+  const v = editId ? DATA.landedCostVouchers.find(x => x.id === editId) : null;
+  const pos = DATA.purchaseOrders.filter(p => p.status !== 'cancelled').map(p => `<option value="${p.id}" ${v && v.poRef === p.id ? 'selected' : ''}>${p.id}</option>`).join('');
+  const body = `<div style="display:flex;flex-direction:column;gap:10px">
+    <input class="filter-input" id="nl-date" type="date" value="${v ? v.date : new Date().toISOString().slice(0,10)}" />
+    <select class="filter-input" id="nl-po"><option value="">— PO Ref —</option>${pos}</select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input class="filter-input" id="nl-freight" type="number" placeholder="Freight ($)" value="${v ? v.charges.freight : 0}" />
+      <input class="filter-input" id="nl-insurance" type="number" placeholder="Insurance ($)" value="${v ? v.charges.insurance : 0}" />
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input class="filter-input" id="nl-duty" type="number" placeholder="Customs Duty ($)" value="${v ? v.charges.duty : 0}" />
+      <input class="filter-input" id="nl-handling" type="number" placeholder="Handling ($)" value="${v ? v.charges.handling : 0}" />
+    </div>
+    <select class="filter-input" id="nl-dist"><option value="By Value" ${v && v.distribution === 'By Value' ? 'selected' : ''}>By Value</option><option value="By Qty" ${v && v.distribution === 'By Qty' ? 'selected' : ''}>By Quantity</option></select>
+    <div style="font-size:13px;font-weight:600">Items allocation (JSON: itemId, proportion)</div>
+    <textarea class="filter-input" id="nl-items" rows="3" placeholder='[{"itemId":"INV-001","proportion":0.6}]'>${v ? JSON.stringify(v.items.map(i=>({itemId:i.itemId,proportion:i.proportion}))) : ''}</textarea>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewLCV('${editId || ''}')">${editId ? 'Update' : 'Create'} Voucher</button>`;
+  openModal(editId ? 'Edit Landed Cost Voucher' : 'New Landed Cost Voucher', body, footer);
+}
+
+function submitNewLCV(editId) {
+  const freight = parseFloat($('#nl-freight').value) || 0;
+  const insurance = parseFloat($('#nl-insurance').value) || 0;
+  const duty = parseFloat($('#nl-duty').value) || 0;
+  const handling = parseFloat($('#nl-handling').value) || 0;
+  const total = freight + insurance + duty + handling;
+  let items = [];
+  try { items = JSON.parse($('#nl-items').value || '[]'); } catch(e) { showToast('Invalid items JSON', 'error'); return; }
+  if (!items.length) { showToast('At least one item required', 'error'); return; }
+  const totalProp = items.reduce((s,i) => s + i.proportion, 0);
+  const alloc = items.map(i => ({
+    itemId: i.itemId,
+    itemName: (DATA.inventory.find(x => x.id === i.itemId) || {}).name || i.itemId,
+    proportion: i.proportion,
+    allocated: Math.round((i.proportion / totalProp) * total * 100) / 100,
+  }));
+  const v = {
+    id: editId || 'LCV-' + String(DATA.landedCostVouchers.length + 1).padStart(3, '0'),
+    date: $('#nl-date').value, poRef: $('#nl-po').value || null,
+    charges: {freight, insurance, duty, handling},
+    totalCharges: total, distribution: $('#nl-dist').value, items: alloc,
+  };
+  if (!editId) { DATA.landedCostVouchers.push(v); if(supabase) supabase.from('landed_cost_vouchers').insert(v).catch(() => {}); }
+  else { const idx = DATA.landedCostVouchers.findIndex(x => x.id === editId); DATA.landedCostVouchers[idx] = v; if(supabase) supabase.from('landed_cost_vouchers').upsert(v).catch(() => {}); }
+  closeModal(); showToast(editId ? 'Voucher updated' : 'Voucher created', 'success'); rerenderSection();
+}
+
+function showLCVItems(id) {
+  const v = DATA.landedCostVouchers.find(x => x.id === id);
+  if (!v) return;
+  let body = `<div style="margin-bottom:8px;font-size:13px;color:var(--text-sec)">Total charges: <strong>${fmt(v.totalCharges)}</strong> | Distribution: ${v.distribution}</div>
+  <table class="data-table"><thead><tr><th>Item</th><th>Proportion</th><th>Allocated</th></tr></thead><tbody>`;
+  v.items.forEach(i => { body += `<tr><td>${i.itemName}</td><td>${Math.round(i.proportion * 100)}%</td><td style="font-weight:600">${fmt(i.allocated)}</td></tr>`; });
+  body += `</tbody></table>`;
+  openModal('Landed Cost — ' + v.id, body, `<button class="btn btn-primary" onclick="closeModal()">OK</button>`);
+}
+
+/* ── Auto Reorder ── */
+function renderReorderRules() {
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Auto Reorder Rules</h2>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary btn-sm" onclick="openNewRRModal()"><i class="fa-solid fa-plus"></i> New Rule</button>
+      <button class="btn btn-sm btn-outline" onclick="autoGenerateMR()"><i class="fa-solid fa-wand-magic-sparkles"></i> Run Auto Reorder</button>
+    </div>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi-card blue"><span class="kpi-label">Total Rules</span><span class="kpi-value">${DATA.reorderRules.length}</span></div>
+    <div class="kpi-card orange"><span class="kpi-label">Items Below Min</span><span class="kpi-value">${DATA.reorderRules.filter(r => { const item = DATA.inventory.find(i => i.id === r.itemId); return item && item.qtyOnHand < r.minQty; }).length}</span></div>
+    <div class="kpi-card green"><span class="kpi-label">Auto-Create PO</span><span class="kpi-value">${DATA.reorderRules.filter(r => r.autoCreatePO).length}</span></div>
+  </div>
+  <div class="sec-card"><div style="overflow-x:auto"><table class="data-table"><thead><tr>
+    <th>Item</th><th>Min Qty</th><th>Max Qty</th><th>On Hand</th><th>Reorder?</th><th>Supplier</th><th>Lead Time</th><th>Auto PO</th><th>Last Triggered</th><th></th>
+  </tr></thead><tbody>`;
+  if (!DATA.reorderRules.length) html += `<tr><td colspan="10" style="text-align:center;padding:30px">No reorder rules defined.</td></tr>`;
+  DATA.reorderRules.forEach(r => {
+    const item = DATA.inventory.find(i => i.id === r.itemId);
+    const qty = item ? item.qtyOnHand : 0;
+    const needsReorder = qty < r.minQty;
+    const sup = DATA.suppliers.find(s => s.id === r.supplierId);
+    html += `<tr style="${needsReorder ? 'background:rgba(255,87,34,0.06)' : ''}">
+      <td><strong>${r.itemName}</strong></td>
+      <td>${r.minQty}</td><td>${r.maxQty}</td>
+      <td style="font-weight:700;color:${needsReorder ? 'var(--warning)' : 'var(--success)'}">${qty}</td>
+      <td>${needsReorder ? '<span class="pill pill-expiring" style="font-size:10px">Yes</span>' : '<span class="pill pill-valid" style="font-size:10px">OK</span>'}</td>
+      <td style="font-size:12px">${sup ? sup.name : r.supplierId}</td>
+      <td>${r.leadTimeDays}d</td>
+      <td>${r.autoCreatePO ? '<span class="pill pill-valid">Yes</span>' : '<span style="color:var(--text-sec)">No</span>'}</td>
+      <td style="font-size:12px;color:var(--text-sec)">${r.lastTriggered || '-'}</td>
+      <td><button class="btn btn-sm btn-outline" onclick="openNewRRModal('${r.id}')">Edit</button></td>
+    </tr>`;
+  });
+  html += `</tbody></table></div></div></div>`;
+  return html;
+}
+
+function openNewRRModal(editId) {
+  const r = editId ? DATA.reorderRules.find(x => x.id === editId) : null;
+  const items = DATA.inventory.filter(i => !i.has_variants).map(i => `<option value="${i.id}" ${r && r.itemId === i.id ? 'selected' : ''}>${i.name}</option>`).join('');
+  const sups = DATA.suppliers.map(s => `<option value="${s.id}" ${r && r.supplierId === s.id ? 'selected' : ''}>${s.name}</option>`).join('');
+  const body = `<div style="display:flex;flex-direction:column;gap:10px">
+    <select class="filter-input" id="nrr-item"><option value="">— Item —</option>${items}</select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input class="filter-input" id="nrr-min" type="number" placeholder="Min Qty" value="${r ? r.minQty : 0}" />
+      <input class="filter-input" id="nrr-max" type="number" placeholder="Max Qty" value="${r ? r.maxQty : 0}" />
+    </div>
+    <select class="filter-input" id="nrr-supplier"><option value="">— Supplier —</option>${sups}</select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input class="filter-input" id="nrr-lead" type="number" placeholder="Lead Time (days)" value="${r ? r.leadTimeDays : 14}" />
+      <label style="display:flex;align-items:center;font-size:13px;gap:4px"><input type="checkbox" id="nrr-auto" ${r && r.autoCreatePO ? 'checked' : ''} /> Auto Create PO</label>
+    </div>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewRR('${editId || ''}')">${editId ? 'Update' : 'Add'} Rule</button>`;
+  openModal(editId ? 'Edit Reorder Rule' : 'New Reorder Rule', body, footer);
+}
+
+function submitNewRR(editId) {
+  const itemId = $('#nrr-item').value;
+  if (!itemId) { showToast('Select an item', 'error'); return; }
+  const item = DATA.inventory.find(i => i.id === itemId);
+  const r = {
+    id: editId || 'RR-' + String(DATA.reorderRules.length + 1).padStart(3, '0'),
+    itemId, itemName: item ? item.name : itemId,
+    supplierId: $('#nrr-supplier').value || null,
+    minQty: parseFloat($('#nrr-min').value) || 0,
+    maxQty: parseFloat($('#nrr-max').value) || 0,
+    leadTimeDays: parseInt($('#nrr-lead').value) || 14,
+    autoCreatePO: $('#nrr-auto').checked,
+    lastTriggered: null,
+  };
+  if (!editId) { DATA.reorderRules.push(r); if(supabase) supabase.from('reorder_rules').insert(r).catch(() => {}); }
+  else { const idx = DATA.reorderRules.findIndex(x => x.id === editId); DATA.reorderRules[idx] = r; if(supabase) supabase.from('reorder_rules').upsert(r).catch(() => {}); }
+  closeModal(); showToast(editId ? 'Rule updated' : 'Rule added', 'success'); rerenderSection();
+}
+
+function autoGenerateMR() {
+  const created = [];
+  DATA.reorderRules.forEach(r => {
+    const item = DATA.inventory.find(i => i.id === r.itemId);
+    if (!item || item.qtyOnHand >= r.minQty) return;
+    const reorderQty = r.maxQty - item.qtyOnHand;
+    const mr = {
+      id: 'MR-' + Date.now() + '-' + r.id,
+      date: new Date().toISOString().slice(0,10),
+      items: [{itemId: r.itemId, itemName: r.itemName || item.name, qty: reorderQty, uom: item.uom}],
+      status: 'pending',
+      priority: item.status === 'critical' ? 'Critical' : item.status === 'out' ? 'Critical' : 'High',
+      notes: `Auto-generated — below min qty (${item.qtyOnHand} < ${r.minQty})`,
+    };
+    DATA.materialRequests.push(mr);
+    r.lastTriggered = new Date().toISOString().slice(0,10);
+    if (supabase) supabase.from('material_requests').insert(mr).catch(() => {});
+    if (supabase) supabase.from('reorder_rules').upsert(r).catch(() => {});
+    created.push(`${item.name} (${reorderQty} ${item.uom})`);
+  });
+  if (created.length === 0) { showToast('No items below reorder point', 'info'); return; }
+  showToast(`Created ${created.length} MRs: ${created.join(', ')}`, 'success');
+  rerenderSection();
 }
 
 /* ═══════════════════════════════════════════════
@@ -1770,15 +2993,19 @@ function openNewPOModal(){
   openModal(t('newPO'),body,footer);
 }
 
-function submitNewPO(){
+async function submitNewPO(){
   const desc=$('#np-desc').value.trim();
+  const amt=parseFloat($('#np-amount').value)||0;
   if(!desc){showToast('Description is required','error');return;}
+  if(amt > 10000) {
+    if(!confirm('Warning: PO Amount exceeds $10,000. Do you want to proceed?')) return;
+  }
   const now=new Date();
   const yr=now.getFullYear();
   const newId=`PO-${yr}-${String(DATA.purchaseOrders.length+1).padStart(3,'0')}`;
   const supId=$('#np-sup').value;
   const sup=DATA.suppliers.find(s=>s.id===supId);
-  DATA.purchaseOrders.push({
+  const poData={
     id:newId,supplierId:supId,supplier:sup?sup.name:supId,
     category:$('#np-cat').value,description:desc,
     amount:parseFloat($('#np-amount').value)||0,currency:$('#np-cur').value,
@@ -1787,7 +3014,12 @@ function submitNewPO(){
     site:$('#np-site').value,requiredDate:$('#np-date').value,
     createdDate:now.toISOString().split('T')[0],deliveryDate:null,
     poLines:[{item:desc,qty:1,unit:'Lot',unitPrice:parseFloat($('#np-amount').value)||0}]
-  });
+  };
+  if(supabase){
+    const{error}=await supabase.from('purchase_orders').insert({id:newId,supplier_name:poData.supplier,description:desc,total_amount:poData.amount,status:'draft',priority:poData.priority,site:poData.site,requested_by:poData.requestedBy,order_date:poData.createdDate});
+    if(error){showToast('Error saving PO','error');return;}
+  }
+  DATA.purchaseOrders.push(poData);
   closeModal();state.selectedId=newId;state.section='allPOs';
   showToast(newId+' created as Draft','success');rerenderSection();
 }
@@ -1801,24 +3033,475 @@ function renderSidebar(){
   else if(state.module==='crm') html=renderCRMSidebar();
   else if(state.module==='certificates') html=renderCertSidebar();
   else if(state.module==='supply') html=renderSCSidebar();
+  else if(state.module==='fin') html=renderFinSidebar();
   $('#modSidebar').innerHTML=html;
 }
+
+function renderFinSettings() {
+  return `<div class="fade-in" style="max-width:600px">
+    <h2>Finance Settings</h2>
+    <div class="sec-card" style="margin-top:20px"><div class="sec-card-body">
+      <div class="form-group"><label class="form-label">Default Currency</label>
+      <select class="form-input"><option>USD</option><option>OMR</option><option>EUR</option></select></div>
+      <div class="form-group"><label class="form-label">Fiscal Year Start Month</label>
+      <select class="form-input"><option>January</option><option>April</option><option>July</option></select></div>
+      <button class="btn btn-primary" onclick="showToast('Settings saved','success')">Save Settings</button>
+    </div></div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   SC — STOCK LEDGER
+═══════════════════════════════════════════════ */
+function recordStockMovement(itemId, type, qty, uom, refType, refId, unitCost, notes){
+  const item = DATA.inventory.find(i=>i.id===itemId);
+  if(!item){showToast('Item not found','error');return null;}
+  const id='SL-'+String(DATA.stockLedger.length+1).padStart(3,'0');
+  const entry = {
+    id, itemId, itemName:item.name, type, qty, uom:uom||item.uom,
+    refType, refId, date:new Date().toISOString().split('T')[0],
+    unitCost:unitCost||item.unitCost, notes:notes||''
+  };
+  DATA.stockLedger.push(entry);
+  if(type==='in'){ item.qtyOnHand += qty; if(item.qtyOnHand>item.maxStock) item.maxStock=item.qtyOnHand*2; }
+  else if(type==='out'){ item.qtyOnHand = Math.max(0, item.qtyOnHand - qty); }
+  item.lastReceived = type==='in' ? entry.date : item.lastReceived;
+  item.status = item.qtyOnHand===0?'out':item.qtyOnHand<item.reorderPoint?'critical':item.qtyOnHand<=item.reorderPoint*1.5?'low':'normal';
+  if(supabase){
+    supabase.from('stock_ledger').insert({
+      id:entry.id, item_id:itemId, movement_type:type, quantity:qty, uom:entry.uom,
+      ref_type:refType, ref_id:refId, date:entry.date, unit_cost:unitCost, notes
+    }).catch(()=>{});
+    supabase.from('inventory').update({stock_level:item.qtyOnHand,last_received:item.lastReceived,status:item.status}).eq('id',itemId).catch(()=>{});
+  }
+  return entry;
+}
+
+function renderStockLedgerPage(){
+  const f=state.filters;
+  let entries=[...DATA.stockLedger];
+  if(f.search){const s=f.search.toLowerCase();entries=entries.filter(e=>e.itemName.toLowerCase().includes(s)||e.refId.toLowerCase().includes(s)||e.refType.toLowerCase().includes(s));}
+  if(f.type&&f.type!=='all') entries=entries.filter(e=>e.type===f.type);
+  if(f.item&&f.item!=='all') entries=entries.filter(e=>e.itemId===f.item);
+  entries.sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+  const itemOptions=[...new Set(DATA.stockLedger.map(e=>e.itemId))].map(id=>{const i=DATA.inventory.find(x=>x.id===id);return {id,name:i?i.name:id};}).filter(Boolean);
+
+  // Calculate running balance
+  let balance=0;
+  const typeIcon=t=>t==='in'?'fa-arrow-down':'fa-arrow-up';
+  const typeColor=t=>t==='in'?'var(--success)':'var(--error)';
+  const typeLabel=t=>t==='in'?t('in'):t==='out'?t('out'):t==='transfer'?t('transfer'):t('adjustment');
+
+  let html=`<div class="fade-in">`;
+  html+=`<div class="sec-card"><div class="sec-card-head">${t('stockLedger')}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input class="filter-input" placeholder="Search..." value="${f.search||''}" oninput="state.filters.search=this.value;rerenderSection()" style="min-width:140px;">
+      <select class="filter-select" onchange="state.filters.type=this.value;rerenderSection()">
+        <option value="all">All Types</option><option value="in">In</option><option value="out">Out</option>
+      </select>
+      <select class="filter-select" onchange="state.filters.item=this.value;rerenderSection()">
+        <option value="all">All Items</option>${itemOptions.map(o=>`<option value="${o.id}" ${f.item===o.id?'selected':''}>${o.name}</option>`).join('')}
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openMovementModal()"><i class="fa-solid fa-plus"></i> ${t('recordMovement')}</button>
+    </div>
+  </div>
+  <div style="overflow-x:auto;"><table class="data-table">
+    <thead><tr>
+      <th onclick="sortBy('date')" class="${sortedCls('date')}">Date ${sortIcon('date')}</th>
+      <th onclick="sortBy('itemName')" class="${sortedCls('itemName')}">Item ${sortIcon('itemName')}</th>
+      <th>Type</th>
+      <th>Qty</th>
+      <th>UoM</th>
+      <th>Unit Cost</th>
+      <th>Total Value</th>
+      <th>Running Balance</th>
+      <th onclick="sortBy('refType')" class="${sortedCls('refType')}">Reference ${sortIcon('refType')}</th>
+      <th>Notes</th>
+    </tr></thead><tbody>`;
+  if(!entries.length) html+=`<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-sec);">No stock movements recorded</td></tr>`;
+  entries.forEach(e=>{
+    balance += e.type==='in' ? e.qty : -e.qty;
+    const totalValue = e.qty * e.unitCost;
+    html+=`<tr>
+      <td style="font-size:12px;color:var(--text-sec)">${fmtDate(e.date)}</td>
+      <td style="font-weight:600">${e.itemName}</td>
+      <td><span style="display:inline-flex;align-items:center;gap:4px;color:${typeColor(e.type)};font-weight:600;"><i class="fa-solid ${typeIcon(e.type)}" style="font-size:11px;"></i> ${typeLabel(e.type)}</span></td>
+      <td style="font-weight:700">${e.type==='in'?'+':'-'}${e.qty}</td>
+      <td style="color:var(--text-sec);font-size:12px">${e.uom}</td>
+      <td>${fmt(e.unitCost)}</td>
+      <td style="font-weight:600">${fmt(totalValue)}</td>
+      <td style="font-weight:700;color:${balance<0?'var(--error)':'var(--success)'}">${balance} ${e.uom}</td>
+      <td style="font-size:12px;color:var(--text-sec)">${e.refType}<br>${e.refId}</td>
+      <td style="font-size:12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-sec)">${e.notes||'—'}</td>
+    </tr>`;
+  });
+  html+=`</tbody></table></div></div></div>`;
+  return html;
+}
+
+function openMovementModal(){
+  const body=`
+    <div class="form-group"><label class="form-label">Item</label>
+      <select class="form-select" id="mv-item">${DATA.inventory.map(i=>`<option value="${i.id}">${i.name} (${i.partNo}) – ${i.qtyOnHand} ${i.uom} on hand</option>`).join('')}
+    </select></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Movement Type</label>
+        <select class="form-select" id="mv-type"><option value="in">In (Receipt / Return)</option><option value="out">Out (Issue / Consumption)</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">Quantity</label><input class="form-input" id="mv-qty" type="number" min="1" value="1"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Unit Cost (optional)</label><input class="form-input" id="mv-cost" type="number" min="0" step="0.01" value="0"></div>
+      <div class="form-group"><label class="form-label">UoM</label><input class="form-input" id="mv-uom" placeholder="Unit, Litre, Pair..." value="Unit"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Reference Type</label>
+      <select class="form-select" id="mv-reftype"><option>Manual Adjustment</option><option>Issue</option><option>Return</option><option>Transfer</option><option>Write-Off</option></select>
+    </div>
+    <div class="form-group"><label class="form-label">Reference ID / Document</label><input class="form-input" id="mv-refid" placeholder="e.g. ISS-001, WO-001..."></div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="mv-notes" placeholder="Reason for movement, receiving notes..."></textarea></div>`;
+  const footer=`<button class="btn btn-secondary" onclick="closeModal()">${t('cancel')}</button><button class="btn btn-primary" onclick="submitMovement()">${t('save')}</button>`;
+  openModal(t('recordMovement'),body,footer);
+}
+
+function submitMovement(){
+  const itemId=$('#mv-item').value;
+  const type=$('#mv-type').value;
+  const qty=parseInt($('#mv-qty').value)||0;
+  if(!itemId||qty<1){showToast('Select item and enter valid quantity','error');return;}
+  const uom=$('#mv-uom').value.trim()||'Unit';
+  const cost=parseFloat($('#mv-cost').value)||0;
+  const refType=$('#mv-reftype').value;
+  const refId=$('#mv-refid').value.trim()||'MANUAL-'+Date.now();
+  const notes=$('#mv-notes').value.trim();
+  const entry=recordStockMovement(itemId,type,qty,uom,refType,refId,cost||undefined,notes);
+  if(entry){
+    closeModal();
+    showToast(`${type==='in'?'Received':'Issued'} ${qty} ${uom}`,'success');
+    rerenderSection();
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   SC — MATERIAL REQUESTS (Master-Detail)
+═══════════════════════════════════════════════ */
+function renderAllMRs(filterFn){
+  const f=state.filters;
+  let items=DATA.materialRequests.filter(filterFn||(_=>true));
+  if(f.search){const s=f.search.toLowerCase();items=items.filter(m=>m.title.toLowerCase().includes(s)||m.id.toLowerCase().includes(s)||m.requestedBy.toLowerCase().includes(s));}
+  if(f.status&&f.status!=='all') items=items.filter(m=>m.status===f.status);
+  if(f.priority&&f.priority!=='all') items=items.filter(m=>m.priority===f.priority);
+  if(state.sortCol){const col=state.sortCol,dir=state.sortDir==='asc'?1:-1;items.sort((a,b)=>{let va=a[col],vb=b[col];if(typeof va==='string')return va.localeCompare(vb)*dir;return(va-vb)*dir;});}
+
+  const statusBadge=s=>s==='approved'?'<span class="pill pill-valid">Approved</span>':s==='rejected'?'<span class="pill pill-inactive">Rejected</span>':s==='pending'?'<span class="pill pill-leave">Pending</span>':'<span class="pill pill-draft">Draft</span>';
+  const priorityBadge=p=>p==='Critical'?'<span style="color:var(--error);font-weight:700;font-size:11px;">● Critical</span>':p==='High'?'<span style="color:var(--warning);font-weight:700;font-size:11px;">● High</span>':'<span style="color:var(--text-sec);font-size:11px;">● Normal</span>';
+
+  let html=`<div class="fade-in">`;
+  html+=`<div class="md-layout" style="min-height:calc(100vh - var(--shell-h) - var(--tab-h) - 48px);">`;
+  html+=`<div class="md-master">
+    <div class="filter-bar">
+      <input class="filter-input" placeholder="Search MRs..." value="${f.search||''}" oninput="state.filters.search=this.value;rerenderSection()" style="flex:1;min-width:90px">
+      <select class="filter-select" onchange="state.filters.status=this.value;rerenderSection()">
+        <option value="all">All Status</option><option value="draft">Draft</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option>
+      </select>
+      <select class="filter-select" onchange="state.filters.priority=this.value;rerenderSection()">
+        <option value="all">All Priority</option><option value="Critical">Critical</option><option value="High">High</option><option value="Normal">Normal</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openNewMRModal()"><i class="fa-solid fa-plus"></i> ${t('newMR')}</button>
+    </div>
+    <div style="padding:6px 14px 4px;font-size:11px;color:var(--text-sec);background:#fafafa;border-bottom:1px solid var(--border);">${items.length} material requests</div>
+    <div class="list-container">`;
+  if(!items.length) html+=`<div class="empty-state"><i class="fa-solid fa-clipboard-list"></i><p>No material requests found</p></div>`;
+  items.forEach(m=>{
+    html+=`<div class="list-item ${state.selectedId===m.id?'selected':''}" onclick="selectMRItem('${m.id}')" style="border-left-color:${m.priority==='Critical'?'var(--error)':m.priority==='High'?'var(--warning)':'var(--border)'}">
+      <div style="width:36px;height:36px;border-radius:6px;background:#ede7f6;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fa-solid fa-clipboard-list" style="color:#6b3fa0;font-size:14px;"></i></div>
+      <div class="list-item-body">
+        <div class="list-item-title">${m.title}</div>
+        <div class="list-item-desc">${m.id} · ${m.department} · ${m.site}</div>
+      </div>
+      <div class="list-item-right">
+        ${statusBadge(m.status)}
+        <div class="list-item-date" style="margin-top:3px;">${m.items.length} items · ${priorityBadge(m.priority)}</div>
+      </div>
+    </div>`;
+  });
+  html+=`</div></div>`;
+
+  html+=`<div class="md-detail ${state.selectedId?'has-item':''}" style="padding:0;">`;
+  if(state.selectedId){
+    const m=DATA.materialRequests.find(x=>x.id===state.selectedId);
+    if(m) html+=renderMRDetail(m);
+  } else {
+    html+=`<div class="empty-state" style="min-height:400px;"><i class="fa-solid fa-hand-pointer"></i><p>Select a material request to view details</p></div>`;
+  }
+  html+=`</div></div></div>`;
+  return html;
+}
+
+function selectMRItem(id){ state.selectedId=id; state.detailTab='info'; rerenderSection(); }
+
+function renderMRDetail(m){
+  const statusBadge=s=>s==='approved'?'<span class="pill pill-valid">Approved</span>':s==='rejected'?'<span class="pill pill-inactive">Rejected</span>':s==='pending'?'<span class="pill pill-leave">Pending</span>':'<span class="pill pill-draft">Draft</span>';
+  const tabs=[
+    {id:'info',label:'Details'},
+    {id:'items',label:`Items (${m.items.length})`},
+  ];
+
+  let html=`<div class="obj-header">
+    <div class="obj-header-top">
+      <div style="width:52px;height:52px;border-radius:8px;background:#ede7f6;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fa-solid fa-clipboard-list" style="font-size:22px;color:#6b3fa0;"></i></div>
+      <div style="flex:1;"><h2>${m.id}</h2><div class="obj-sub">${m.title}</div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${m.status==='pending'?`<button class="btn btn-primary btn-sm" onclick="approveMR('${m.id}')"><i class="fa-solid fa-check"></i> ${t('approveMR')}</button><button class="btn btn-secondary btn-sm" onclick="rejectMR('${m.id}')"><i class="fa-solid fa-xmark"></i> ${t('rejectMR')}</button>`:''}
+        ${m.status==='approved'&&!m.poRef?`<button class="btn btn-primary btn-sm" onclick="convertMRtoPO('${m.id}')"><i class="fa-solid fa-file-invoice"></i> ${t('convertToPO')}</button>`:''}
+      </div>
+    </div>
+    <div class="obj-kv">
+      <div class="obj-kv-item"><span class="obj-kv-label">${t('mrStatus')}</span><span class="obj-kv-value">${statusBadge(m.status)}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">${t('mrDepartment')}</span><span class="obj-kv-value">${m.department}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">${t('requestedBy')}</span><span class="obj-kv-value">${m.requestedBy}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">Site</span><span class="obj-kv-value">${m.site}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">Requested Date</span><span class="obj-kv-value">${fmtDate(m.requestedDate)}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">Required Date</span><span class="obj-kv-value">${fmtDate(m.requiredDate)}</span></div>
+      <div class="obj-kv-item"><span class="obj-kv-label">${t('priority')}</span><span class="obj-kv-value" style="font-weight:700;color:${m.priority==='Critical'?'var(--error)':m.priority==='High'?'var(--warning)':'var(--text)'}">${m.priority}</span></div>
+      ${m.approvedBy?`<div class="obj-kv-item"><span class="obj-kv-label">Approved By</span><span class="obj-kv-value">${m.approvedBy}</span></div>`:''}
+      ${m.poRef?`<div class="obj-kv-item"><span class="obj-kv-label">PO Reference</span><span class="obj-kv-value" style="color:var(--blue);font-weight:600;">${m.poRef}</span></div>`:''}
+    </div>
+  </div>
+  <div class="detail-tabs">${tabs.map(tb=>`<div class="detail-tab ${state.detailTab===tb.id?'active':''}" onclick="state.detailTab='${tb.id}';rerenderSection()">${tb.label}</div>`).join('')}</div>
+  <div class="detail-tab-body">`;
+
+  if(state.detailTab==='info'){
+    html+=`<div class="sec-card"><div class="sec-card-head">Request Details</div>
+    <div class="sec-card-body">
+      <div style="margin-bottom:12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">Purpose / Notes</div>
+      <div style="font-size:13px;line-height:1.6;">${m.notes||'No additional notes'}</div></div>`;
+    if(m.items.length){
+      html+=`<div style="margin-top:12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:8px;">${t('mrItems')}</div>
+      <div style="display:grid;gap:8px;">`;
+      m.items.forEach((it,i)=>{
+        html+=`<div style="padding:10px 12px;background:var(--bg);border-radius:6px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+          <div><div style="font-weight:600;font-size:13px;">${it.name}</div>
+          <div style="font-size:11px;color:var(--text-sec);">${it.spec||''}</div></div>
+          <div style="text-align:right;"><div style="font-weight:700;font-size:14px;">${it.qty} <span style="font-weight:400;font-size:11px;color:var(--text-sec)">${it.uom}</span></div>
+          <div style="font-size:11px;color:var(--text-sec);">~${fmt(it.estUnitCost)}/unit</div></div>
+        </div>`;
+      });
+      html+=`</div></div>`;
+    }
+    html+=`</div></div>`;
+  }
+  else if(state.detailTab==='items'){
+    html+=`<div class="sec-card"><div class="sec-card-head">${t('mrItems')} <span style="font-size:12px;font-weight:400;color:var(--text-sec)">${m.items.length} items</span></div>
+    <div style="overflow-x:auto;"><table class="data-table">
+      <thead><tr><th>#</th><th>Item Name</th><th>Specification</th><th>Qty</th><th>UoM</th><th>Est. Unit Cost</th><th>Est. Total</th></tr></thead><tbody>`;
+    let grandTotal=0;
+    m.items.forEach((it,i)=>{
+      const total=it.qty*it.estUnitCost; grandTotal+=total;
+      html+=`<tr><td style="color:var(--text-sec)">${i+1}</td><td style="font-weight:600">${it.name}</td><td style="font-size:12px;color:var(--text-sec)">${it.spec||'—'}</td>
+        <td style="font-weight:600">${it.qty}</td><td>${it.uom}</td><td>${fmt(it.estUnitCost)}</td><td style="font-weight:700;color:#6b3fa0">${fmt(total)}</td></tr>`;
+    });
+    if(m.items.length){
+      html+=`<tr style="background:#f5f6f7;"><td colspan="6" style="text-align:right;font-weight:700;padding:10px 12px;">Estimated Total</td>
+        <td style="font-weight:800;color:#6b3fa0;font-size:14px;">${fmt(grandTotal)}</td></tr>`;
+    }
+    html+=`</tbody></table></div></div>`;
+  }
+  html+=`</div>`;
+  return html;
+}
+
+function openNewMRModal(){
+  const body=`
+    <div class="form-group"><label class="form-label">${t('mrTitle')}</label><input class="form-input" id="nmr-title" placeholder="e.g. Urgent Liner Replacement for Rig Alpha"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">${t('mrDepartment')}</label>
+        <select class="form-select" id="nmr-dept"><option>Drilling</option><option>Production</option><option>HSE</option><option>Maintenance</option><option>Projects</option><option>General</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">Site</label>
+        <select class="form-select" id="nmr-site"><option>Block 15 – Rig Alpha</option><option>Block 7 – Offshore Platform</option><option>Onshore Processing Facility – South</option><option>Gas Treatment Plant – North</option><option>Head Office – Muscat</option><option>All Sites</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">${t('priority')}</label>
+        <select class="form-select" id="nmr-priority"><option>Normal</option><option>High</option><option>Critical</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">Required Date</label><input class="form-input" id="nmr-reqdate" type="date"></div>
+    </div>
+    <div class="form-group"><label class="form-label">${t('notes')}</label><textarea class="form-textarea" id="nmr-notes" placeholder="Describe why these materials are needed..."></textarea></div>
+    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;">
+      <div style="font-size:12px;font-weight:600;color:var(--text-sec);margin-bottom:8px;">Item Line Items</div>
+      <div id="mr-items-container">
+        <div class="mr-item-row" style="display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;">
+          <div class="form-group" style="flex:3;margin-bottom:0;"><input class="form-input" placeholder="Item name" id="mri-0-name"></div>
+          <div class="form-group" style="flex:1;margin-bottom:0;"><input class="form-input" type="number" placeholder="Qty" id="mri-0-qty" value="1" min="1"></div>
+          <div class="form-group" style="flex:1;margin-bottom:0;"><input class="form-input" placeholder="Unit" id="mri-0-uom" value="Unit"></div>
+          <div class="form-group" style="flex:1;margin-bottom:0;"><input class="form-input" type="number" placeholder="Est. cost" id="mri-0-cost" value="0" min="0"></div>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="addMRItemRow()"><i class="fa-solid fa-plus"></i> Add Item</button>
+    </div>`;
+  const footer=`<button class="btn btn-secondary" onclick="closeModal()">${t('cancel')}</button><button class="btn btn-primary" onclick="submitNewMR()">${t('save')}</button>`;
+  openModal(t('newMR'),body,footer);
+}
+
+let mrItemRowCount=1;
+function addMRItemRow(){
+  const container=$('#mr-items-container');
+  const row=document.createElement('div');
+  row.className='mr-item-row';
+  row.style.cssText='display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;';
+  row.innerHTML=`
+    <div class="form-group" style="flex:3;margin-bottom:0;"><input class="form-input" placeholder="Item name" id="mri-${mrItemRowCount}-name"></div>
+    <div class="form-group" style="flex:1;margin-bottom:0;"><input class="form-input" type="number" placeholder="Qty" id="mri-${mrItemRowCount}-qty" value="1" min="1"></div>
+    <div class="form-group" style="flex:1;margin-bottom:0;"><input class="form-input" placeholder="Unit" id="mri-${mrItemRowCount}-uom" value="Unit"></div>
+    <div class="form-group" style="flex:1;margin-bottom:0;"><input class="form-input" type="number" placeholder="Est. cost" id="mri-${mrItemRowCount}-cost" value="0" min="0"></div>`;
+  container.appendChild(row);
+  mrItemRowCount++;
+}
+
+async function submitNewMR(){
+  const title=$('#nmr-title').value.trim();
+  if(!title){showToast('Title is required','error');return;}
+  const now=new Date();
+  const newId='MR-'+now.getFullYear()+'-'+String(DATA.materialRequests.length+1).padStart(3,'0');
+  const items=[];
+  for(let i=0;i<mrItemRowCount;i++){
+    const name=$('#mri-'+i+'-name')?.value?.trim();
+    if(!name) continue;
+    items.push({
+      name,
+      qty:parseInt($('#mri-'+i+'-qty')?.value)||1,
+      uom:$('#mri-'+i+'-uom')?.value?.trim()||'Unit',
+      estUnitCost:parseFloat($('#mri-'+i+'-cost')?.value)||0,
+      spec:''
+    });
+  }
+  if(!items.length){showToast('Add at least one item','error');return;}
+  const mr={
+    id:newId,title,requestedBy: DATA.employees[0]?.name||'Unknown',
+    requestedDate:now.toISOString().split('T')[0],
+    requiredDate:$('#nmr-reqdate').value,
+    department:$('#nmr-dept').value,
+    site:$('#nmr-site').value,status:'draft',
+    priority:$('#nmr-priority').value,
+    notes:$('#nmr-notes').value.trim(),
+    items,approvedBy:null,approvedDate:null,poRef:null
+  };
+  if(supabase){
+    const{error}=await supabase.from('material_requests').insert({
+      id:newId,title,status:'draft',priority:mr.priority,
+      department:mr.department,site:mr.site,requested_by:mr.requestedBy,required_date:mr.requiredDate,notes:mr.notes
+    }).catch(()=>{});
+  }
+  DATA.materialRequests.push(mr);
+  mrItemRowCount=1;
+  closeModal();state.selectedId=newId;state.section='materialRequests';
+  showToast(newId+' created','success');rerenderSection();
+}
+
+async function approveMR(id){
+  const mr=DATA.materialRequests.find(m=>m.id===id);
+  if(!mr) return showToast('Not found','error');
+  mr.status='pending'; // first submit as pending if draft
+  if(mr.status==='pending'){
+    mr.status='approved'; mr.approvedBy=DATA.employees[0]?.name||'Manager'; mr.approvedDate=new Date().toISOString().split('T')[0];
+    if(supabase) supabase.from('material_requests').update({status:'approved',approved_by:mr.approvedBy,approved_date:mr.approvedDate}).eq('id',id).catch(()=>{});
+    showToast(id+' approved','success'); rerenderSection();
+  }
+}
+
+async function rejectMR(id){
+  const mr=DATA.materialRequests.find(m=>m.id===id);
+  if(!mr||mr.status!=='pending') return showToast('Can only reject pending requests','error');
+  mr.status='rejected';
+  if(supabase) supabase.from('material_requests').update({status:'rejected'}).eq('id',id).catch(()=>{});
+  showToast(id+' rejected','warning'); rerenderSection();
+}
+
+async function convertMRtoPO(id){
+  const mr=DATA.materialRequests.find(m=>m.id===id);
+  if(!mr||mr.status!=='approved') return showToast('Only approved MRs can be converted','error');
+  if(mr.poRef) return showToast('PO already created for this MR: '+mr.poRef,'info');
+  const now=new Date();
+  const poId='PO-'+now.getFullYear()+'-'+String(DATA.purchaseOrders.length+1).padStart(3,'0');
+  const estTotal=mr.items.reduce((s,it)=>s+it.qty*it.estUnitCost,0);
+  const po={
+    id:poId,supplierId:null,supplier:'TBD – Select Supplier',
+    category:mr.department==='Drilling'?'Drilling Equipment':mr.department==='HSE'?'PPE & Safety':'General Industrial',
+    description:'Auto-generated from '+mr.id+': '+mr.title,
+    amount:estTotal,currency:'USD',status:'draft',
+    priority:mr.priority,requestedBy:mr.requestedBy,approvedBy:null,
+    site:mr.site,requiredDate:mr.requiredDate,
+    createdDate:now.toISOString().split('T')[0],deliveryDate:null,
+    poLines:mr.items.map(it=>({item:it.name,qty:it.qty,unit:it.uom,unitPrice:it.estUnitCost,mrRef:mr.id}))
+  };
+  DATA.purchaseOrders.push(po);
+  mr.poRef=poId;
+  if(supabase){
+    supabase.from('purchase_orders').insert({id:poId,supplier_name:po.supplier,description:po.description,total_amount:estTotal,status:'draft',priority:mr.priority,site:mr.site,requested_by:mr.requestedBy,order_date:po.createdDate}).catch(()=>{});
+    supabase.from('material_requests').update({po_ref:poId}).eq('id',id).catch(()=>{});
+  }
+  showToast(poId+' created from '+mr.id,'success');
+  state.selectedId=poId; state.section='allPOs'; state.detailTab='info';
+  rerenderSection();
+}
+
+/* ── Expose SC functions for inline onclick handlers ── */
+window.selectPOItem = selectPOItem;
+window.selectSupplierItem = selectSupplierItem;
+window.selectMRItem = selectMRItem;
+window.openNewPOModal = openNewPOModal;
+window.submitNewPO = submitNewPO;
+window.openNewMRModal = openNewMRModal;
+window.submitNewMR = submitNewMR;
+window.addMRItemRow = addMRItemRow;
+window.approveMR = approveMR;
+window.rejectMR = rejectMR;
+window.convertMRtoPO = convertMRtoPO;
+window.openMovementModal = openMovementModal;
+window.submitMovement = submitMovement;
 
 function renderContent(){
   let html='';
   if(state.module==='hr'){
-    if(state.section==='allEmployees'||state.section==='newHires') html=renderAllEmployees();
+    if(state.section==='allEmployees'||state.section==='newHires'||state.section==='onProbation') html=renderAllEmployees();
+    else if(state.section==='absenceCalendar') html=renderHRAbsenceCalendar();
+    else if(state.section==='openPositions') html=renderHROpenPositions();
+    else if(state.section==='performanceCycle') html=renderHRPerformanceCycle();
+    else if(state.section==='trainingHSE') html=renderHRTraining();
+    else if(state.section==='orgUnits') html=renderHROrgUnits();
+    else if(state.section==='hrSettings') html=renderHRSettings();
     else if(state.section==='leaveRequests') html=renderLeaveRequests();
+    else if(state.section==='timesheets') html=renderHRAttendance();
+    else if(state.section==='expenseClaims') html=renderHRExpenses();
+    else if(state.section==='compensation') html=renderHRPayroll();
     else html=renderHRStub(state.section.replace(/([A-Z])/g,' $1').trim());
   }
   else if(state.module==='crm'){
-    if(state.section==='partnersJVs'){ state.filters.type='JV Partner'; html=renderAllAccounts(); }
+    if(state.section==='crmLeads') html=renderCRMLeads();
+    else if(state.section==='crmDeals') html=renderCRMDeals();
+    else if(state.section==='allAccounts') html=renderAllAccounts();
+    else if(state.section==='myTasks') html=renderCRMTasks();
+    else if(state.section==='myFavorites') html=renderCRMDeals(d=>d.stage==='Negotiation'||d.stage==='Proposal');
+    else if(state.section==='openContracts') html=renderCRMDeals(d=>d.stage==='Contract Sent');
+    else if(state.section==='wonThisQuarter') html=renderCRMDeals(d=>d.stage==='Closed Won');
+    else if(state.section==='fieldServiceLogs') html=renderCRMFieldServiceLogs();
+    else if(state.section==='partnersJVs') html=renderCRMPartners();
+    else if(state.section==='crmSettings') html=renderCRMSettings();
     else html=renderAllAccounts();
   }
   else if(state.module==='certificates'){
     if(state.section==='allCerts') html=renderCertificates();
+    else if(state.section==='certGantt') html=renderCertGantt();
+    else if(state.section==='certNotifications') html=renderCertNotifications();
     else if(state.section==='expiredCerts') html=renderCertificates(c=>c.status==='expired');
     else if(state.section==='expiringSoon') html=renderCertificates(c=>c.status==='expiring');
+    else if(state.section==='pendingApproval') html=renderCertificates(c=>c.approvalStatus==='pending');
+    else if(state.section.startsWith('certType_')){
+      const ctMap={'certType_CATIII':'CAT III','certType_CATIV':'CAT IV','certType_LIFTING':'LIFTING','certType_LOADTEST':'LOAD TEST','certType_NDT':'NDT','certType_TUBULAR':'TUBULAR','certType_ORIGINALCOC':'ORIGINAL COC'};
+      const ct=ctMap[state.section];
+      html=ct?renderCertificates(c=>c.certCategory===ct):renderCertificates();
+    }
     else if(state.section.startsWith('cat_')){
       const catMap={'cat_Rotating':'Rotating','cat_Static':'Static','cat_Lifting':'Lifting','cat_Electrical':'Electrical','cat_Pressure':'Pressure','cat_FireSafety':'Fire & Safety','cat_Instrumentation':'Instrumentation','cat_Vehicles':'Vehicles'};
       const cat=catMap[state.section]||state.section.replace('cat_','');
@@ -1828,14 +3511,38 @@ function renderContent(){
   }
   else if(state.module==='supply'){
     if(state.section==='scDashboard'||state.section==='warehouses') html=renderSCDashboard();
+    else if(state.section==='warehouseCapacity') html=renderWarehouseCapacity();
+    else if(state.section==='materialRequests') html=renderAllMRs();
     else if(state.section==='allPOs') html=renderAllPOs();
     else if(state.section==='pendingApprovalPO') html=renderAllPOs(p=>p.status==='draft');
     else if(state.section==='orderedItems') html=renderAllPOs(p=>p.status==='ordered');
     else if(state.section==='receivedItems') html=renderAllPOs(p=>p.status==='received');
     else if(state.section==='allSuppliers'||state.section==='supplierPerformance') html=renderAllSuppliers();
     else if(state.section==='inventoryItems') html=renderInventory();
+    else if(state.section==='qualityInspections') html=renderQualityInspections();
+    else if(state.section==='landedCost') html=renderLandedCost();
+    else if(state.section==='reorderRules') html=renderReorderRules();
     else if(state.section==='lowStockAlerts') html=renderInventory(i=>i.status!=='normal');
+    else if(state.section==='stockLedger') html=renderStockLedgerPage();
+    else if(state.section==='scSettings') html=renderSCSettings();
     else html=renderSCDashboard();
+  }
+  else if(state.module==='fin'){
+    if(state.section==='finDashboard') html=renderFinDashboard();
+    else if(state.section==='finSales') html=renderFinInvoices('Sales');
+    else if(state.section==='finPurchases') html=renderFinInvoices('Purchase');
+    else if(state.section==='finPayments') html=renderFinPayments();
+    else if(state.section==='arAging') html=renderFinAging('Sales');
+    else if(state.section==='apAging') html=renderFinAging('Purchase');
+    else if(state.section==='finGL') html=renderFinGL();
+    else if(state.section==='finPL') html=renderFinPL();
+    else if(state.section==='finBS') html=renderFinBS();
+    else if(state.section==='finJournalEntries') html=renderFinJournalEntries();
+    else if(state.section==='finFixedAssets') html=renderFinFixedAssets();
+    else if(state.section==='finCostCenters') html=renderFinCostCenters();
+    else if(state.section==='finChartAccounts') html=renderFinChartAccounts();
+    else if(state.section==='finSettings') html=renderFinSettings();
+    else html=renderFinDashboard();
   }
   $('#modContent').innerHTML=html;
 }
@@ -1848,6 +3555,7 @@ function renderAll(){
 
 function rerenderSection(){
   destroyCharts();
+  recomputeInvoiceStatuses();
   renderTabBar();
   renderSidebar();
   renderContent();
@@ -1861,7 +3569,7 @@ $('#notifBtn').addEventListener('click',e=>{
   if(activeDropdown===$('#notifBtn')){ closeDropdown(); return; }
   let html=`<div class="dropdown-header">${t('notifications')}</div>`;
   DATA.notifications.forEach(n=>{ html+=`<div class="dropdown-item"><i class="fa-solid ${n.icon}" style="color:${n.color};"></i><div><div style="font-size:13px;">${n.text}</div><div style="font-size:11px;color:var(--text-sec);margin-top:1px;">${n.time}</div></div></div>`; });
-  html+=`<div style="padding:8px 14px;border-top:1px solid var(--border);text-align:center;"><a style="font-size:12px;color:var(--blue);cursor:pointer;" onclick="closeDropdown();$('#notifBadge').style.display='none';showToast('All notifications cleared','success')">Mark all read</a></div>`;
+  html+=`<div style="padding:8px 14px;border-top:1px solid var(--border);text-align:center;"><button type="button" class="btn btn-ghost btn-sm" data-action="mark-all-read">Mark all read</button></div>`;
   openDropdown($('#notifBtn'),html);
 });
 
@@ -1874,8 +3582,8 @@ $('#userBtn').addEventListener('click',e=>{
     <div><div style="font-size:14px;font-weight:600;">Khalid Al-Rashidi</div><div style="font-size:12px;color:var(--text-sec);">k.alrashidi@amici.com</div></div>
   </div>
   <div class="dropdown-header" style="font-size:11px;padding:8px 14px 4px;">Switch Role (Demo)</div>
-  ${roles.map(r=>`<div class="dropdown-item" onclick="showToast('Role: ${r}','info');closeDropdown()"><i class="fa-solid fa-user-tag"></i>${r}</div>`).join('')}
-  <div style="border-top:1px solid var(--border);"><div class="dropdown-item" style="color:var(--error);" onclick="showToast('Signed out','success');closeDropdown()"><i class="fa-solid fa-right-from-bracket" style="color:var(--error);"></i>Sign Out</div></div>`;
+  ${roles.map(r=>`<button type="button" class="dropdown-item" data-action="select-role" data-role="${r}" style="width:100%;border:none;background:transparent;"><i class="fa-solid fa-user-tag"></i>${r}</button>`).join('')}
+  <div style="border-top:1px solid var(--border);"><button type="button" class="dropdown-item" style="color:var(--error);width:100%;border:none;background:transparent;" data-action="sign-out"><i class="fa-solid fa-right-from-bracket" style="color:var(--error);"></i>Sign Out</button></div>`;
   openDropdown($('#userBtn'),html);
 });
 
@@ -1901,11 +3609,12 @@ document.addEventListener('keydown',e=>{
    AI ASSISTANT — OPENROUTER / GEMINI
 ═══════════════════════════════════════════════ */
 const AI = {
-  model: 'google/gemini-2.0-flash-exp',
+  model: sessionStorage.getItem('amici_or_model') || 'google/gemini-2.5-flash:free',
   endpoint: 'https://openrouter.ai/api/v1/chat/completions',
   history: [],
   isOpen: false,
   isLoading: false,
+  freeModels: [],
 
   getKey(){
     return sessionStorage.getItem('amici_or_key') || '';
@@ -1931,6 +3640,10 @@ const AI = {
 
     const invSummary = DATA.inventory.map(i=>
       `${i.id}|${i.name}|${i.partNo}|onHand:${i.qtyOnHand}${i.uom}|reorder:${i.reorderPoint}|${i.status}`
+    ).join('\n');
+
+    const mrSummary = DATA.materialRequests.map(m=>
+      `${m.id}|${m.title}|${m.status}|${m.priority}|items:${m.items.length}|site:${m.site}|dept:${m.department}|${m.requiredDate}`
     ).join('\n');
 
     const expiredCerts = DATA.certificates.filter(c=>c.status==='expired').map(c=>c.equipName).join(', ');
@@ -1968,6 +3681,10 @@ ${accSummary}
 === INVENTORY (${DATA.inventory.length} items) ===
 Format: ID|Name|PartNo|OnHand|ReorderPoint|Status
 ${invSummary}
+
+=== MATERIAL REQUESTS (${DATA.materialRequests.length} total) ===
+Format: ID|Title|Status|Priority|Items|Site|Dept|RequiredDate
+${mrSummary}
 
 === INSTRUCTIONS ===
 - Answer questions accurately using the data above. Be concise, direct, and helpful.
@@ -2072,6 +3789,42 @@ Always include confirm_message so the user knows what action will be taken befor
   }
 };
 
+/* ── FREE MODELS FETCHER ── */
+async function fetchFreeModels(){
+  const sel = document.getElementById('aiModelSelect');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">Loading…</option>';
+  try{
+    const res = await fetch('https://openrouter.ai/api/v1/models');
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    const free = (data.data||[]).filter(m=>{
+      const p = m.pricing||{};
+      return parseFloat(p.completion||'0')===0 && parseFloat(p.prompt||'0')===0 && m.id !== 'openrouter/auto';
+    });
+    AI.freeModels = free.sort((a,b)=>a.name?.localeCompare?.(b.name)||0);
+    const current = sessionStorage.getItem('amici_or_model') || AI.model;
+    sel.innerHTML = AI.freeModels.map(m =>
+      `<option value="${m.id}" ${m.id===current?'selected':''}>${m.name||m.id}</option>`
+    ).join('');
+    if(!AI.freeModels.find(m=>m.id===current) && AI.freeModels.length){
+      sel.value = AI.freeModels[0].id;
+      selectAIModel(sel.value);
+    }
+  } catch(e){
+    sel.innerHTML = `<option value="">Failed to load: ${e.message}</option>
+      <option value="google/gemini-2.5-flash:free">google/gemini-2.5-flash:free (fallback)</option>`;
+    showToast('Could not fetch model list: '+e.message,'warning');
+  }
+}
+
+function selectAIModel(modelId){
+  if(!modelId) return;
+  AI.model = modelId;
+  sessionStorage.setItem('amici_or_model', modelId);
+  showToast(`Model switched to ${modelId}`,'success');
+}
+
 /* ── AI PANEL TOGGLE ── */
 function toggleAIPanel(){
   AI.isOpen = !AI.isOpen;
@@ -2079,14 +3832,30 @@ function toggleAIPanel(){
   $('#aiBtn').classList.toggle('active', AI.isOpen);
   if(AI.isOpen){
     renderAIMessages();
-    // Show key bar only if no key saved
     const hasKey = !!AI.getKey();
     $('#aiKeyBar').style.display = hasKey ? 'none' : 'flex';
+    $('#aiModelBar').style.display = hasKey ? 'flex' : 'none';
     if(hasKey) $('#aiInput').focus();
+    if(hasKey && !AI.freeModels.length) fetchFreeModels();
+    else {
+      const sel = document.getElementById('aiModelSelect');
+      if(sel && !sel.value) sel.value = AI.model;
+    }
   }
 }
 
 $('#aiBtn').addEventListener('click', e=>{ e.stopPropagation(); toggleAIPanel(); });
+$('#aiCloseBtn').addEventListener('click', ()=>toggleAIPanel());
+$('#langBtn').addEventListener('click', toggleLang);
+$('#aiKeySaveBtn').addEventListener('click', saveAPIKey);
+$('#aiSend').addEventListener('click', sendAIMessage);
+$('#aiInput').addEventListener('input', e=>autoResizeTextarea(e.target));
+$('#aiInput').addEventListener('keydown', e=>{
+  if(e.key==='Enter' && !e.shiftKey){
+    e.preventDefault();
+    sendAIMessage();
+  }
+});
 
 /* ── API KEY ── */
 function saveAPIKey(){
@@ -2094,16 +3863,19 @@ function saveAPIKey(){
   if(!key.startsWith('sk-or-')){ showToast('Key must start with sk-or-','error'); return; }
   sessionStorage.setItem('amici_or_key', key);
   $('#aiKeyBar').innerHTML = `<span class="ai-key-saved"><i class="fa-solid fa-check-circle"></i> API key saved for this session</span>
-    <button class="ai-key-btn" style="background:var(--text-sec)" onclick="clearAPIKey()">Change</button>`;
+    <button class="ai-key-btn" type="button" style="background:var(--text-sec)" data-action="clear-api-key">Change</button>
+    <button class="ai-key-btn" type="button" style="background:var(--danger)" data-action="remove-api-key"><i class="fa-solid fa-trash"></i> Remove</button>`;
+  $('#aiModelBar').style.display = 'flex';
   showToast('OpenRouter key saved','success');
   $('#aiInput').focus();
 }
 
 function clearAPIKey(){
   sessionStorage.removeItem('amici_or_key');
-  $('#aiKeyBar').innerHTML = `<input class="ai-key-input" id="aiKeyInput" type="password" placeholder="Paste OpenRouter API key (sk-or-…)">
-    <button class="ai-key-btn" onclick="saveAPIKey()">Save</button>`;
+  $('#aiKeyBar').innerHTML = `<input class="ai-key-input" id="aiKeyInput" type="password" placeholder="Paste OpenRouter API key (sk-or-…)" autocomplete="off">
+    <button class="ai-key-btn" type="button" data-action="save-api-key">Save</button>`;
   $('#aiKeyBar').style.display='flex';
+  $('#aiModelBar').style.display='none';
 }
 
 /* ── RENDER MESSAGES ── */
@@ -2126,7 +3898,7 @@ function renderAIMessages(){
       'Approve PO-2025-007',
       'Navigate to certificate management',
       'Which accounts are rated Hot?'
-    ].map(q=>`<button class="ai-chip" onclick="sendChip('${q}')">${q}</button>`).join('');
+    ].map(q=>`<button class="ai-chip" type="button" data-action="send-chip" data-chip="${q}">${q}</button>`).join('');
     return;
   }
 
@@ -2147,10 +3919,10 @@ function renderAIMessages(){
       actionCard = `<div class="ai-action-card">
         <div class="ai-action-card-title"><i class="fa-solid fa-bolt"></i> Proposed Action</div>
         <div style="font-size:12px;color:var(--text);margin-bottom:4px;">${action.confirm_message||'Execute this action?'}</div>
-        <button class="ai-action-btn confirm" onclick="confirmAction(${i})">
+        <button class="ai-action-btn confirm" type="button" data-action="confirm-ai-action" data-index="${i}">
           <i class="fa-solid fa-check"></i> Confirm & Execute
         </button>
-        <button class="ai-action-btn" style="background:var(--text-sec);margin-left:4px;" onclick="dismissAction(${i})">
+        <button class="ai-action-btn" type="button" style="background:var(--text-sec);margin-left:4px;" data-action="dismiss-ai-action" data-index="${i}">
           Dismiss
         </button>
       </div>`;
@@ -2195,8 +3967,44 @@ function dismissAction(idx){
 /* ── SEND MESSAGE ── */
 function sendChip(text){
   $('#aiInput').value = text;
+  autoResizeTextarea($('#aiInput'));
   sendAIMessage();
 }
+
+document.addEventListener('click', e=>{
+  const actionEl = e.target.closest('[data-action]');
+  if(!actionEl) return;
+  const { action, index, chip, role } = actionEl.dataset;
+  if(action === 'close-toast') return closeToast(actionEl);
+  if(action === 'close-modal') return closeModal();
+  if(action === 'mark-all-read'){
+    closeDropdown();
+    $('#notifBadge').style.display='none';
+    return showToast('All notifications cleared','success');
+  }
+  if(action === 'select-role'){
+    showToast(`Role: ${role}`,'info');
+    return closeDropdown();
+  }
+  if(action === 'sign-out'){
+    showToast('Signed out','success');
+    return closeDropdown();
+  }
+  if(action === 'clear-api-key') return clearAPIKey();
+  if(action === 'remove-api-key'){
+    sessionStorage.removeItem('amici_or_key');
+    $('#aiKeyBar').innerHTML = `<input class="ai-key-input" id="aiKeyInput" type="password" placeholder="Paste OpenRouter API key (sk-or-…)" autocomplete="off">
+      <button class="ai-key-btn" type="button" data-action="save-api-key">Save</button>`;
+    $('#aiKeyBar').style.display='none';
+    $('#aiModelBar').style.display='none';
+    showToast('API key removed','info');
+    return;
+  }
+  if(action === 'save-api-key') return saveAPIKey();
+  if(action === 'send-chip') return sendChip(chip);
+  if(action === 'confirm-ai-action') return confirmAction(Number(index));
+  if(action === 'dismiss-ai-action') return dismissAction(Number(index));
+});
 
 async function sendAIMessage(){
   const input = $('#aiInput');
@@ -2272,86 +4080,56 @@ document.addEventListener('click', e=>{
 });
 /* ── DATA FETCHING (SUPABASE) ── */
 async function loadData() {
-  if (!supabase) return; // Fallback to mock data if no supabase client
+  if (!supabase) { updateLoadingProgress(100); return; } // Fallback to mock data if no supabase client
   try {
-    // 1. Fetch Employees
-    const { data: emps, error: eErr } = await supabase.from('employees').select('*, employee_skills(*), employee_leave_balances(*), employee_history(*), employee_hse_certs(*)');
-    if (eErr) throw eErr;
-    if (emps && emps.length > 0) {
-      DATA.employees = emps.map(emp => ({
-        id: emp.id,
-        firstName: emp.first_name,
-        lastName: emp.last_name,
-        name: emp.full_name || (emp.first_name + ' ' + emp.last_name),
-        dept: emp.department,
-        position: emp.position_title,
-        email: emp.email,
-        phone: emp.phone,
-        status: emp.status,
-        empType: emp.emp_type,
-        site: emp.site,
-        rotation: emp.rotation,
-        crew: emp.crew,
-        startDate: emp.start_date,
-        manager: emp.manager_id,
-        salaryBand: emp.salary_band,
-        costCenter: emp.cost_center,
-        nationality: emp.nationality,
-        visa: emp.visa,
-        h2sLevel: emp.h2s_level,
-        medFit: emp.med_fit,
-        medExpiry: emp.med_expiry,
-        workPermit: emp.work_permit,
-        skills: emp.employee_skills || [],
-        hseCerts: emp.employee_hse_certs || [],
-        history: emp.employee_history || [],
-        leave: (emp.employee_leave_balances || []).reduce((acc, lb) => {
-          acc[lb.leave_type] = { used: lb.used, total: lb.total };
-          return acc;
-        }, {})
-      }));
-    }
-
-    // 2. Fetch Inventory
-    const { data: inv, error: iErr } = await supabase.from('inventory').select('*');
-    if (!iErr && inv && inv.length > 0) {
-      DATA.inventory = inv.map(i => ({
-        id: i.id, name: i.item_name, category: i.category, stock: i.stock_level, min: i.min_stock, unit: i.unit, location: i.location
-      }));
-    }
-
-    // 3. Fetch Purchase Orders
-    const { data: pos, error: pErr } = await supabase.from('purchase_orders').select('*');
-    if (!pErr && pos && pos.length > 0) {
-      DATA.purchaseOrders = pos.map(po => ({
-        id: po.id, vendor: po.vendor, amount: po.amount, status: po.status, date: po.created_date, deliveryDate: po.delivery_date, createdBy: po.created_by
-      }));
-    }
-
-    // 4. Fetch CRM Accounts
-    const { data: accs, error: aErr } = await supabase.from('crm_accounts').select('*');
-    if (!aErr && accs && accs.length > 0) {
-      DATA.accounts = accs.map(a => ({
-        id: a.id, name: a.name, industry: a.industry, status: a.status, tier: a.tier, managerId: a.manager_id, revenue: a.revenue, lastContact: a.last_contact, nextAction: a.next_action
-      }));
-    }
-
-    // 5. Fetch Leave Requests
-    const { data: lreqs } = await supabase.from('leave_requests').select('*');
-    if (lreqs && lreqs.length > 0) {
-      DATA.leaveRequests = lreqs.map(lr => ({
-        id: lr.id, empId: lr.employee_id, type: lr.leave_type, start: lr.start_date, end: lr.end_date, status: lr.status
-      }));
-    }
-
-    // 6. Fetch standalone certificates
-    const { data: certs } = await supabase.from('certificates').select('*');
-    if (certs && certs.length > 0) {
-      DATA.certificates = certs.map(c => ({
-        id: c.id, empId: c.employee_id, type: c.cert_type, expiry: c.expiry_date, status: c.status
-      }));
-    }
-
+    const queries = [
+      supabase.from('employees').select('*, employee_skills(*), employee_leave_balances(*), employee_history(*), employee_hse_certs(*)').then(r => {
+        if (!r.error && r.data && r.data.length > 0) DATA.employees = r.data.map(emp => ({
+          id: emp.id, firstName: emp.first_name, lastName: emp.last_name, name: emp.full_name || (emp.first_name + ' ' + emp.last_name),
+          dept: emp.department, position: emp.position_title, email: emp.email, phone: emp.phone, status: emp.status, empType: emp.emp_type,
+          site: emp.site, rotation: emp.rotation, crew: emp.crew, startDate: emp.start_date, manager: emp.manager_id, salaryBand: emp.salary_band,
+          costCenter: emp.cost_center, nationality: emp.nationality, visa: emp.visa, h2sLevel: emp.h2s_level, medFit: emp.med_fit,
+          medExpiry: emp.med_expiry, workPermit: emp.work_permit, skills: emp.employee_skills || [], hseCerts: emp.employee_hse_certs || [],
+          history: emp.employee_history || [],
+          leave: (emp.employee_leave_balances || []).reduce((acc, lb) => { acc[lb.leave_type] = { used: lb.used, total: lb.total }; return acc; }, {})
+        }));
+      }),
+      supabase.from('inventory').select('*').then(r => { if (!r.error && r.data && r.data.length > 0) DATA.inventory = r.data.map(i => ({ id: i.id, name: i.name || i.item_name, partNo: i.part_no || i.partNo, category: i.category, site: i.site, warehouse: i.warehouse, uom: i.uom || i.unit, qtyOnHand: i.qty_on_hand ?? i.stock_level ?? 0, reorderPoint: i.reorder_point ?? i.min_stock ?? 0, maxStock: i.max_stock ?? 0, unitCost: i.unit_cost ?? 0, status: i.status || 'normal', lastReceived: i.last_received, supplierId: i.supplier_id, parent_item: i.parent_item, serial_tracking: i.serial_tracking ?? false, batch_tracking: i.batch_tracking ?? false, has_variants: i.has_variants ?? false })); }),
+      supabase.from('suppliers').select('*').then(r => { if (r.data && r.data.length > 0) DATA.suppliers = r.data.map(s => ({ id: s.id, name: s.name, category: s.category, contact_person: s.contact_person, email: s.email, phone: s.phone, rating: s.rating, country: s.country, status: s.status })); }),
+      supabase.from('warehouses').select('*').then(r => { if (r.data && r.data.length > 0) DATA.warehouses = r.data.map(w => ({ id: w.id, name: w.name, site: w.location || w.site, manager: w.manager || w.manager_id, capacity: w.capacity_total || 0, utilisation: w.capacity_used ? Math.round(w.capacity_used / w.capacity_total * 100) : 0, items: 0 })); }),
+      supabase.from('purchase_orders').select('*, po_line_items(*)').then(r => { if (!r.error && r.data && r.data.length > 0) DATA.purchaseOrders = r.data.map(po => ({ id: po.id, supplier: po.supplier_name, description: po.description, amount: po.total_amount, status: po.status, priority: po.priority, site: po.site, requestedBy: po.requested_by, createdDate: po.order_date, deliveryDate: po.delivery_date, poLines: (po.po_line_items || []).map(l => ({ item: l.item_desc, qty: l.quantity, unit: l.unit, unitPrice: l.unit_price })) })); }),
+      supabase.from('crm_accounts').select('*').then(r => { if (!r.error && r.data && r.data.length > 0) DATA.accounts = r.data.map(a => ({ id: a.id, name: a.name, industry: a.industry, status: a.status, tier: a.tier, managerId: a.manager_id, revenue: a.revenue, lastContact: a.last_contact, nextAction: a.next_action })); }),
+      supabase.from('crm_field_service_logs').select('*').then(r => { if (r.data && r.data.length > 0) DATA.fieldServiceLogs = r.data.map(l => ({ id: l.id, client_name: l.client_name, engineer_name: l.engineer_name, date: l.date, job_description: l.job_description, status: l.status })); }),
+      supabase.from('leave_requests').select('*').then(r => { if (r.data && r.data.length > 0) DATA.leaveRequests = r.data.map(lr => ({ id: lr.id, empId: lr.employee_id, type: lr.leave_type, start: lr.start_date, end: lr.end_date, status: lr.status })); }),
+      supabase.from('certificates').select('*').then(r => { if (r.data && r.data.length > 0) DATA.certificates = r.data.map(c => ({ id: c.id, empId: c.employee_id, type: c.cert_type, expiry: c.expiry_date, status: c.status })); }),
+      supabase.from('crm_leads').select('*').then(r => { if (r.data && r.data.length > 0) DATA.leads = r.data.map(l => ({ id: l.id, name: l.name, email: l.email, phone: l.phone, status: l.status, source: l.source })); }),
+      supabase.from('crm_deals').select('*').then(r => { if (r.data && r.data.length > 0) DATA.deals = r.data.map(d => ({ id: d.id, title: d.title, lead_id: d.lead_id, account_id: d.account_id, value: d.value, stage: d.stage, expected_close_date: d.expected_close_date, invoice_id: d.invoice_id || null })); }),
+      supabase.from('crm_tasks').select('*').then(r => { if (r.data && r.data.length > 0) DATA.tasks = r.data.map(t => ({ id: t.id, description: t.description, due_date: t.due_date, status: t.status, assigned_to: t.assigned_to, related_lead_id: t.related_lead_id, related_deal_id: t.related_deal_id })); }),
+      supabase.from('crm_contacts').select('*').then(r => { if (r.data && r.data.length > 0) DATA.contacts = r.data.map(c => ({ id: c.id, account_id: c.account_id, salutation: c.salutation, first_name: c.first_name, last_name: c.last_name, email: c.email, phone: c.phone, mobile: c.mobile, designation: c.designation, department: c.department, is_primary: c.is_primary || false, nationality: c.nationality, notes: c.notes || '' })); }),
+      supabase.from('crm_quotations').select('*').then(r => { if (r.data && r.data.length > 0) DATA.quotations = r.data.map(q => ({ id: q.id, deal_id: q.deal_id, account_id: q.account_id, account_name: q.account_name, lead_id: q.lead_id, date: q.date, valid_till: q.valid_till, items: q.items || [], tax_rate: q.tax_rate || 0, tax_amount: q.tax_amount || 0, discount_percent: q.discount_percent || 0, discount_amount: q.discount_amount || 0, grand_total: q.grand_total || 0, status: q.status || 'Draft', notes: q.notes || '' })); }),
+      supabase.from('crm_prospects').select('*').then(r => { if (r.data && r.data.length > 0) DATA.prospects = r.data.map(p => ({ id: p.id, company_name: p.company_name, industry: p.industry, website: p.website, phone: p.phone, email: p.email, territory: p.territory, prospect_owner: p.prospect_owner, status: p.status || 'New', notes: p.notes || '', created_date: p.created_date })); }),
+      supabase.from('crm_communications').select('*').then(r => { if (r.data && r.data.length > 0) DATA.communications = r.data.map(m => ({ id: m.id, reference_type: m.reference_type, reference_id: m.reference_id, type: m.type, subject: m.subject, content: m.content, date: m.date, sender: m.sender, recipients: m.recipients })); }),
+      supabase.from('hr_open_positions').select('*').then(r => { if (r.data && r.data.length > 0) DATA.openPositions = r.data.map(p => ({ id: p.id, title: p.title, department: p.department, status: p.status, posted_date: p.posted_date })); }),
+      supabase.from('hr_performance_reviews').select('*').then(r => { if (r.data && r.data.length > 0) DATA.performanceReviews = r.data.map(rv => ({ id: rv.id, employee_name: rv.employee_name, period: rv.period, rating: rv.rating, comments: rv.comments, status: rv.status })); }),
+      supabase.from('hr_hse_training').select('*').then(r => { if (r.data && r.data.length > 0) DATA.hseTraining = r.data.map(t => ({ id: t.id, employee_name: t.employee_name, course: t.course, date: t.date, status: t.status })); }),
+      supabase.from('hr_org_units').select('*').then(r => { if (r.data && r.data.length > 0) DATA.orgUnits = r.data.map(o => ({ id: o.id, name: o.name, head_count: o.head_count, manager: o.manager })); }),
+      supabase.from('hr_attendance').select('*').then(r => { if (r.data && r.data.length > 0) DATA.attendance = r.data.map(a => ({ id: a.id, employee_id: a.employee_id, date: a.date, status: a.status, check_in_time: a.check_in_time, check_out_time: a.check_out_time })); }),
+      supabase.from('hr_expense_claims').select('*').then(r => { if (r.data && r.data.length > 0) DATA.expenses = r.data.map(e => ({ id: e.id, employee_id: e.employee_id, date: e.date, amount: e.amount, category: e.category, description: e.description, status: e.status })); }),
+      supabase.from('hr_salary_slips').select('*').then(r => { if (r.data && r.data.length > 0) DATA.salarySlips = r.data.map(s => ({ id: s.id, employee_id: s.employee_id, month: s.month, year: s.year, base_pay: s.base_pay, allowances: s.allowances, deductions: s.deductions, net_pay: s.net_pay, status: s.status, payment_id: s.payment_id || null })); }),
+      supabase.from('fin_cost_centers').select('*').then(r => { if (r.data && r.data.length > 0) DATA.costCenters = r.data.map(c => ({ id: c.id, name: c.name, dept: c.dept || c.description })); }),
+      supabase.from('fin_tax_templates').select('*').then(r => { if (r.data && r.data.length > 0) DATA.taxTemplates = r.data.map(t => ({ id: t.id, name: t.name, rate: t.rate, account: t.account || t.type })); }),
+      supabase.from('fin_chart_accounts').select('*').then(r => { if (r.data && r.data.length > 0) DATA.chartAccounts = r.data.map(a => ({ id: a.id, name: a.name, type: a.type, parent_id: a.parent_id, is_group: a.is_group, balance: a.balance || 0 })); }),
+      supabase.from('fin_journal_entries').select('*').then(r => { if (r.data && r.data.length > 0) DATA.journalEntries = r.data.map(j => ({ id: j.id, date: j.date, reference: j.reference, description: j.description, entries: j.entries })); }),
+      supabase.from('fin_fixed_assets').select('*').then(r => { if (r.data && r.data.length > 0) DATA.fixedAssets = r.data.map(f => ({ id: f.id, name: f.name, type: f.type, purchase_date: f.purchase_date, cost: f.cost, salvage_value: f.salvage_value, useful_life_years: f.useful_life_years, depreciation_method: f.depreciation_method, accumulated_depreciation: f.accumulated_depreciation || 0, net_book_value: f.net_book_value || f.cost, status: f.status, supplier_id: f.supplier_id || null })); }),
+      supabase.from('fin_invoices').select('*').then(r => { if (r.data && r.data.length > 0) DATA.invoices = r.data.map(i => ({ id: i.id, type: i.type, party_name: i.party_name, date: i.date, due_date: i.due_date, total_amount: i.total_amount, status: i.status, deal_id: i.deal_id || null, items: i.items || [], cost_center_id: i.cost_center_id || null, tax_template_id: i.tax_template_id || null, tax_rate: i.tax_rate || 0, tax_amount: i.tax_amount || 0 })); }),
+      supabase.from('fin_payments').select('*').then(r => { if (r.data && r.data.length > 0) DATA.payments = r.data.map(p => ({ id: p.id, invoice_id: p.invoice_id, date: p.date, amount: p.amount, payment_method: p.payment_method, salary_slip_id: p.salary_slip_id || null })); }),
+    ];
+    // loading progress animation (approximate)
+    const total = queries.length; let done = 0;
+    const progressInterval = setInterval(() => { done++; updateLoadingProgress(Math.min(done / total * 100, 95)); if (done >= total) clearInterval(progressInterval); }, 30);
+    await Promise.all(queries);
+    clearInterval(progressInterval);
+    updateLoadingProgress(100);
     console.log("Supabase data loaded successfully!");
   } catch (err) {
     console.error("Error loading data from Supabase:", err);
@@ -2359,15 +4137,39 @@ async function loadData() {
   }
 }
 
+function updateLoadingProgress(pct) {
+  const fill = document.getElementById('loadingRingFill');
+  const barFill = document.getElementById('loadingBarFill');
+  const pctEl = document.getElementById('loadingPercent');
+  if (fill) fill.style.strokeDashoffset = 515 - (515 * pct / 100);
+  if (barFill) barFill.style.width = pct + '%';
+  if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+}
+
 /* ── INITIALIZATION & AUTH ── */
+let _appInitialized = false;
+function hideLoading() { document.getElementById('loadingOverlay').classList.add('hidden'); }
 async function initializeApp() {
+  if (_appInitialized) { hideLoading(); return; }
+  _appInitialized = true;
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+  document.getElementById('authOverlay').classList.add('hidden');
   await loadData();
   renderAll();
-  const certAlerts = DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring').length;
+  hideLoading();
+  const certAlerts = DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring');
   const notifBadge = document.getElementById('notifBadge');
-  if (notifBadge) notifBadge.textContent = certAlerts + DATA.leaveRequests.filter(l=>l.status==='pending').length;
+  if (notifBadge) notifBadge.textContent = certAlerts.length + DATA.leaveRequests.filter(l=>l.status==='Pending').length;
+  
+  if (certAlerts.length > 0) {
+    setTimeout(()=> showToast(`Warning: ${certAlerts.length} certificates are expired or expiring soon.`, 'error'), 1500);
+  }
+  
   setTimeout(()=> showToast('Welcome to AMICI ERP · All modules live','success'), 700);
 }
+
+// Guard: if bfcache restores the page, ensure loading overlay stays hidden
+window.addEventListener('pageshow', () => { if (_appInitialized) hideLoading(); });
 
 document.addEventListener('DOMContentLoaded', async () => {
   if (!supabase) {
@@ -2382,16 +4184,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (session) {
     document.getElementById('authOverlay').classList.add('hidden');
     initializeApp();
+  } else {
+    hideLoading();
+    document.getElementById('authOverlay').classList.remove('hidden');
   }
 
   // Handle Auth state changes
   supabase.auth.onAuthStateChange((event, session) => {
     if (event === 'SIGNED_IN') {
+      document.getElementById('loadingOverlay').classList.remove('hidden');
       document.getElementById('authOverlay').classList.add('hidden');
       initializeApp();
     } else if (event === 'SIGNED_OUT') {
+      _appInitialized = false;
+      hideLoading();
       document.getElementById('authOverlay').classList.remove('hidden');
       document.querySelector('.app-body').innerHTML = ''; // clear app body
+      document.getElementById('tabBar').innerHTML = ''; // clear tabs
+      document.getElementById('modSidebar').innerHTML = ''; // clear sidebar
     }
   });
 
@@ -2400,6 +4210,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const email = document.getElementById('authEmail').value;
     const password = document.getElementById('authPassword').value;
     const errEl = document.getElementById('authError');
+    const btn = document.getElementById('authLoginBtn');
+    const btnText = document.getElementById('authBtnText');
+    const btnSpinner = document.getElementById('authBtnSpinner');
     errEl.textContent = '';
     
     if (!email || !password) {
@@ -2407,8 +4220,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     
+    btn.disabled = true;
+    btnText.style.display = 'none';
+    btnSpinner.style.display = 'inline';
+    
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    
+    btn.disabled = false;
+    btnText.style.display = 'inline';
+    btnSpinner.style.display = 'none';
+    
     if (error) errEl.textContent = error.message;
+  });
+
+  // Enter key submits login form
+  document.getElementById('authForm').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('authLoginBtn').click();
   });
 
   // Logout Button Handler
@@ -2434,7 +4261,2404 @@ document.addEventListener('click', (e) => {
   }
 });
 
+/* ── CRM LEADS ── */
+function openNewLeadModal() {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="nl-name" placeholder="Lead Name" />
+    <input class="filter-input" id="nl-email" placeholder="Email" />
+    <input class="filter-input" id="nl-phone" placeholder="Phone" />
+    <select class="filter-select" id="nl-source">
+      <option value="Website">Website</option><option value="Referral">Referral</option><option value="Cold Call">Cold Call</option>
+    </select>
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewLead()">Save Lead</button>`;
+  openModal('New Lead', body, footer);
+}
+
+async function submitNewLead() {
+  const name=$('#nl-name').value.trim();
+  if(!name){showToast('Name is required','error');return;}
+  const newLead = { id:'LD-'+Date.now(), name, email:$('#nl-email').value, phone:$('#nl-phone').value, source:$('#nl-source').value, status:'New' };
+  
+  if (supabase) {
+    const { error } = await supabase.from('crm_leads').insert(newLead);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.leads.push(newLead);
+  closeModal(); showToast('Lead saved','success'); rerenderSection();
+}
+
+/* ── CRM DEALS KANBAN ── */
+window.dragStartDeal = function(e, id) { e.dataTransfer.setData('text/plain', id); }
+window.dropDeal = async function(e, stage) {
+  const id = e.dataTransfer.getData('text/plain');
+  const deal = DATA.deals.find(d => d.id === id);
+  if(deal && deal.stage !== stage) {
+    deal.stage = stage;
+    if (supabase) await supabase.from('crm_deals').update({stage}).eq('id', id);
+    if(stage === 'Closed Won') {
+      const partyName = deal.account_id
+        ? (DATA.accounts.find(a=>a.id===deal.account_id)?.name || deal.title)
+        : deal.lead_id
+          ? (DATA.leads.find(l=>l.id===deal.lead_id)?.name || deal.title)
+          : deal.title;
+      const newInv = {
+        id: 'INV-' + Date.now(), type: 'Sales', party_name: partyName, date: new Date().toISOString().split('T')[0],
+        due_date: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
+        total_amount: deal.value, status: 'Draft', deal_id: deal.id,
+        cost_center_id: null, tax_template_id: null, tax_rate: 0, tax_amount: 0,
+        items: [{ item: deal.title, description: 'Auto-generated from won deal', qty: 1, rate: deal.value, amount: deal.value }]
+      };
+      if (supabase) await supabase.from('fin_invoices').insert(newInv);
+      DATA.invoices.push(newInv);
+      autoPostJE(newInv.id, 'Invoice ' + newInv.id + ' auto-posting', [{account_id:'ACC-AR', debit:deal.value, credit:0},{account_id:'ACC-REV', debit:0, credit:deal.value}]);
+      deal.invoice_id = newInv.id;
+      showToast('Deal won! Draft Invoice ' + newInv.id + ' auto-generated.', 'success');
+    }
+    rerenderSection();
+  }
+}
+
+function openNewDealModal() {
+  const salesPeople = [...new Set(DATA.deals.map(d => d.sales_person).filter(Boolean))];
+  const territories = [...new Set(DATA.deals.map(d => d.territory).filter(Boolean))];
+  const acctOpts = DATA.accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  const spOpts = salesPeople.map(sp => `<option value="${sp}">${sp}</option>`).join('');
+  const terrOpts = territories.map(t => `<option value="${t}">${t}</option>`).join('');
+  const body=`<div style="display:flex;flex-direction:column;gap:10px">
+    <input class="filter-input" id="nd-title" placeholder="Deal Title" />
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Value ($)</label><input type="number" class="form-input" id="nd-value" value="0" /></div>
+      <div class="form-group"><label class="form-label">Stage</label>
+        <select class="form-input" id="nd-stage"><option value="Prospecting">Prospecting</option><option value="Qualification">Qualification</option><option value="Proposal">Proposal</option><option value="Negotiation">Negotiation</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Account</label><select class="form-input" id="nd-acct"><option value="">— None —</option>${acctOpts}</select></div>
+      <div class="form-group"><label class="form-label">Expected Close</label><input type="date" class="form-input" id="nd-close" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Sales Person</label><select class="form-input" id="nd-sp"><option value="">—</option>${spOpts}</select></div>
+      <div class="form-group"><label class="form-label">Territory</label><select class="form-input" id="nd-terr"><option value="">—</option>${terrOpts}</select></div>
+    </div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="nd-notes" rows="2" placeholder="Deal description, context..."></textarea></div>
+  </div>`;
+  const footer=`<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitNewDeal()">Save Deal</button>`;
+  openModal('New Deal', body, footer);
+}
+
+async function submitNewDeal() {
+  const title=$('#nd-title').value.trim();
+  if(!title){showToast('Title required','error');return;}
+  const newDeal = { id:'DL-'+Date.now(), title, value:parseFloat($('#nd-value').value)||0, stage:$('#nd-stage').value, expected_close_date:$('#nd-close').value||new Date().toISOString().split('T')[0], account_id:$('#nd-acct').value||null, lead_id:null, invoice_id:null, sales_person:$('#nd-sp').value||'', territory:$('#nd-terr').value||'', lost_reason:'', notes:$('#nd-notes').value.trim() };
+  
+  if (supabase) {
+    const { error } = await supabase.from('crm_deals').insert(newDeal);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.deals.push(newDeal);
+  closeModal(); showToast('Deal saved','success'); rerenderSection();
+}
+
+/* ── CRM TASKS ── */
+function renderCRMTasks() {
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>My Tasks</h2>
+    <button class="btn btn-primary" onclick="openNewTaskModal()">+ New Task</button>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px;">`;
+  
+  DATA.tasks.forEach(t => {
+    const isDone = t.status==='completed';
+    html+=`<div style="display:flex;align-items:center;gap:12px;background:#fff;padding:12px 16px;border-radius:6px;border:1px solid var(--border)">
+      <input type="checkbox" ${isDone?'checked':''} onchange="toggleTask('${t.id}', this.checked)" style="width:18px;height:18px;cursor:pointer;">
+      <div style="flex:1;text-decoration:${isDone?'line-through':'none'};color:${isDone?'var(--text-sec)':'var(--text)'};font-size:15px;">
+        ${t.description}
+      </div>
+      <div style="font-size:12px;color:${t.due_date < new Date().toISOString().split('T')[0] && !isDone ? 'var(--error)' : 'var(--text-sec)'}">
+        <i class="fa-regular fa-calendar"></i> ${t.due_date||'No date'}
+      </div>
+    </div>`;
+  });
+  if(DATA.tasks.length===0) html+=`<div style="text-align:center;padding:30px;color:var(--text-sec)">No tasks! You're all caught up.</div>`;
+  html+=`</div></div>`;
+  return html;
+}
+
+window.toggleTask = async function(id, isDone) {
+  const t = DATA.tasks.find(x=>x.id===id);
+  if(t) {
+    t.status = isDone ? 'completed' : 'pending';
+    if(supabase) await supabase.from('crm_tasks').update({status:t.status}).eq('id',id);
+    rerenderSection();
+  }
+}
+
+function openNewTaskModal() {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="nt-desc" placeholder="Task Description" />
+    <input type="date" class="filter-input" id="nt-due" />
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewTask()">Save Task</button>`;
+  openModal('New Task', body, footer);
+}
+
+async function submitNewTask() {
+  const desc=$('#nt-desc').value.trim();
+  if(!desc){showToast('Description required','error');return;}
+  const newTask = { id:'TSK-'+Date.now(), description:desc, due_date:$('#nt-due').value||null, status:'pending' };
+  
+  if (supabase) {
+    const { error } = await supabase.from('crm_tasks').insert(newTask);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.tasks.push(newTask);
+  closeModal(); showToast('Task added','success'); rerenderSection();
+}
+
+/* ── CRM FIELD SERVICE LOGS ── */
+function renderCRMFieldServiceLogs() {
+  const logs = DATA.fieldServiceLogs || [];
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Field Service Logs</h2>
+    <button class="btn btn-primary" onclick="openNewFSLModal()"><i class="fa-solid fa-plus"></i> New Log</button>
+  </div>`;
+  if(logs.length===0) {
+    html+=`<div class="empty-state" style="margin-top:40px"><i class="fa-solid fa-screwdriver-wrench"></i><p>No field service logs yet</p></div>`;
+  } else {
+    html+=`<table class="table"><thead><tr><th>ID</th><th>Date</th><th>Customer</th><th>Equipment</th><th>Technician</th><th>Status</th></tr></thead><tbody>`;
+    logs.forEach(l => {
+      html+=`<tr><td>${l.id}</td><td>${l.date}</td><td>${l.customer}</td><td>${l.equipment}</td><td>${l.technician}</td><td>${statusPill(l.status)}</td></tr>`;
+    });
+    html+=`</tbody></table>`;
+  }
+  html+=`</div>`;
+  return html;
+}
+
+function openNewFSLModal() {
+  const body = `<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="fsl-customer" placeholder="Customer" />
+    <input class="filter-input" id="fsl-equipment" placeholder="Equipment / Asset" />
+    <input class="filter-input" id="fsl-technician" placeholder="Technician" />
+    <input type="date" class="filter-input" id="fsl-date" />
+    <select class="filter-select" id="fsl-status">
+      <option value="Scheduled">Scheduled</option><option value="In Progress">In Progress</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option>
+    </select>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewFSL()">Save Log</button>`;
+  openModal('New Field Service Log', body, footer);
+}
+
+async function submitNewFSL() {
+  const customer = $('#fsl-customer').value.trim();
+  if(!customer) { showToast('Customer is required','error'); return; }
+  const log = {
+    id:'FSL-'+Date.now(),
+    date: $('#fsl-date').value || new Date().toISOString().split('T')[0],
+    customer,
+    equipment: $('#fsl-equipment').value.trim(),
+    technician: $('#fsl-technician').value.trim(),
+    status: $('#fsl-status').value
+  };
+  if(!DATA.fieldServiceLogs) DATA.fieldServiceLogs = [];
+  if(supabase) await supabase.from('crm_field_service_logs').insert(log).catch(()=>{});
+  DATA.fieldServiceLogs.push(log);
+  closeModal(); showToast('Log created','success'); rerenderSection();
+}
+
+/* ── CRM PARTNERS / JVs ── */
+function renderCRMPartners() {
+  const partners = DATA.partners || [];
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Partners & Joint Ventures</h2>
+    <button class="btn btn-primary"><i class="fa-solid fa-plus"></i> New Partner</button>
+  </div>`;
+  if(partners.length===0) {
+    html+=`<div class="empty-state" style="margin-top:40px"><i class="fa-solid fa-handshake"></i><p>No partners registered</p></div>`;
+  }
+  html+=`</div>`;
+  return html;
+}
+
+/* ── CRM SETTINGS ── */
+function renderCRMSettings() {
+  return `<div class="fade-in"><h2>CRM Settings</h2>
+    <div class="empty-state" style="margin-top:40px"><i class="fa-solid fa-gear"></i><p>CRM configuration coming soon</p></div>
+  </div>`;
+}
+
+/* ── CRM CONTACTS ── */
+function renderCRMContacts() {
+  const f = state.filters;
+  let items = [...DATA.contacts];
+  if (f.search) { const s = f.search.toLowerCase(); items = items.filter(c => c.first_name.toLowerCase().includes(s) || c.last_name.toLowerCase().includes(s) || c.email.toLowerCase().includes(s) || (c.account_id && (DATA.accounts.find(a => a.id === c.account_id)?.name || '').toLowerCase().includes(s))); }
+  if (f.account_id && f.account_id !== 'all') items = items.filter(c => c.account_id === f.account_id);
+
+  const acctOpts = [...new Set(DATA.contacts.map(c => c.account_id))].map(id => { const a = DATA.accounts.find(x => x.id === id); return { id, name: a ? a.name : id }; }).filter(Boolean);
+
+  let html = `<div class="fade-in">`;
+  html += `<div class="filter-bar" style="justify-content:space-between;flex-wrap:wrap;">
+    <h2>Contacts <span style="font-weight:400;font-size:14px;color:var(--text-sec)">(${DATA.contacts.length})</span></h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input class="filter-input" placeholder="Search..." value="${f.search || ''}" oninput="state.filters.search=this.value;rerenderSection()" style="min-width:140px;">
+      <select class="filter-select" onchange="state.filters.account_id=this.value;rerenderSection()">
+        <option value="all">All Accounts</option>${acctOpts.map(o => `<option value="${o.id}" ${f.account_id === o.id ? 'selected' : ''}>${o.name}</option>`).join('')}
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openNewContactModal()"><i class="fa-solid fa-plus"></i> New Contact</button>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-top:16px;">`;
+  if (!items.length) html += `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-sec)">No contacts found</div>`;
+  items.forEach(c => {
+    const acct = DATA.accounts.find(a => a.id === c.account_id);
+    const fullName = [c.salutation, c.first_name, c.last_name].filter(Boolean).join(' ');
+    html += `<div class="sec-card" style="cursor:default;position:relative;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="avatar" style="width:42px;height:42px;font-size:14px;background:${c.is_primary ? 'var(--blue)' : 'var(--text-sec)'}">${initials(c.first_name + ' ' + c.last_name)}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:14px;">${fullName} ${c.is_primary ? '<span style="font-size:10px;background:var(--blue);color:#fff;padding:1px 6px;border-radius:3px;margin-left:4px;">PRIMARY</span>' : ''}</div>
+          <div style="font-size:12px;color:var(--text-sec);">${c.designation || '—'}</div>
+          ${acct ? `<div style="font-size:11px;color:var(--blue);margin-top:2px;"><i class="fa-solid fa-building"></i> ${acct.name}</div>` : ''}
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--text-sec);margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+        ${c.email ? `<span><i class="fa-solid fa-envelope" style="width:16px;"></i> ${c.email}</span>` : ''}
+        ${c.phone ? `<span><i class="fa-solid fa-phone" style="width:16px;"></i> ${c.phone}</span>` : ''}
+        ${c.mobile ? `<span><i class="fa-solid fa-mobile" style="width:16px;"></i> ${c.mobile}</span>` : ''}
+        ${c.department ? `<span><i class="fa-solid fa-sitemap" style="width:16px;"></i> ${c.department}</span>` : ''}
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
+        <button class="btn btn-ghost btn-sm" onclick="editContact('${c.id}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="deleteContact('${c.id}')"><i class="fa-solid fa-trash-can"></i></button>
+      </div>
+    </div>`;
+  });
+  html += `</div></div>`;
+  return html;
+}
+
+function openNewContactModal(editId) {
+  const c = editId ? DATA.contacts.find(x => x.id === editId) : null;
+  const acctOpts = DATA.accounts.map(a => `<option value="${a.id}" ${c && c.account_id === a.id ? 'selected' : ''}>${a.name}</option>`).join('');
+  const body = `
+    <input type="hidden" id="con-edit-id" value="${editId || ''}">
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Salutation</label>
+        <select class="form-input" id="con-sal"><option value="">—</option><option value="Mr" ${c && c.salutation === 'Mr' ? 'selected' : ''}>Mr</option><option value="Ms" ${c && c.salutation === 'Ms' ? 'selected' : ''}>Ms</option><option value="Mrs" ${c && c.salutation === 'Mrs' ? 'selected' : ''}>Mrs</option><option value="Dr" ${c && c.salutation === 'Dr' ? 'selected' : ''}>Dr</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">First Name *</label><input class="form-input" id="con-first" value="${c ? c.first_name : ''}" placeholder="First name"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Last Name *</label><input class="form-input" id="con-last" value="${c ? c.last_name : ''}" placeholder="Last name"></div>
+      <div class="form-group"><label class="form-label">Account</label>
+        <select class="form-input" id="con-acct"><option value="">— None —</option>${acctOpts}</select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="con-email" value="${c ? c.email : ''}" placeholder="email@domain.com"></div>
+      <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="con-phone" value="${c ? c.phone : ''}" placeholder="+968 ..."></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Mobile</label><input class="form-input" id="con-mobile" value="${c ? c.mobile : ''}"></div>
+      <div class="form-group"><label class="form-label">Designation</label><input class="form-input" id="con-desig" value="${c ? c.designation : ''}" placeholder="Job title"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Department</label><input class="form-input" id="con-dept" value="${c ? c.department : ''}"></div>
+      <div class="form-group"><label class="form-label">Nationality</label><input class="form-input" id="con-nat" value="${c ? c.nationality : ''}"></div>
+    </div>
+    <div class="form-group"><label class="form-checkbox"><input type="checkbox" id="con-primary" ${c && c.is_primary ? 'checked' : ''}> Primary contact for this account</label></div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="con-notes" rows="2">${c ? c.notes || '' : ''}</textarea></div>`;
+  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitContact()">${c ? 'Update' : 'Save'} Contact</button>`;
+  openModal(editId ? 'Edit Contact' : 'New Contact', body, footer);
+}
+window.editContact = (id) => openNewContactModal(id);
+
+async function submitContact() {
+  const editId = $('#con-edit-id').value;
+  const first = $('#con-first').value.trim();
+  const last = $('#con-last').value.trim();
+  if (!first || !last) { showToast('First and last name are required', 'error'); return; }
+  const obj = {
+    account_id: $('#con-acct').value || null,
+    salutation: $('#con-sal').value,
+    first_name: first,
+    last_name: last,
+    email: $('#con-email').value.trim(),
+    phone: $('#con-phone').value.trim(),
+    mobile: $('#con-mobile').value.trim(),
+    designation: $('#con-desig').value.trim(),
+    department: $('#con-dept').value.trim(),
+    is_primary: $('#con-primary').checked,
+    nationality: $('#con-nat').value.trim(),
+    notes: $('#con-notes').value.trim(),
+  };
+  if (editId) {
+    Object.assign(DATA.contacts.find(x => x.id === editId), obj);
+    if (supabase) await supabase.from('crm_contacts').update(obj).eq('id', editId).catch(() => {});
+    showToast('Contact updated', 'success');
+  } else {
+    obj.id = 'CON-' + Date.now();
+    DATA.contacts.push(obj);
+    if (supabase) await supabase.from('crm_contacts').insert(obj).catch(() => {});
+    showToast('Contact saved', 'success');
+  }
+  closeModal();
+  rerenderSection();
+}
+
+async function deleteContact(id) {
+  if (!confirm('Delete this contact?')) return;
+  DATA.contacts = DATA.contacts.filter(c => c.id !== id);
+  if (supabase) await supabase.from('crm_contacts').delete().eq('id', id).catch(() => {});
+  showToast('Contact deleted', 'success');
+  rerenderSection();
+}
+
+/* ── CRM QUOTATIONS ── */
+function renderCRMQuotations() {
+  const f = state.filters;
+  let items = [...DATA.quotations];
+  if (f.search) { const s = f.search.toLowerCase(); items = items.filter(q => q.id.toLowerCase().includes(s) || (q.account_name || '').toLowerCase().includes(s) || q.items.some(i => i.item.toLowerCase().includes(s))); }
+  if (f.status && f.status !== 'all') items = items.filter(q => q.status === f.status);
+
+  let html = `<div class="fade-in">`;
+  html += `<div class="filter-bar" style="justify-content:space-between;flex-wrap:wrap;">
+    <h2>Quotations <span style="font-weight:400;font-size:14px;color:var(--text-sec)">(${DATA.quotations.length})</span></h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input class="filter-input" placeholder="Search..." value="${f.search || ''}" oninput="state.filters.search=this.value;rerenderSection()" style="min-width:140px;">
+      <select class="filter-select" onchange="state.filters.status=this.value;rerenderSection()">
+        <option value="all">All Status</option><option value="Draft" ${f.status === 'Draft' ? 'selected' : ''}>Draft</option><option value="Sent" ${f.status === 'Sent' ? 'selected' : ''}>Sent</option><option value="Accepted" ${f.status === 'Accepted' ? 'selected' : ''}>Accepted</option><option value="Lost" ${f.status === 'Lost' ? 'selected' : ''}>Lost</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openNewQuotationModal()"><i class="fa-solid fa-plus"></i> New Quotation</button>
+    </div>
+  </div>
+  <div style="overflow-x:auto;margin-top:16px;"><table class="data-table">
+    <thead><tr>
+      <th onclick="sortBy('id')" class="${sortedCls('id')}">ID ${sortIcon('id')}</th>
+      <th>Account</th>
+      <th>Date</th>
+      <th>Valid Till</th>
+      <th>Items</th>
+      <th onclick="sortBy('grand_total')" class="${sortedCls('grand_total')}">Total ${sortIcon('grand_total')}</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr></thead><tbody>`;
+  if (!items.length) html += `<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-sec)">No quotations found</td></tr>`;
+  items.forEach(q => {
+    const statusColors = { Draft: 'var(--text-sec)', Sent: 'var(--blue)', Accepted: 'var(--success)', Lost: 'var(--error)' };
+    html += `<tr>
+      <td style="font-weight:600">${q.id}</td>
+      <td>${q.account_name || q.account_id || '—'}</td>
+      <td style="font-size:12px;color:var(--text-sec)">${fmtDate(q.date)}</td>
+      <td style="font-size:12px;color:${q.valid_till && new Date(q.valid_till) < new Date() ? 'var(--error)' : 'var(--text-sec)'}">${fmtDate(q.valid_till)}</td>
+      <td style="font-size:12px;">${q.items.length} item${q.items.length !== 1 ? 's' : ''}</td>
+      <td style="font-weight:600">${fmt(q.grand_total)}</td>
+      <td><span style="color:${statusColors[q.status] || 'var(--text-sec)'};font-weight:600">${q.status}</span></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="viewQuotation('${q.id}')"><i class="fa-solid fa-eye"></i></button>
+        ${q.status === 'Draft' ? `<button class="btn btn-ghost btn-sm" onclick="sendQuotation('${q.id}')" title="Mark as Sent"><i class="fa-solid fa-paper-plane"></i></button>` : ''}
+        ${q.status === 'Accepted' ? `<button class="btn btn-ghost btn-sm" style="color:var(--success)" onclick="convertQuotationToInvoice('${q.id}')" title="Convert to Invoice"><i class="fa-solid fa-file-invoice-dollar"></i></button>` : ''}
+        <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="deleteQuotation('${q.id}')"><i class="fa-solid fa-trash-can"></i></button>
+      </td>
+    </tr>`;
+  });
+  html += `</tbody></table></div></div>`;
+  return html;
+}
+
+function openNewQuotationModal(editId, prefillDealId, prefillAcctId) {
+  const q = editId ? DATA.quotations.find(x => x.id === editId) : null;
+  const acctOpts = DATA.accounts.map(a => `<option value="${a.id}" ${(q && q.account_id === a.id) || (!q && a.id === prefillAcctId) ? 'selected' : ''}>${a.name}</option>`).join('');
+  const dealOpts = DATA.deals.map(d => `<option value="${d.id}" ${(q && q.deal_id === d.id) || d.id === prefillDealId ? 'selected' : ''}>${d.title} (${fmt(d.value)})</option>`).join('');
+  const body = `
+    <input type="hidden" id="qtn-edit-id" value="${editId || ''}">
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Account *</label><select class="form-input" id="qtn-acct"><option value="">— Select Account —</option>${acctOpts}</select></div>
+      <div class="form-group"><label class="form-label">Deal (optional)</label><select class="form-input" id="qtn-deal"><option value="">— None —</option>${dealOpts}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Date</label><input class="form-input" id="qtn-date" type="date" value="${q ? q.date : new Date().toISOString().split('T')[0]}"></div>
+      <div class="form-group"><label class="form-label">Valid Till</label><input class="form-input" id="qtn-valid" type="date" value="${q ? q.valid_till : ''}"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Status</label>
+      <select class="form-input" id="qtn-status"><option value="Draft" ${q && q.status === 'Draft' ? 'selected' : ''}>Draft</option><option value="Sent" ${q && q.status === 'Sent' ? 'selected' : ''}>Sent</option><option value="Accepted" ${q && q.status === 'Accepted' ? 'selected' : ''}>Accepted</option><option value="Lost" ${q && q.status === 'Lost' ? 'selected' : ''}>Lost</option></select>
+    </div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="qtn-notes" rows="2">${q ? q.notes || '' : ''}</textarea></div>
+    <h4 style="margin:12px 0 8px;font-size:14px;">Line Items</h4>
+    <div id="qtn-items-container">${q ? q.items.map((it, i) => renderQtnItemRow(i, it)).join('') : renderQtnItemRow(0)}</div>
+    <div style="margin-top:8px;"><button class="btn btn-ghost btn-sm" onclick="addQtnItemRow()"><i class="fa-solid fa-plus"></i> Add Item</button></div>
+    <div style="margin-top:10px;padding:10px;background:#f8fafc;border-radius:6px;">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Tax Rate (%)</label><input class="form-input" id="qtn-tax" type="number" min="0" step="0.1" value="${q ? q.tax_rate : 0}" oninput="recalcQtnTotals()"></div>
+        <div class="form-group"><label class="form-label">Discount (%)</label><input class="form-input" id="qtn-disc-pct" type="number" min="0" step="0.1" value="${q ? q.discount_percent : 0}" oninput="recalcQtnTotals()"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-weight:600;margin-top:6px;">
+        <span>Subtotal: <span id="qtn-subtotal">0</span></span>
+        <span>Tax: <span id="qtn-tax-display">0</span></span>
+        <span>Discount: <span id="qtn-disc-display">0</span></span>
+        <span>Grand Total: <span id="qtn-grand-total" style="color:var(--success);font-size:16px;">0</span></span>
+      </div>
+    </div>`;
+  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitQuotation()">${q ? 'Update' : 'Create'} Quotation</button>`;
+  openModal(editId ? 'Edit Quotation' : 'New Quotation', body, footer);
+  recalcQtnTotals();
+}
+
+function renderQtnItemRow(idx, it) {
+  it = it || {};
+  return `<div class="qtn-item-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+    <input class="form-input" style="flex:2;min-width:80px;" id="qtn-item-${idx}-name" value="${it.item || ''}" placeholder="Item name">
+    <input class="form-input" style="flex:1;min-width:60px;" id="qtn-item-${idx}-desc" value="${it.description || ''}" placeholder="Description">
+    <input class="form-input" style="width:50px;" id="qtn-item-${idx}-qty" type="number" min="1" value="${it.qty || 1}" oninput="recalcQtnTotals()">
+    <input class="form-input" style="width:80px;" id="qtn-item-${idx}-rate" type="number" min="0" step="1" value="${it.rate || 0}" oninput="recalcQtnTotals()">
+    <span style="width:80px;font-weight:600;text-align:right;" id="qtn-item-${idx}-amount">${fmt(it.amount || 0)}</span>
+    ${idx > 0 ? `<button class="btn btn-ghost btn-sm" style="color:var(--error);padding:4px;" onclick="this.closest('.qtn-item-row').remove();recalcQtnTotals()"><i class="fa-solid fa-xmark"></i></button>` : ''}
+  </div>`;
+}
+window.addQtnItemRow = () => {
+  const container = $('#qtn-items-container');
+  const idx = container.children.length;
+  container.insertAdjacentHTML('beforeend', renderQtnItemRow(idx, {}));
+  recalcQtnTotals();
+};
+window.recalcQtnTotals = () => {
+  const container = $('#qtn-items-container');
+  let subtotal = 0;
+  [...container.children].forEach((row, i) => {
+    const qty = parseFloat($('#qtn-item-' + i + '-qty')?.value) || 0;
+    const rate = parseFloat($('#qtn-item-' + i + '-rate')?.value) || 0;
+    const amt = qty * rate;
+    const el = $('#qtn-item-' + i + '-amount');
+    if (el) el.textContent = fmt(amt);
+    subtotal += amt;
+  });
+  const taxRate = parseFloat($('#qtn-tax')?.value) || 0;
+  const discPct = parseFloat($('#qtn-disc-pct')?.value) || 0;
+  const taxAmount = subtotal * taxRate / 100;
+  const discAmount = subtotal * discPct / 100;
+  const grandTotal = subtotal + taxAmount - discAmount;
+  $('#qtn-subtotal').textContent = fmt(subtotal);
+  $('#qtn-tax-display').textContent = fmt(taxAmount);
+  $('#qtn-disc-display').textContent = fmt(discAmount);
+  $('#qtn-grand-total').textContent = fmt(grandTotal);
+};
+
+async function submitQuotation() {
+  const editId = $('#qtn-edit-id').value;
+  const acctId = $('#qtn-acct').value;
+  if (!acctId) { showToast('Account is required', 'error'); return; }
+  const acct = DATA.accounts.find(a => a.id === acctId);
+  const container = $('#qtn-items-container');
+  const items = [];
+  [...container.children].forEach((row, i) => {
+    const item = ($('#qtn-item-' + i + '-name')?.value || '').trim();
+    if (!item) return;
+    const qty = parseFloat($('#qtn-item-' + i + '-qty')?.value) || 1;
+    const rate = parseFloat($('#qtn-item-' + i + '-rate')?.value) || 0;
+    items.push({ item, description: ($('#qtn-item-' + i + '-desc')?.value || '').trim(), qty, rate, amount: qty * rate });
+  });
+  if (!items.length) { showToast('At least one line item is required', 'error'); return; }
+  const subtotal = items.reduce((s, i) => s + i.amount, 0);
+  const taxRate = parseFloat($('#qtn-tax')?.value) || 0;
+  const discPct = parseFloat($('#qtn-disc-pct')?.value) || 0;
+  const taxAmount = subtotal * taxRate / 100;
+  const discAmount = subtotal * discPct / 100;
+  const obj = {
+    account_id: acctId,
+    account_name: acct ? acct.name : '',
+    deal_id: $('#qtn-deal').value || null,
+    lead_id: null,
+    date: $('#qtn-date').value || new Date().toISOString().split('T')[0],
+    valid_till: $('#qtn-valid').value || '',
+    items,
+    tax_rate: taxRate,
+    tax_amount: taxAmount,
+    discount_percent: discPct,
+    discount_amount: discAmount,
+    grand_total: subtotal + taxAmount - discAmount,
+    status: $('#qtn-status').value,
+    notes: $('#qtn-notes').value.trim(),
+  };
+  if (editId) {
+    Object.assign(DATA.quotations.find(x => x.id === editId), obj);
+    if (supabase) await supabase.from('crm_quotations').update(obj).eq('id', editId).catch(() => {});
+    showToast('Quotation updated', 'success');
+  } else {
+    obj.id = 'QTN-' + Date.now();
+    DATA.quotations.push(obj);
+    if (supabase) await supabase.from('crm_quotations').insert(obj).catch(() => {});
+    showToast('Quotation created', 'success');
+  }
+  closeModal();
+  rerenderSection();
+}
+
+window.viewQuotation = (id) => {
+  const q = DATA.quotations.find(x => x.id === id);
+  if (!q) return;
+  const statusColors = { Draft: 'var(--text-sec)', Sent: 'var(--blue)', Accepted: 'var(--success)', Lost: 'var(--error)' };
+  let html = `<div style="max-width:600px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div><h3 style="margin:0">${q.id}</h3><div style="color:var(--text-sec);font-size:13px;">${q.account_name || ''}</div></div>
+      <span style="font-weight:600;color:${statusColors[q.status] || 'var(--text-sec)'}">${q.status}</span>
+    </div>
+    <div style="display:flex;gap:20px;font-size:13px;color:var(--text-sec);margin-bottom:12px;">
+      <span>Date: ${fmtDate(q.date)}</span>
+      <span>Valid Till: ${fmtDate(q.valid_till)}</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="border-bottom:2px solid var(--border);"><th style="text-align:left;padding:6px 4px;">Item</th><th style="text-align:right;padding:6px 4px;">Qty</th><th style="text-align:right;padding:6px 4px;">Rate</th><th style="text-align:right;padding:6px 4px;">Amount</th></tr></thead>
+      <tbody>${q.items.map(i => `<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 4px;">${i.item}${i.description ? '<br><span style="font-size:11px;color:var(--text-sec)">' + i.description + '</span>' : ''}</td><td style="text-align:right;padding:6px 4px;">${i.qty}</td><td style="text-align:right;padding:6px 4px;">${fmt(i.rate)}</td><td style="text-align:right;padding:6px 4px;font-weight:600;">${fmt(i.amount)}</td></tr>`).join('')}</tbody>
+    </table>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);text-align:right;">
+      <div>Subtotal: ${fmt(q.items.reduce((s, i) => s + i.amount, 0))}</div>
+      ${q.tax_rate ? `<div>Tax (${q.tax_rate}%): ${fmt(q.tax_amount)}</div>` : ''}
+      ${q.discount_percent ? `<div>Discount (${q.discount_percent}%): -${fmt(q.discount_amount)}</div>` : ''}
+      <div style="font-size:18px;font-weight:700;color:var(--success);margin-top:4px;">Total: ${fmt(q.grand_total)}</div>
+    </div>
+    ${q.notes ? `<div style="margin-top:12px;padding:8px;background:#f8fafc;border-radius:4px;font-size:12px;color:var(--text-sec);">${q.notes}</div>` : ''}
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="closeModal()">Close</button>`;
+  openModal('Quotation: ' + q.id, html, footer);
+};
+
+window.sendQuotation = async (id) => {
+  const q = DATA.quotations.find(x => x.id === id);
+  if (q) { q.status = 'Sent'; if (supabase) await supabase.from('crm_quotations').update({ status: 'Sent' }).eq('id', id).catch(() => {}); showToast('Quotation marked as Sent', 'success'); rerenderSection(); }
+};
+
+window.convertQuotationToInvoice = async (id) => {
+  const q = DATA.quotations.find(x => x.id === id);
+  if (!q) return;
+  const newInv = {
+    id: 'INV-' + Date.now(), type: 'Sales', party_name: q.account_name || q.account_id,
+    date: new Date().toISOString().split('T')[0],
+    due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    total_amount: q.grand_total, status: 'Draft', deal_id: q.deal_id,
+    cost_center_id: null, tax_template_id: null, tax_rate: q.tax_rate, tax_amount: q.tax_amount,
+    items: q.items.map(it => ({ ...it }))
+  };
+  DATA.invoices.push(newInv);
+  if (supabase) await supabase.from('fin_invoices').insert(newInv).catch(() => {});
+  showToast('Invoice ' + newInv.id + ' created from ' + q.id, 'success');
+  rerenderSection();
+};
+
+window.deleteQuotation = async (id) => {
+  if (!confirm('Delete this quotation?')) return;
+  DATA.quotations = DATA.quotations.filter(q => q.id !== id);
+  if (supabase) await supabase.from('crm_quotations').delete().eq('id', id).catch(() => {});
+  showToast('Quotation deleted', 'success');
+  rerenderSection();
+};
+
+/* ── CRM PROSPECTS ── */
+function renderCRMProspects() {
+  const f = state.filters;
+  let items = [...DATA.prospects];
+  if (f.search) { const s = f.search.toLowerCase(); items = items.filter(p => p.company_name.toLowerCase().includes(s) || p.industry?.toLowerCase().includes(s) || p.prospect_owner?.toLowerCase().includes(s)); }
+  if (f.status && f.status !== 'all') items = items.filter(p => p.status === f.status);
+
+  let html = `<div class="fade-in">`;
+  html += `<div class="filter-bar" style="justify-content:space-between;flex-wrap:wrap;">
+    <h2>Prospects <span style="font-weight:400;font-size:14px;color:var(--text-sec)">(${DATA.prospects.length})</span></h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input class="filter-input" placeholder="Search..." value="${f.search || ''}" oninput="state.filters.search=this.value;rerenderSection()" style="min-width:140px;">
+      <select class="filter-select" onchange="state.filters.status=this.value;rerenderSection()">
+        <option value="all">All</option><option value="New" ${f.status === 'New' ? 'selected' : ''}>New</option><option value="Contacted" ${f.status === 'Contacted' ? 'selected' : ''}>Contacted</option><option value="Qualified" ${f.status === 'Qualified' ? 'selected' : ''}>Qualified</option><option value="Converted" ${f.status === 'Converted' ? 'selected' : ''}>Converted</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openNewProspectModal()"><i class="fa-solid fa-plus"></i> New Prospect</button>
+    </div>
+  </div>
+  <div style="overflow-x:auto;margin-top:16px;"><table class="data-table">
+    <thead><tr>
+      <th>Company</th><th>Industry</th><th>Territory</th><th>Owner</th><th>Status</th><th>Created</th><th>Actions</th>
+    </tr></thead><tbody>`;
+  if (!items.length) html += `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-sec)">No prospects found</td></tr>`;
+  const statusColors = { New: 'var(--blue)', Contacted: 'var(--warning)', Qualified: 'var(--success)', Converted: 'var(--text-sec)' };
+  items.forEach(p => {
+    html += `<tr>
+      <td style="font-weight:600">${p.company_name}${p.website ? '<br><span style="font-size:11px;color:var(--text-sec)">' + p.website + '</span>' : ''}</td>
+      <td style="font-size:13px;">${p.industry || '—'}</td>
+      <td style="font-size:13px;">${p.territory || '—'}</td>
+      <td style="font-size:13px;">${p.prospect_owner || '—'}</td>
+      <td><span style="color:${statusColors[p.status] || 'var(--text-sec)'};font-weight:600">${p.status}</span></td>
+      <td style="font-size:12px;color:var(--text-sec)">${fmtDate(p.created_date)}</td>
+      <td>
+        ${p.status !== 'Converted' ? `<button class="btn btn-ghost btn-sm" style="color:var(--success)" onclick="convertProspectToLead('${p.id}')" title="Convert to Lead"><i class="fa-solid fa-arrow-right"></i></button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="editProspect('${p.id}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="deleteProspect('${p.id}')"><i class="fa-solid fa-trash-can"></i></button>
+      </td>
+    </tr>`;
+  });
+  html += `</tbody></table></div></div>`;
+  return html;
+}
+
+function openNewProspectModal(editId) {
+  const p = editId ? DATA.prospects.find(x => x.id === editId) : null;
+  const body = `
+    <input type="hidden" id="pro-edit-id" value="${editId || ''}">
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Company Name *</label><input class="form-input" id="pro-company" value="${p ? p.company_name : ''}"></div>
+      <div class="form-group"><label class="form-label">Industry</label><input class="form-input" id="pro-industry" value="${p ? p.industry || '' : ''}" placeholder="Oil & Gas, LNG..."></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Website</label><input class="form-input" id="pro-website" value="${p ? p.website || '' : ''}"></div>
+      <div class="form-group"><label class="form-label">Phone</label><input class="form-input" id="pro-phone" value="${p ? p.phone || '' : ''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="pro-email" value="${p ? p.email || '' : ''}"></div>
+      <div class="form-group"><label class="form-label">Territory</label><input class="form-input" id="pro-territory" value="${p ? p.territory || '' : ''}" placeholder="Oman North, South..."></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Owner</label><input class="form-input" id="pro-owner" value="${p ? p.prospect_owner || '' : ''}" placeholder="Sales person name"></div>
+      <div class="form-group"><label class="form-label">Status</label><select class="form-input" id="pro-status"><option value="New" ${p && p.status === 'New' ? 'selected' : ''}>New</option><option value="Contacted" ${p && p.status === 'Contacted' ? 'selected' : ''}>Contacted</option><option value="Qualified" ${p && p.status === 'Qualified' ? 'selected' : ''}>Qualified</option></select></div>
+    </div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="pro-notes" rows="2">${p ? p.notes || '' : ''}</textarea></div>`;
+  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitProspect()">${p ? 'Update' : 'Save'} Prospect</button>`;
+  openModal(editId ? 'Edit Prospect' : 'New Prospect', body, footer);
+}
+window.editProspect = (id) => openNewProspectModal(id);
+
+async function submitProspect() {
+  const editId = $('#pro-edit-id').value;
+  const company = $('#pro-company').value.trim();
+  if (!company) { showToast('Company name is required', 'error'); return; }
+  const obj = {
+    company_name: company,
+    industry: $('#pro-industry').value.trim(),
+    website: $('#pro-website').value.trim(),
+    phone: $('#pro-phone').value.trim(),
+    email: $('#pro-email').value.trim(),
+    territory: $('#pro-territory').value.trim(),
+    prospect_owner: $('#pro-owner').value.trim(),
+    status: $('#pro-status').value,
+    notes: $('#pro-notes').value.trim(),
+    created_date: new Date().toISOString().split('T')[0],
+  };
+  if (editId) {
+    Object.assign(DATA.prospects.find(x => x.id === editId), obj);
+    if (supabase) await supabase.from('crm_prospects').update(obj).eq('id', editId).catch(() => {});
+    showToast('Prospect updated', 'success');
+  } else {
+    obj.id = 'PRO-' + Date.now();
+    DATA.prospects.push(obj);
+    if (supabase) await supabase.from('crm_prospects').insert(obj).catch(() => {});
+    showToast('Prospect saved', 'success');
+  }
+  closeModal();
+  rerenderSection();
+}
+
+window.convertProspectToLead = async (id) => {
+  const p = DATA.prospects.find(x => x.id === id);
+  if (!p) return;
+  const newLead = { id: 'LD-' + Date.now(), name: p.company_name, email: p.email || '', phone: p.phone || '', source: 'Prospect Conversion', status: 'New' };
+  DATA.leads.push(newLead);
+  p.status = 'Converted';
+  if (supabase) {
+    await supabase.from('crm_leads').insert(newLead).catch(() => {});
+    await supabase.from('crm_prospects').update({ status: 'Converted' }).eq('id', id).catch(() => {});
+  }
+  showToast('Prospect converted to Lead: ' + newLead.id, 'success');
+  rerenderSection();
+};
+
+window.deleteProspect = async (id) => {
+  if (!confirm('Delete this prospect?')) return;
+  DATA.prospects = DATA.prospects.filter(p => p.id !== id);
+  if (supabase) await supabase.from('crm_prospects').delete().eq('id', id).catch(() => {});
+  showToast('Prospect deleted', 'success');
+  rerenderSection();
+};
+
+/* ── CRM COMMUNICATIONS ── */
+function renderCRMCommunications() {
+  const f = state.filters;
+  let items = [...DATA.communications].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+  if (f.search) { const s = f.search.toLowerCase(); items = items.filter(m => m.subject?.toLowerCase().includes(s) || m.content?.toLowerCase().includes(s) || m.sender?.toLowerCase().includes(s) || m.recipients?.toLowerCase().includes(s)); }
+  if (f.type && f.type !== 'all') items = items.filter(m => m.type === f.type);
+  if (f.ref && f.ref !== 'all') items = items.filter(m => m.reference_type === f.ref);
+
+  const typeIcons = { Email: 'fa-envelope', Call: 'fa-phone', Meeting: 'fa-handshake', Note: 'fa-note-sticky' };
+  const typeColors = { Email: 'var(--blue)', Call: 'var(--success)', Meeting: 'var(--warning)', Note: 'var(--text-sec)' };
+
+  let html = `<div class="fade-in">`;
+  html += `<div class="filter-bar" style="justify-content:space-between;flex-wrap:wrap;">
+    <h2>Communications <span style="font-weight:400;font-size:14px;color:var(--text-sec)">(${DATA.communications.length})</span></h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input class="filter-input" placeholder="Search..." value="${f.search || ''}" oninput="state.filters.search=this.value;rerenderSection()" style="min-width:120px;">
+      <select class="filter-select" onchange="state.filters.type=this.value;rerenderSection()">
+        <option value="all">All Types</option><option value="Email" ${f.type === 'Email' ? 'selected' : ''}>Email</option><option value="Call" ${f.type === 'Call' ? 'selected' : ''}>Call</option><option value="Meeting" ${f.type === 'Meeting' ? 'selected' : ''}>Meeting</option><option value="Note" ${f.type === 'Note' ? 'selected' : ''}>Note</option>
+      </select>
+      <select class="filter-select" onchange="state.filters.ref=this.value;rerenderSection()">
+        <option value="all">All References</option><option value="Account" ${f.ref === 'Account' ? 'selected' : ''}>Account</option><option value="Deal" ${f.ref === 'Deal' ? 'selected' : ''}>Deal</option><option value="Lead" ${f.ref === 'Lead' ? 'selected' : ''}>Lead</option><option value="Quotation" ${f.ref === 'Quotation' ? 'selected' : ''}>Quotation</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="openNewCommModal()"><i class="fa-solid fa-plus"></i> New Communication</button>
+    </div>
+  </div>
+  <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">`;
+  if (!items.length) html += `<div style="text-align:center;padding:40px;color:var(--text-sec)">No communications found</div>`;
+  items.forEach(m => {
+    const refName = m.reference_id ? (DATA.accounts.find(a => a.id === m.reference_id)?.name || DATA.leads.find(l => l.id === m.reference_id)?.name || DATA.deals.find(d => d.id === m.reference_id)?.title || m.reference_id) : '—';
+    html += `<div class="sec-card" style="cursor:default;">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <div style="width:32px;height:32px;border-radius:50%;background:${typeColors[m.type] || 'var(--text-sec)'};display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;flex-shrink:0;">
+          <i class="fa-solid ${typeIcons[m.type] || 'fa-comment'}"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-weight:600;font-size:14px;">${m.subject || '(No subject)'}</div>
+            <div style="font-size:11px;color:var(--text-sec);white-space:nowrap;">${fmtDate(m.date)}</div>
+          </div>
+          <div style="font-size:12px;color:var(--text-sec);margin-top:2px;">
+            <span style="font-weight:500;color:${typeColors[m.type] || 'var(--text-sec)'}">${m.type}</span>
+            · ${m.reference_type}: <strong>${refName}</strong>
+            · From: ${m.sender} → ${m.recipients || '—'}
+          </div>
+          <div style="font-size:13px;margin-top:6px;color:var(--text);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${m.content || ''}</div>
+          <div style="margin-top:6px;"><button class="btn btn-ghost btn-sm" onclick="viewFullComm('${m.id}')">View Details</button></div>
+        </div>
+      </div>
+    </div>`;
+  });
+  html += `</div></div>`;
+  return html;
+}
+
+window.viewFullComm = (id) => {
+  const m = DATA.communications.find(x => x.id === id);
+  if (!m) return;
+  const refName = m.reference_id ? (DATA.accounts.find(a => a.id === m.reference_id)?.name || DATA.leads.find(l => l.id === m.reference_id)?.name || DATA.deals.find(d => d.id === m.reference_id)?.title || m.reference_id) : '—';
+  const body = `<div>
+    <div style="font-size:13px;color:var(--text-sec);margin-bottom:8px;">
+      <strong>${m.type}</strong> · ${m.reference_type}: ${refName} · ${fmtDate(m.date)}
+    </div>
+    <div style="font-size:13px;margin-bottom:6px;"><strong>From:</strong> ${m.sender}</div>
+    <div style="font-size:13px;margin-bottom:12px;"><strong>To:</strong> ${m.recipients || '—'}</div>
+    <div style="font-size:14px;line-height:1.6;padding:12px;background:#f8fafc;border-radius:6px;white-space:pre-wrap;">${m.content || ''}</div>
+  </div>`;
+  openModal(m.subject || 'Communication', body, `<button class="btn btn-primary" onclick="closeModal()">Close</button>`);
+};
+
+function openNewCommModal() {
+  const refOpts = [
+    ...DATA.accounts.map(a => ({ type: 'Account', id: a.id, name: a.name })),
+    ...DATA.leads.map(l => ({ type: 'Lead', id: l.id, name: l.name })),
+    ...DATA.deals.map(d => ({ type: 'Deal', id: d.id, name: d.title })),
+    ...DATA.quotations.map(q => ({ type: 'Quotation', id: q.id, name: q.id })),
+  ];
+  const refHtml = refOpts.map(r => `<option value="${r.type}|${r.id}">[${r.type}] ${r.name}</option>`).join('');
+  const body = `
+    <div class="form-group"><label class="form-label">Type</label>
+      <select class="form-input" id="comm-type"><option value="Email">Email</option><option value="Call">Call</option><option value="Meeting">Meeting</option><option value="Note">Note</option></select>
+    </div>
+    <div class="form-group"><label class="form-label">Reference (linked to)</label>
+      <select class="form-input" id="comm-ref"><option value="">— None —</option>${refHtml}</select>
+    </div>
+    <div class="form-group"><label class="form-label">Subject</label><input class="form-input" id="comm-subject" placeholder="Subject line"></div>
+    <div class="form-group"><label class="form-label">Content</label><textarea class="form-textarea" id="comm-content" rows="4" placeholder="Meeting notes, call summary, email content..."></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Sender</label><input class="form-input" id="comm-sender" placeholder="Your name"></div>
+      <div class="form-group"><label class="form-label">Recipients</label><input class="form-input" id="comm-recipients" placeholder="Name, email..."></div>
+    </div>
+    <div class="form-group"><label class="form-label">Date</label><input class="form-input" id="comm-date" type="date" value="${new Date().toISOString().split('T')[0]}"></div>`;
+  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitComm()">Save Communication</button>`;
+  openModal('New Communication', body, footer);
+}
+
+async function submitComm() {
+  const type = $('#comm-type').value;
+  const refVal = $('#comm-ref').value;
+  let refType = '', refId = '';
+  if (refVal) { const parts = refVal.split('|'); refType = parts[0]; refId = parts[1]; }
+  const obj = {
+    id: 'COM-' + Date.now(),
+    reference_type: refType,
+    reference_id: refId || null,
+    type,
+    subject: $('#comm-subject').value.trim(),
+    content: $('#comm-content').value.trim(),
+    date: $('#comm-date').value || new Date().toISOString().split('T')[0],
+    sender: $('#comm-sender').value.trim() || 'Current User',
+    recipients: $('#comm-recipients').value.trim(),
+  };
+  if (!obj.subject && !obj.content) { showToast('Subject or content required', 'error'); return; }
+  DATA.communications.push(obj);
+  if (supabase) await supabase.from('crm_communications').insert(obj).catch(() => {});
+  closeModal();
+  showToast('Communication logged', 'success');
+  rerenderSection();
+}
+
+/* ── ENHANCED CRM LEADS (with Convert to Account) ── */
+function renderCRMLeads() {
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between;flex-wrap:wrap;">
+    <h2>Leads <span style="font-weight:400;font-size:14px;color:var(--text-sec)">(${DATA.leads.length})</span></h2>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" onclick="openNewLeadModal()">+ New Lead</button>
+    </div>
+  </div>
+  <div style="overflow-x:auto;margin-top:16px;"><table class="data-table">
+    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Source</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>`;
+  if (DATA.leads.length === 0) html += `<tr><td colspan="6" style="text-align:center;padding:30px">No leads found.</td></tr>`;
+  DATA.leads.forEach(l => {
+    const alreadyConverted = DATA.accounts.find(a => a.name === l.name);
+    html += `<tr>
+      <td><strong>${l.name}</strong></td>
+      <td>${l.email || '-'}</td>
+      <td>${l.phone || '-'}</td>
+      <td>${l.source || '-'}</td>
+      <td><span class="status-pill status-${(l.status || 'new').toLowerCase().replace(' ', '-')}">${l.status || 'New'}</span></td>
+      <td>
+        ${!alreadyConverted ? `<button class="btn btn-ghost btn-sm" style="color:var(--success)" onclick="convertLeadToAccount('${l.id}')" title="Convert to Account"><i class="fa-solid fa-arrow-right-to-bracket"></i> Convert</button>` : `<span style="font-size:11px;color:var(--success)"><i class="fa-solid fa-check"></i> Converted</span>`}
+        <button class="btn btn-ghost btn-sm" onclick="deleteLead('${l.id}')"><i class="fa-solid fa-trash-can"></i></button>
+      </td>
+    </tr>`;
+  });
+  html += `</tbody></table></div></div>`;
+  return html;
+}
+
+window.convertLeadToAccount = async (id) => {
+  const lead = DATA.leads.find(x => x.id === id);
+  if (!lead) return;
+  if (DATA.accounts.find(a => a.name === lead.name)) { showToast('Account with this name already exists', 'warning'); return; }
+  const newAcct = {
+    id: 'ACC-' + Date.now(),
+    name: lead.name,
+    type: 'Customer',
+    rating: 'Warm',
+    owner: 'Current User',
+    country: 'Oman',
+    contractValue: 0,
+    openOpps: 0,
+    status: 'active',
+    website: '',
+    phone: lead.phone || '',
+    email: lead.email || '',
+  };
+  DATA.accounts.push(newAcct);
+  // Create a contact from lead info
+  const nameParts = lead.name.split(' ');
+  const newContact = {
+    id: 'CON-' + Date.now(),
+    account_id: newAcct.id,
+    salutation: '',
+    first_name: nameParts[0] || lead.name,
+    last_name: nameParts.slice(1).join(' ') || '',
+    email: lead.email || '',
+    phone: lead.phone || '',
+    mobile: '',
+    designation: '',
+    department: '',
+    is_primary: true,
+    nationality: '',
+    notes: 'Converted from lead ' + lead.id,
+  };
+  DATA.contacts.push(newContact);
+  // Create a deal from the lead
+  const newDeal = {
+    id: 'DL-' + Date.now(),
+    title: lead.name + ' - Initial Deal',
+    lead_id: lead.id,
+    account_id: newAcct.id,
+    value: 0,
+    stage: 'Prospecting',
+    expected_close_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    invoice_id: null,
+  };
+  DATA.deals.push(newDeal);
+  if (supabase) {
+    await supabase.from('crm_accounts').insert(newAcct).catch(() => {});
+    await supabase.from('crm_contacts').insert(newContact).catch(() => {});
+    await supabase.from('crm_deals').insert(newDeal).catch(() => {});
+  }
+  showToast('Lead converted: Account ' + newAcct.id + ', Contact, and Deal created', 'success');
+  rerenderSection();
+};
+
+window.deleteLead = async (id) => {
+  if (!confirm('Delete this lead?')) return;
+  DATA.leads = DATA.leads.filter(l => l.id !== id);
+  if (supabase) await supabase.from('crm_leads').delete().eq('id', id).catch(() => {});
+  showToast('Lead deleted', 'success');
+  rerenderSection();
+};
+
+/* ── ENHANCED CRM DEALS (with Create Quotation) ── */
+function renderCRMDeals(filterFn) {
+  const stages = ['Prospecting', 'Qualification', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost'];
+  const stageProb = { Prospecting: 10, Qualification: 25, Proposal: 50, Negotiation: 75, 'Closed Won': 100, 'Closed Lost': 0 };
+  let deals = DATA.deals;
+  if (filterFn) deals = deals.filter(filterFn);
+  const totalWeighted = deals.reduce((s, d) => s + (parseFloat(d.value || 0) * (stageProb[d.stage] || 0) / 100), 0);
+  let html = `<div class="fade-in" style="display:flex;flex-direction:column;height:100%">
+    <div class="filter-bar" style="justify-content:space-between;flex-wrap:wrap;">
+      <h2>Deals Pipeline <span style="font-weight:400;font-size:14px;color:var(--text-sec)">(${deals.length})</span></h2>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="font-size:13px;color:var(--text-sec);">Weighted Pipeline: <strong style="color:var(--blue);font-size:15px;">${fmt(totalWeighted)}</strong></span>
+        <button class="btn btn-primary btn-sm" onclick="openNewDealModal()">+ New Deal</button>
+      </div>
+    </div>
+    <h4 style="margin:8px 0 4px;font-size:16px;color:var(--success);">Forecast</h4>
+    <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+      ${stages.filter(s => s !== 'Closed Won' && s !== 'Closed Lost').map(s => {
+        const stageDeals = deals.filter(d => d.stage === s);
+        const val = stageDeals.reduce((sum, d) => sum + parseFloat(d.value || 0), 0);
+        const weighted = val * (stageProb[s] || 0) / 100;
+        return `<div style="padding:8px 14px;background:#f0f4f8;border-radius:6px;text-align:center;min-width:100px;">
+          <div style="font-size:11px;color:var(--text-sec)">${s}</div>
+          <div style="font-weight:600;font-size:14px;">${fmt(val)}</div>
+          <div style="font-size:11px;color:var(--blue)">${fmt(weighted)} weighted</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="display:flex;gap:16px;overflow-x:auto;flex:1;padding-bottom:16px;">`;
+  stages.forEach(st => {
+    const stageDeals = deals.filter(d => d.stage === st);
+    const totalVal = stageDeals.reduce((sum, d) => sum + parseFloat(d.value || 0), 0);
+    const stageWeighted = totalVal * (stageProb[st] || 0) / 100;
+    html += `<div class="kanban-col" ondragover="event.preventDefault()" ondrop="dropDeal(event, '${st}')" style="flex:0 0 280px;background:#f8fafc;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <h3 style="font-size:13px;color:var(--text);margin:0;">${st} <span style="color:var(--text-sec);font-weight:normal">(${stageDeals.length})</span></h3>
+        <span style="font-size:12px;font-weight:600;color:var(--success)">${fmt(totalVal)}</span>
+      </div>
+      ${st !== 'Closed Won' && st !== 'Closed Lost' ? `<div style="font-size:10px;color:var(--blue);margin-bottom:4px;">Weighted: ${fmt(stageWeighted)}</div>` : ''}
+      ${stageDeals.map(d => {
+        const acctName = d.account_id ? (DATA.accounts.find(a => a.id === d.account_id)?.name || '') : d.lead_id ? (DATA.leads.find(l => l.id === d.lead_id)?.name || '') : '';
+        return `<div class="kanban-card" draggable="true" ondragstart="dragStartDeal(event, '${d.id}')" style="background:#fff;padding:12px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);cursor:grab;border-left:4px solid var(--blue);">
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px">${d.title}</div>
+          ${acctName ? `<div style="font-size:11px;color:var(--text-sec);margin-bottom:2px;">${acctName}</div>` : ''}
+          <div style="font-size:13px;color:var(--text-sec);margin-bottom:2px;">${fmt(d.value)}</div>
+          <div style="font-size:11px;color:#888;margin-bottom:2px;">Close: ${d.expected_close_date || 'N/A'}</div>
+          ${d.sales_person ? `<div style="font-size:10px;color:var(--text-sec);margin-bottom:2px;"><i class="fa-solid fa-user"></i> ${d.sales_person}</div>` : ''}
+          ${d.territory ? `<div style="font-size:10px;color:var(--text-sec);margin-bottom:4px;"><i class="fa-solid fa-location-dot"></i> ${d.territory}</div>` : ''}
+          <div style="display:flex;gap:4px;">
+            <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px;" onclick="createQuotationFromDeal('${d.id}')" title="Create Quotation"><i class="fa-solid fa-file-invoice"></i> Quote</button>
+            <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px;" onclick="viewDealDeals('${d.id}')" title="View"><i class="fa-solid fa-eye"></i></button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  });
+  html += `</div></div>`;
+  return html;
+}
+
+window.createQuotationFromDeal = (dealId) => {
+  const d = DATA.deals.find(x => x.id === dealId);
+  if (!d) return;
+  const acctId = d.account_id || (d.lead_id ? DATA.accounts.find(a => a.name === (DATA.leads.find(l => l.id === d.lead_id)?.name || ''))?.id : null);
+  setTimeout(() => openNewQuotationModal(null, dealId, acctId), 100);
+};
+
+window.viewDealDeals = (id) => {
+  const d = DATA.deals.find(x => x.id === id);
+  if (!d) return;
+  const acctName = d.account_id ? (DATA.accounts.find(a => a.id === d.account_id)?.name || '—') : d.lead_id ? (DATA.leads.find(l => l.id === d.lead_id)?.name || '—') : '—';
+  const qtns = DATA.quotations.filter(q => q.deal_id === id);
+  const body = `<div>
+    <div style="margin-bottom:12px;"><strong>${d.title}</strong> · ${fmt(d.value)} · ${d.stage}</div>
+    <div style="font-size:13px;color:var(--text-sec);margin-bottom:4px;">Account: ${acctName}</div>
+    <div style="font-size:13px;color:var(--text-sec);margin-bottom:4px;">Close Date: ${d.expected_close_date || 'N/A'}</div>
+    ${d.sales_person ? `<div style="font-size:13px;color:var(--text-sec);margin-bottom:4px;">Sales Person: ${d.sales_person}</div>` : ''}
+    ${d.territory ? `<div style="font-size:13px;color:var(--text-sec);margin-bottom:4px;">Territory: ${d.territory}</div>` : ''}
+    ${d.lost_reason ? `<div style="font-size:13px;color:var(--error);margin-bottom:4px;">Lost Reason: ${d.lost_reason}</div>` : ''}
+    ${qtns.length ? `<h4 style="margin:12px 0 6px;font-size:13px;">Quotations (${qtns.length})</h4>
+      ${qtns.map(q => `<div style="font-size:12px;padding:4px 0;">${q.id} · ${fmt(q.grand_total)} · ${q.status}</div>`).join('')}` : ''}
+  </div>`;
+  openModal('Deal: ' + d.id, body, `<button class="btn btn-primary" onclick="closeModal()">Close</button>`);
+};
+
+/* ── CRM WIN/LOSS ANALYSIS ── */
+function renderCRMWinLoss() {
+  const won = DATA.deals.filter(d => d.stage === 'Closed Won');
+  const lost = DATA.deals.filter(d => d.stage === 'Closed Lost');
+  const total = won.length + lost.length;
+  const winRate = total > 0 ? Math.round(won.length / total * 100) : 0;
+  const wonVal = won.reduce((s, d) => s + parseFloat(d.value || 0), 0);
+  const lostVal = lost.reduce((s, d) => s + parseFloat(d.value || 0), 0);
+
+  // Group lost by reason
+  const reasons = {};
+  lost.forEach(d => {
+    const r = d.lost_reason || 'Unknown';
+    reasons[r] = (reasons[r] || 0) + 1;
+  });
+  const topReasons = Object.entries(reasons).sort((a, b) => b[1] - a[1]);
+
+  // Group by sales person
+  const spWon = {}, spLost = {}, spValWon = {}, spValLost = {};
+  DATA.deals.forEach(d => {
+    const sp = d.sales_person || 'Unassigned';
+    if (d.stage === 'Closed Won') {
+      spWon[sp] = (spWon[sp] || 0) + 1;
+      spValWon[sp] = (spValWon[sp] || 0) + parseFloat(d.value || 0);
+    } else if (d.stage === 'Closed Lost') {
+      spLost[sp] = (spLost[sp] || 0) + 1;
+      spValLost[sp] = (spValLost[sp] || 0) + parseFloat(d.value || 0);
+    }
+  });
+  const allSPs = [...new Set([...Object.keys(spWon), ...Object.keys(spLost)])];
+
+  // Territory analysis
+  const tWon = {}, tLost = {}, tValWon = {}, tValLost = {};
+  DATA.deals.forEach(d => {
+    const t = d.territory || 'Unassigned';
+    if (d.stage === 'Closed Won') {
+      tWon[t] = (tWon[t] || 0) + 1;
+      tValWon[t] = (tValWon[t] || 0) + parseFloat(d.value || 0);
+    } else if (d.stage === 'Closed Lost') {
+      tLost[t] = (tLost[t] || 0) + 1;
+      tValLost[t] = (tValLost[t] || 0) + parseFloat(d.value || 0);
+    }
+  });
+  const allTerr = [...new Set([...Object.keys(tWon), ...Object.keys(tLost)])];
+
+  let html = `<div class="fade-in">
+    <h2>Win/Loss Analysis</h2>
+    <div class="kpi-grid" style="margin-top:16px;">
+      <div class="kpi-card green"><span class="kpi-label">Closed Won</span><span class="kpi-value">${won.length}</span><span class="kpi-change kpi-up">${fmt(wonVal)} total value</span></div>
+      <div class="kpi-card red"><span class="kpi-label">Closed Lost</span><span class="kpi-value">${lost.length}</span><span class="kpi-change kpi-warn">${fmt(lostVal)} total value</span></div>
+      <div class="kpi-card"><span class="kpi-label">Win Rate</span><span class="kpi-value" style="color:${winRate >= 50 ? 'var(--success)' : 'var(--error)'}">${winRate}%</span><span class="kpi-change">${total} total decisions</span></div>
+      <div class="kpi-card purple"><span class="kpi-label">Active Pipeline</span><span class="kpi-value">${DATA.deals.length - won.length - lost.length}</span><span class="kpi-change"><i class="fa-solid fa-chart-line"></i> Still in play</span></div>
+    </div>`;
+
+  // Top Lost Reasons
+  if (topReasons.length) {
+    html += `<div class="sec-card" style="margin-top:16px;"><div class="sec-card-head">Top Reasons for Lost Deals</div><div class="sec-card-body">
+      <div style="display:flex;flex-direction:column;gap:6px;">`;
+    const maxReasonCount = Math.max(...topReasons.map(r => r[1]));
+    topReasons.forEach(([reason, count]) => {
+      const pct = Math.round(count / lost.length * 100);
+      html += `<div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px;">
+          <span>${reason}</span><span style="font-weight:600;">${count} (${pct}%)</span>
+        </div>
+        <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+          <div style="width:${count / maxReasonCount * 100}%;height:100%;background:var(--error);border-radius:4px;"></div>
+        </div>
+      </div>`;
+    });
+    html += `</div></div></div>`;
+  }
+
+  // Sales Person Performance
+  if (allSPs.length) {
+    html += `<div class="sec-card" style="margin-top:16px;"><div class="sec-card-head">Sales Person Performance</div>
+      <div style="overflow-x:auto;"><table class="data-table">
+        <thead><tr><th>Sales Person</th><th>Won</th><th>Lost</th><th>Win Rate</th><th>Won Value</th><th>Lost Value</th></tr></thead>
+        <tbody>${allSPs.map(sp => {
+          const w = spWon[sp] || 0, l = spLost[sp] || 0;
+          const rate = (w + l) > 0 ? Math.round(w / (w + l) * 100) : 0;
+          return `<tr><td style="font-weight:600">${sp}</td><td style="color:var(--success)">${w}</td><td style="color:var(--error)">${l}</td><td style="font-weight:600;color:${rate >= 50 ? 'var(--success)' : 'var(--error)'}">${rate}%</td><td>${fmt(spValWon[sp] || 0)}</td><td>${fmt(spValLost[sp] || 0)}</td></tr>`;
+        }).join('')}</tbody>
+      </table></div></div>`;
+  }
+
+  // Territory Analysis
+  if (allTerr.length) {
+    html += `<div class="sec-card" style="margin-top:16px;"><div class="sec-card-head">Territory Performance</div>
+      <div style="overflow-x:auto;"><table class="data-table">
+        <thead><tr><th>Territory</th><th>Won</th><th>Lost</th><th>Win Rate</th><th>Won Value</th><th>Lost Value</th></tr></thead>
+        <tbody>${allTerr.map(t => {
+          const w = tWon[t] || 0, l = tLost[t] || 0;
+          const rate = (w + l) > 0 ? Math.round(w / (w + l) * 100) : 0;
+          return `<tr><td style="font-weight:600">${t}</td><td style="color:var(--success)">${w}</td><td style="color:var(--error)">${l}</td><td style="font-weight:600;color:${rate >= 50 ? 'var(--success)' : 'var(--error)'}">${rate}%</td><td>${fmt(tValWon[t] || 0)}</td><td>${fmt(tValLost[t] || 0)}</td></tr>`;
+        }).join('')}</tbody>
+      </table></div></div>`;
+  }
+
+  // Recent Closed Deals
+  const recentClosed = DATA.deals.filter(d => d.stage === 'Closed Won' || d.stage === 'Closed Lost').slice(0, 10);
+  if (recentClosed.length) {
+    html += `<div class="sec-card" style="margin-top:16px;"><div class="sec-card-head">Recent Closed Deals</div>
+      <div style="overflow-x:auto;"><table class="data-table">
+        <thead><tr><th>Deal</th><th>Account</th><th>Value</th><th>Result</th><th>Sales Person</th><th>Notes</th></tr></thead>
+        <tbody>${recentClosed.map(d => {
+          const acctName = d.account_id ? (DATA.accounts.find(a => a.id === d.account_id)?.name || '') : d.lead_id ? (DATA.leads.find(l => l.id === d.lead_id)?.name || '') : '';
+          return `<tr>
+            <td style="font-weight:600">${d.title}</td>
+            <td style="font-size:12px;color:var(--text-sec)">${acctName}</td>
+            <td>${fmt(d.value)}</td>
+            <td><span style="color:${d.stage === 'Closed Won' ? 'var(--success)' : 'var(--error)'};font-weight:600">${d.stage === 'Closed Won' ? '✓ Won' : '✗ Lost'}</span></td>
+            <td style="font-size:12px">${d.sales_person || '—'}</td>
+            <td style="font-size:12px;color:var(--text-sec);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.notes || d.lost_reason || '—'}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div></div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+/* ── CRM TERRITORY VIEW ── */
+function renderCRMTerritory() {
+  // Build territory data from accounts and deals
+  const territoryAccounts = {};
+  DATA.accounts.forEach(a => {
+    const t = a.territory || 'Unassigned';
+    if (!territoryAccounts[t]) territoryAccounts[t] = { accounts: [], deals: [], totalValue: 0 };
+    territoryAccounts[t].accounts.push(a);
+    territoryAccounts[t].totalValue += (a.contractValue || 0);
+  });
+  DATA.deals.forEach(d => {
+    const t = d.territory || 'Unassigned';
+    if (!territoryAccounts[t]) territoryAccounts[t] = { accounts: [], deals: [], totalValue: 0 };
+    territoryAccounts[t].deals.push(d);
+  });
+
+  const territories = Object.entries(territoryAccounts);
+  const allSalesPersons = [...new Set(DATA.deals.map(d => d.sales_person).filter(Boolean))];
+
+  let html = `<div class="fade-in">
+    <h2>Territory View</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:16px;">`;
+
+  territories.forEach(([territory, data]) => {
+    const openDeals = data.deals.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost');
+    const wonDeals = data.deals.filter(d => d.stage === 'Closed Won');
+    const dealVal = openDeals.reduce((s, d) => s + parseFloat(d.value || 0), 0);
+    const wonVal = wonDeals.reduce((s, d) => s + parseFloat(d.value || 0), 0);
+    const persons = [...new Set(data.deals.filter(d => d.sales_person).map(d => d.sales_person))];
+
+    html += `<div class="sec-card" style="cursor:default;">
+      <div class="sec-card-head" style="font-size:15px;">
+        <i class="fa-solid fa-map-pin" style="color:var(--blue);"></i> ${territory}
+        <span style="font-weight:400;font-size:12px;color:var(--text-sec);">${data.accounts.length} accounts</span>
+      </div>
+      <div class="sec-card-body" style="font-size:13px;">
+        <div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap;">
+          <span><strong>${data.accounts.length}</strong> accounts</span>
+          <span><strong>${openDeals.length}</strong> open deals</span>
+          <span style="color:var(--success);"><strong>${fmt(dealVal)}</strong> pipeline</span>
+          ${wonDeals.length ? `<span style="color:var(--success);"><strong>${fmt(wonVal)}</strong> won</span>` : ''}
+        </div>
+        ${persons.length ? `<div style="font-size:12px;color:var(--text-sec);margin-bottom:8px;"><i class="fa-solid fa-user"></i> ${persons.join(', ')}</div>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          ${data.accounts.slice(0, 5).map(a => `<span style="padding:2px 8px;background:#f0f4f8;border-radius:4px;font-size:11px;">${a.name}</span>`).join('')}
+          ${data.accounts.length > 5 ? `<span style="font-size:11px;color:var(--text-sec);">+${data.accounts.length - 5} more</span>` : ''}
+        </div>
+        ${openDeals.length ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px;">Open Deals</div>
+          ${openDeals.slice(0, 3).map(d => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;">
+            <span>${d.title}</span><span style="font-weight:600;">${fmt(d.value)}</span>
+          </div>`).join('')}
+          ${openDeals.length > 3 ? `<div style="font-size:11px;color:var(--text-sec);margin-top:2px;">+${openDeals.length - 3} more deals</div>` : ''}
+        </div>` : ''}
+      </div>
+    </div>`;
+  });
+
+  html += `</div>
+    <div class="sec-card" style="margin-top:16px;"><div class="sec-card-head">Account Territory Summary</div>
+    <div style="overflow-x:auto;"><table class="data-table">
+      <thead><tr><th>Territory</th><th>Accounts</th><th>Total Contract Value</th><th>Open Deals</th><th>Pipeline Value</th><th>Sales Persons</th></tr></thead>
+      <tbody>${territories.map(([t, d]) => {
+        const openDeals = d.deals.filter(dl => dl.stage !== 'Closed Won' && dl.stage !== 'Closed Lost');
+        const persons = [...new Set(d.deals.filter(dl => dl.sales_person).map(dl => dl.sales_person))];
+        return `<tr><td style="font-weight:600">${t}</td><td>${d.accounts.length}</td><td>${fmt(d.totalValue)}</td><td>${openDeals.length}</td><td>${fmt(openDeals.reduce((s, dl) => s + parseFloat(dl.value || 0), 0))}</td><td style="font-size:12px">${persons.join(', ') || '—'}</td></tr>`;
+      }).join('')}</tbody>
+    </table></div></div>
+  </div>`;
+  return html;
+}
+
+/* ── HR ATTENDANCE ── */
+function renderHRAttendance() {
+  const today = new Date().toISOString().split('T')[0];
+  const myAtt = DATA.attendance.find(a => a.employee_id === 'EMP-001' && a.date === today);
+  const checkedIn = myAtt && myAtt.check_in_time && !myAtt.check_out_time;
+  
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Attendance & Timesheets</h2>
+    <div>
+      ${!checkedIn ? `<button class="btn btn-primary" onclick="hrCheckIn()">Check In</button>` : `<button class="btn btn-danger" onclick="hrCheckOut()">Check Out</button>`}
+    </div>
+  </div>
+  <table class="table">
+    <thead><tr><th>Date</th><th>Employee ID</th><th>Status</th><th>Check In</th><th>Check Out</th></tr></thead>
+    <tbody>`;
+  DATA.attendance.slice().reverse().forEach(a => {
+    html+=`<tr>
+      <td>${a.date}</td><td>${a.employee_id}</td>
+      <td><span class="status-pill status-${a.status.toLowerCase().replace(' ','-')}">${a.status}</span></td>
+      <td>${a.check_in_time||'-'}</td><td>${a.check_out_time||'-'}</td>
+    </tr>`;
+  });
+  if(DATA.attendance.length===0) html+=`<tr><td colspan="5" style="text-align:center">No attendance records.</td></tr>`;
+  html+=`</tbody></table></div>`;
+  return html;
+}
+
+async function hrCheckIn() {
+  const today = new Date().toISOString().split('T')[0];
+  const time = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+  const rec = { id:'ATT-'+Date.now(), employee_id:'EMP-001', date:today, status:'Present', check_in_time:time, check_out_time:null };
+  
+  if (supabase) {
+    const { error } = await supabase.from('hr_attendance').insert(rec);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.attendance.push(rec);
+  showToast('Checked in successfully!','success'); rerenderSection();
+}
+
+async function hrCheckOut() {
+  const today = new Date().toISOString().split('T')[0];
+  const time = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+  const myAtt = DATA.attendance.find(a => a.employee_id === 'EMP-001' && a.date === today);
+  
+  if(myAtt) {
+    myAtt.check_out_time = time;
+    if(supabase) await supabase.from('hr_attendance').update({check_out_time:time}).eq('id', myAtt.id);
+    showToast('Checked out successfully!','success'); rerenderSection();
+  }
+}
+
+/* ── HR EXPENSES ── */
+function renderHRAbsenceCalendar() {
+  const allLeaves = DATA.leaveRequests.map(l => ({
+    id: l.id, employee: l.employeeName, type: l.type, startDate: l.startDate, endDate: l.endDate, status: l.status, source: 'Leave'
+  }));
+  const absences = DATA.attendance.filter(a => a.status === 'Absent').map(a => {
+    const emp = DATA.employees.find(e => e.id === a.employee_id);
+    return { id: a.id, employee: emp ? emp.name : a.employee_id, type: 'Unexcused Absence', startDate: a.date, endDate: a.date, status: 'Logged', source: 'Attendance' };
+  });
+
+  const combined = [...allLeaves, ...absences].sort((a,b) => new Date(b.startDate) - new Date(a.startDate));
+
+  let html = `<div class="fade-in"><div class="filter-bar"><h2>Absence & Leave Calendar</h2></div>
+  <table class="table">
+    <thead><tr><th>Type</th><th>Employee</th><th>Start Date</th><th>End Date</th><th>Status</th><th>Source</th></tr></thead>
+    <tbody>`;
+  combined.forEach(item => {
+    html += `<tr>
+      <td><strong>${item.type}</strong></td>
+      <td>${item.employee}</td>
+      <td>${item.startDate}</td>
+      <td>${item.endDate}</td>
+      <td><span class="status-pill status-${item.status.toLowerCase().replace(' ','-')}">${item.status}</span></td>
+      <td>${item.source}</td>
+    </tr>`;
+  });
+  if(combined.length===0) html += `<tr><td colspan="6" style="text-align:center">No absences found.</td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+function renderHROpenPositions() {
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Open Positions</h2>
+    <button class="btn btn-primary" onclick="openNewPositionModal()">+ New Position</button>
+  </div>
+  <table class="table">
+    <thead><tr><th>ID</th><th>Job Title</th><th>Department</th><th>Posted Date</th><th>Status</th></tr></thead>
+    <tbody>`;
+  DATA.openPositions.forEach(p => {
+    html += `<tr>
+      <td><strong>${p.id}</strong></td>
+      <td>${p.title}</td>
+      <td>${p.department}</td>
+      <td>${p.posted_date}</td>
+      <td><span class="status-pill status-${p.status.toLowerCase()}">${p.status}</span></td>
+    </tr>`;
+  });
+  if(DATA.openPositions.length===0) html += `<tr><td colspan="5" style="text-align:center">No open positions.</td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+function openNewPositionModal() {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="nop-title" placeholder="Job Title" />
+    <select class="filter-select" id="nop-dept">
+      ${[...new Set(DATA.employees.map(e=>e.dept))].map(d=>`<option>${d}</option>`).join('')}
+    </select>
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewPosition()">Post Job</button>`;
+  openModal('New Open Position', body, footer);
+}
+
+async function submitNewPosition() {
+  const title=$('#nop-title').value.trim();
+  if(!title){showToast('Title required','error');return;}
+  const newPos = { id:'OP-'+Date.now(), title, department:$('#nop-dept').value, status:'Open', posted_date:new Date().toISOString().split('T')[0] };
+  if(supabase) {
+    const {error} = await supabase.from('hr_open_positions').insert(newPos);
+    if(error){showToast('Error saving','error'); return;}
+  }
+  DATA.openPositions.push(newPos);
+  closeModal(); showToast('Position posted','success'); rerenderSection();
+}
+
+function renderHRPerformanceCycle() {
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Performance Reviews</h2>
+    <button class="btn btn-primary" onclick="openNewReviewModal()">+ Start Review</button>
+  </div>
+  <table class="table">
+    <thead><tr><th>ID</th><th>Employee</th><th>Period</th><th>Rating</th><th>Status</th></tr></thead>
+    <tbody>`;
+  DATA.performanceReviews.forEach(r => {
+    html += `<tr>
+      <td><strong>${r.id}</strong></td>
+      <td>${r.employee_name}</td>
+      <td>${r.period}</td>
+      <td>${r.rating}</td>
+      <td><span class="status-pill status-${r.status.toLowerCase()}">${r.status}</span></td>
+    </tr>`;
+  });
+  if(DATA.performanceReviews.length===0) html += `<tr><td colspan="5" style="text-align:center">No reviews found.</td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+function openNewReviewModal() {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <select class="filter-select" id="nr-emp">
+      ${DATA.employees.map(e=>`<option>${e.name}</option>`).join('')}
+    </select>
+    <input class="filter-input" id="nr-period" placeholder="Period (e.g. Q3 2026)" />
+    <select class="filter-select" id="nr-rating">
+      <option>Needs Improvement</option><option>Meets Expectations</option><option>Exceeds Expectations</option>
+    </select>
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewReview()">Save Review</button>`;
+  openModal('New Performance Review', body, footer);
+}
+
+async function submitNewReview() {
+  const period=$('#nr-period').value.trim();
+  if(!period){showToast('Period required','error');return;}
+  const newRev = { id:'PR-'+Date.now(), employee_name:$('#nr-emp').value, period, rating:$('#nr-rating').value, status:'Completed' };
+  if(supabase) {
+    const {error} = await supabase.from('hr_performance_reviews').insert(newRev);
+    if(error){showToast('Error saving','error'); return;}
+  }
+  DATA.performanceReviews.push(newRev);
+  closeModal(); showToast('Review saved','success'); rerenderSection();
+}
+
+function renderHRTraining() {
+  let html = `<div class="fade-in"><div class="filter-bar"><h2>HSE & Training</h2></div>
+  <table class="table">
+    <thead><tr><th>ID</th><th>Employee</th><th>Course</th><th>Date</th><th>Status</th></tr></thead>
+    <tbody>`;
+  DATA.hseTraining.forEach(t => {
+    html += `<tr><td><strong>${t.id}</strong></td><td>${t.employee_name}</td><td>${t.course}</td><td>${t.date}</td><td><span class="status-pill status-${t.status.toLowerCase()}">${t.status}</span></td></tr>`;
+  });
+  if(DATA.hseTraining.length===0) html += `<tr><td colspan="5" style="text-align:center">No training records found.</td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+function renderHROrgUnits() {
+  let html = `<div class="fade-in"><div class="filter-bar"><h2>Organizational Units</h2></div>
+  <table class="table">
+    <thead><tr><th>ID</th><th>Department Name</th><th>Head Count</th><th>Manager</th></tr></thead>
+    <tbody>`;
+  DATA.orgUnits.forEach(o => {
+    html += `<tr><td><strong>${o.id}</strong></td><td>${o.name}</td><td>${o.head_count}</td><td>${o.manager}</td></tr>`;
+  });
+  if(DATA.orgUnits.length===0) html += `<tr><td colspan="4" style="text-align:center">No org units found.</td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+function renderHRSettings() {
+  return `<div class="fade-in" style="max-width:600px">
+    <h2>HR Settings</h2>
+    <div class="sec-card" style="margin-top:20px"><div class="sec-card-body">
+      <div class="form-group"><label class="form-label">Default Probation Period (Days)</label><input class="form-input" type="number" value="90"></div>
+      <div class="form-group"><label class="form-label">Auto-Approve Leaves Under (Days)</label><input class="form-input" type="number" value="3"></div>
+      <button class="btn btn-primary" onclick="showToast('Settings saved','success')">Save Settings</button>
+    </div></div>
+  </div>`;
+}
+
+function renderHRExpenses() {
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Expense Claims</h2>
+    <button class="btn btn-primary" onclick="openNewExpenseModal()">+ Submit Expense</button>
+  </div>
+  <table class="table">
+    <thead><tr><th>Date</th><th>Employee</th><th>Category</th><th>Amount</th><th>Status</th></tr></thead>
+    <tbody>`;
+  DATA.expenses.forEach(e => {
+    html+=`<tr style="cursor:pointer" onclick="alert('${e.description}')">
+      <td>${e.date}</td><td>${e.employee_id}</td><td>${e.category}</td><td>$${parseFloat(e.amount).toLocaleString()}</td>
+      <td><span class="status-pill status-${e.status.toLowerCase().replace(' ','-')}">${e.status}</span></td>
+    </tr>`;
+  });
+  if(DATA.expenses.length===0) html+=`<tr><td colspan="5" style="text-align:center">No expense claims.</td></tr>`;
+  html+=`</tbody></table></div>`;
+  return html;
+}
+
+function openNewExpenseModal() {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <input type="date" class="filter-input" id="nx-date" />
+    <select class="filter-select" id="nx-cat">
+      <option value="Travel">Travel</option><option value="Meals">Meals</option><option value="Supplies">Supplies</option>
+    </select>
+    <input type="number" class="filter-input" id="nx-amt" placeholder="Amount ($)" />
+    <input class="filter-input" id="nx-desc" placeholder="Description" />
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewExpense()">Submit Claim</button>`;
+  openModal('New Expense Claim', body, footer);
+}
+
+async function submitNewExpense() {
+  const amt=$('#nx-amt').value;
+  if(!amt){showToast('Amount required','error');return;}
+  const newExp = { id:'EXP-'+Date.now(), employee_id:'EMP-001', date:$('#nx-date').value||new Date().toISOString().split('T')[0], amount:parseFloat(amt), category:$('#nx-cat').value, description:$('#nx-desc').value, status:'Pending' };
+  
+  if (supabase) {
+    const { error } = await supabase.from('hr_expense_claims').insert(newExp);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.expenses.push(newExp);
+  closeModal(); showToast('Expense submitted','success'); rerenderSection();
+}
+
+/* ── HR PAYROLL ── */
+function renderHRPayroll() {
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Payroll & Compensation</h2>
+    <button class="btn btn-primary" onclick="openNewSalarySlipModal()">Generate Slip</button>
+  </div>
+  <table class="table">
+    <thead><tr><th>Period</th><th>Employee</th><th>Base Pay</th><th>Net Pay</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>`;
+  DATA.salarySlips.forEach(s => {
+    html+=`<tr>
+      <td onclick="alert('Allowances: $${s.allowances} | Deductions: $${s.deductions}')" style="cursor:pointer;color:var(--blue)">${s.month}/${s.year}</td>
+      <td>${s.employee_id}</td>
+      <td>$${parseFloat(s.base_pay).toLocaleString()}</td><td><strong>$${parseFloat(s.net_pay).toLocaleString()}</strong></td>
+      <td><span class="status-pill status-${s.status.toLowerCase().replace(' ','-')}">${s.status}</span></td>
+      <td>${s.status==='Draft'?`<button class="btn btn-primary btn-sm" onclick="approveSalarySlip('${s.id}')">Approve</button>`:''}</td>
+    </tr>`;
+  });
+  if(DATA.salarySlips.length===0) html+=`<tr><td colspan="5" style="text-align:center">No salary slips found.</td></tr>`;
+  html+=`</tbody></table></div>`;
+  return html;
+}
+
+function openNewSalarySlipModal() {
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;gap:12px">
+      <input type="number" class="filter-input" id="ns-month" placeholder="Month (1-12)" min="1" max="12" value="${new Date().getMonth()+1}" style="flex:1" />
+      <input type="number" class="filter-input" id="ns-year" placeholder="Year" value="${new Date().getFullYear()}" style="flex:1" />
+    </div>
+    <select class="filter-select" id="ns-emp">
+      ${DATA.employees.map(e=>`<option value="${e.id}">${e.name} (${e.id})</option>`).join('')}
+    </select>
+    <input type="number" class="filter-input" id="ns-base" placeholder="Base Pay ($)" value="5000" />
+    <input type="number" class="filter-input" id="ns-allow" placeholder="Allowances ($)" value="1000" />
+    <input type="number" class="filter-input" id="ns-ded" placeholder="Deductions ($)" value="500" />
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewSalarySlip()">Generate</button>`;
+  openModal('Generate Salary Slip', body, footer);
+}
+
+async function submitNewSalarySlip() {
+  const base=parseFloat($('#ns-base').value)||0, allow=parseFloat($('#ns-allow').value)||0, ded=parseFloat($('#ns-ded').value)||0;
+  const newSlip = { id:'SAL-'+Date.now(), employee_id:$('#ns-emp').value, month:parseInt($('#ns-month').value), year:parseInt($('#ns-year').value), base_pay:base, allowances:allow, deductions:ded, net_pay:(base+allow-ded), status:'Draft' };
+  
+  if (supabase) {
+    const { error } = await supabase.from('hr_salary_slips').insert(newSlip);
+    if (error) { showToast('Error saving','error'); return; }
+  }
+  DATA.salarySlips.push(newSlip);
+  closeModal(); showToast('Salary Slip generated','success'); rerenderSection();
+}
+
+window.approveSalarySlip = async function(id) {
+  if(state.currentUserRole !== 'Manager' && state.currentUserRole !== 'Admin') {
+    return showToast('Access denied: Requires Manager role', 'error');
+  }
+  const slip = DATA.salarySlips.find(s => s.id === id);
+  if(slip) {
+    slip.status = 'Approved';
+    if(supabase) await supabase.from('hr_salary_slips').update({status:'Approved'}).eq('id', id);
+    
+    // HR -> Finance Automation: Creates a payroll payment with salary_slip_id link
+    const newPay = {
+      id: 'PAY-' + Date.now(), invoice_id: 'PAYROLL-' + slip.id, date: new Date().toISOString().split('T')[0],
+      amount: slip.net_pay, payment_method: 'Bank Transfer', salary_slip_id: slip.id
+    };
+    slip.payment_id = newPay.id;
+    if (supabase) await supabase.from('fin_payments').insert(newPay);
+    DATA.payments.push(newPay);
+    showToast('Payroll Approved. Payment recorded in Finance.', 'success');
+    
+    rerenderSection();
+  }
+}
+
+/* ── FINANCE MODULE ── */
+function renderFinSidebar() {
+  const overdueCount = DATA.invoices.filter(i=>i.status==='Overdue').length;
+  const sections=[
+    {group:null, items:[
+      {id:'finDashboard',icon:'fa-chart-pie',label:'Dashboard'},
+      {id:'finSales',icon:'fa-file-invoice-dollar',label:'Sales Invoices (A/R)'},
+      {id:'finPurchases',icon:'fa-file-invoice',label:'Purchase Invoices (A/P)'},
+      {id:'finPayments',icon:'fa-money-bill-transfer',label:'Payments'},
+    ]},
+    {group:'Reports', items:[
+      {id:'arAging',icon:'fa-clock',label:'AR Aging'},
+      {id:'apAging',icon:'fa-clock',label:'AP Aging'},
+      {id:'finGL',icon:'fa-book',label:'General Ledger'},
+      {id:'finPL',icon:'fa-chart-line',label:'Profit & Loss'},
+      {id:'finBS',icon:'fa-scale-balanced',label:'Balance Sheet'},
+    ]},
+    {group:'Accounting', items:[
+      {id:'finJournalEntries',icon:'fa-book-open',label:'Journal Entries'},
+    ]},
+    {group:'Assets', items:[
+      {id:'finFixedAssets',icon:'fa-industry',label:'Fixed Assets'},
+    ]},
+    {group:'Dimensions', items:[
+      {id:'finCostCenters',icon:'fa-building-columns',label:'Cost Centers'},
+      {id:'finChartAccounts',icon:'fa-sitemap',label:'Chart of Accounts'},
+    ]},
+    {group:'Admin', items:[
+      {id:'finSettings',icon:'fa-gear',label:'Settings'},
+    ]},
+  ];
+  let html='';
+  sections.forEach(s=>{
+    if(s.group) html+=`<div class="sidebar-group">${s.group}</div>`;
+    s.items.forEach(i=>{
+      html+=`<div class="sidebar-item ${state.section===i.id?'active':''}" onclick="switchSection('${i.id}')">
+        <i class="fa-solid ${i.icon}"></i><span style="flex:1">${i.label}</span>
+      </div>`;
+    });
+  });
+  return html;
+}
+
+function renderFinStub(name) {
+  return `<div class="fade-in" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-sec);font-size:18px;">
+    <i class="fa-solid fa-person-digging" style="margin-right:10px"></i> ${name} Module under construction
+  </div>`;
+}
+
+function renderFinDashboard() {
+  recomputeInvoiceStatuses();
+  const totalReceivables = DATA.invoices.filter(i=>i.type==='Sales' && (i.status==='Unpaid'||i.status==='Overdue')).reduce((sum,i)=>sum+parseFloat(i.total_amount),0);
+  const totalPayables = DATA.invoices.filter(i=>i.type==='Purchase' && (i.status==='Unpaid'||i.status==='Overdue')).reduce((sum,i)=>sum+parseFloat(i.total_amount),0);
+  const totalCashIn = DATA.payments.filter(p=>DATA.invoices.find(i=>i.id===p.invoice_id)?.type==='Sales').reduce((sum,p)=>sum+parseFloat(p.amount),0);
+  const totalCashOut = DATA.payments.filter(p=>DATA.invoices.find(i=>i.id===p.invoice_id)?.type==='Purchase').reduce((sum,p)=>sum+parseFloat(p.amount),0);
+
+  return `<div class="fade-in">
+    <h2>Finance Dashboard</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:16px">
+      <div class="kpi-card" style="border-left:4px solid var(--primary)">
+        <div class="kpi-title">Total Receivables (A/R)</div>
+        <div class="kpi-value">$${totalReceivables.toLocaleString()}</div>
+      </div>
+      <div class="kpi-card" style="border-left:4px solid var(--danger)">
+        <div class="kpi-title">Total Payables (A/P)</div>
+        <div class="kpi-value">$${totalPayables.toLocaleString()}</div>
+      </div>
+      <div class="kpi-card" style="border-left:4px solid var(--success)">
+        <div class="kpi-title">Cash Inflow</div>
+        <div class="kpi-value">$${totalCashIn.toLocaleString()}</div>
+      </div>
+      <div class="kpi-card" style="border-left:4px solid var(--orange)">
+        <div class="kpi-title">Cash Outflow</div>
+        <div class="kpi-value">$${totalCashOut.toLocaleString()}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── Invoice Status / Aging ── */
+function recomputeInvoiceStatuses() {
+  const today = new Date();
+  DATA.invoices.forEach(inv => {
+    if (inv.status === 'Paid') return;
+    const totalPaid = DATA.payments.filter(p => p.invoice_id === inv.id).reduce((s, p) => s + parseFloat(p.amount), 0);
+    if (totalPaid >= parseFloat(inv.total_amount)) { inv.status = 'Paid'; return; }
+    if (inv.due_date && new Date(inv.due_date) < today) inv.status = 'Overdue';
+    else if (inv.status !== 'Paid') inv.status = 'Unpaid';
+  });
+}
+
+/* ── Invoice Master-Detail ── */
+function selectFinItem(id) { state.selectedId = id; state.detailTab = 'info'; rerenderSection(); }
+
+function renderFinInvoiceDetail(inv) {
+  const tabs = [{ id: 'info', label: 'Info & Items' }, { id: 'payments', label: 'Payments' }];
+  const tab = state.detailTab || 'info';
+  let html = `<div class="detail-tabs">`;
+  tabs.forEach(t => { html += `<div class="detail-tab ${tab === t.id ? 'active' : ''}" onclick="state.detailTab='${t.id}';rerenderSection()">${t.label}</div>`; });
+  html += `</div><div class="detail-tab-body">`;
+  if (tab === 'info') html += renderFinInvoiceInfoTab(inv);
+  else if (tab === 'payments') html += renderFinInvoicePaymentsTab(inv);
+  html += `</div>`;
+  return html;
+}
+
+function renderFinInvoiceInfoTab(inv) {
+  const totalPaid = DATA.payments.filter(p => p.invoice_id === inv.id).reduce((s, p) => s + parseFloat(p.amount), 0);
+  const balance = parseFloat(inv.total_amount) - totalPaid;
+  const subTotal = inv.items ? inv.items.reduce((s, it) => s + parseFloat(it.amount), 0) : parseFloat(inv.total_amount);
+  const cc = DATA.costCenters.find(c => c.id === inv.cost_center_id);
+  const tax = DATA.taxTemplates.find(t => t.id === inv.tax_template_id);
+  let html = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px">
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">Invoice ID</div><div style="font-size:14px;font-weight:600">${inv.id}</div></div>
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">Party</div><div style="font-size:14px;font-weight:600">${inv.party_name}</div></div>
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">Status</div><div>${statusPill(inv.status)}</div></div>
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">Date</div><div style="font-size:14px">${inv.date}</div></div>
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">Due Date</div><div style="font-size:14px">${inv.due_date || '—'}</div></div>
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">Cost Center</div><div style="font-size:14px">${cc ? cc.name : '—'}</div></div>
+  </div>`;
+  if (inv.items && inv.items.length > 0) {
+    html += `<h4 style="margin:0 0 8px;font-size:13px;font-weight:600">Line Items</h4><table class="table"><thead><tr><th>Item</th><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody>`;
+    inv.items.forEach(it => { html += `<tr><td>${it.item}</td><td>${it.description || '—'}</td><td>${it.qty}</td><td>$${parseFloat(it.rate).toLocaleString()}</td><td>$${parseFloat(it.amount).toLocaleString()}</td></tr>`; });
+    html += `</tbody></table>`;
+  }
+  if (inv.tax_template_id) {
+    const taxAmt = inv.tax_amount || (subTotal * (inv.tax_rate || 0) / 100);
+    html += `<div style="display:flex;justify-content:flex-end;margin-top:8px;font-size:14px">
+      <div style="text-align:right"><div>Subtotal: <strong>$${subTotal.toLocaleString()}</strong></div>
+      <div>${tax ? tax.name : 'Tax'} (${inv.tax_rate || 0}%): <strong>$${taxAmt.toLocaleString()}</strong></div>
+      <div style="border-top:2px solid var(--border);padding-top:4px;margin-top:4px;font-size:16px">Grand Total: <strong style="color:var(--blue)">$${parseFloat(inv.total_amount).toLocaleString()}</strong></div></div>
+    </div>`;
+  }
+  if (inv.status === 'Unpaid' || inv.status === 'Overdue') html += `<div style="margin-top:16px"><button class="btn btn-primary" onclick="openNewPaymentModal('${inv.id}')">Log Payment</button></div>`;
+  return html;
+}
+
+function renderFinInvoicePaymentsTab(inv) {
+  const payments = DATA.payments.filter(p => p.invoice_id === inv.id);
+  if (payments.length === 0) return `<div style="color:var(--text-sec);padding:20px;text-align:center">No payments recorded for this invoice.</div>`;
+  let html = `<table class="table"><thead><tr><th>ID</th><th>Date</th><th>Amount</th><th>Method</th></tr></thead><tbody>`;
+  payments.forEach(p => { html += `<tr><td>${p.id}</td><td>${p.date}</td><td>$${parseFloat(p.amount).toLocaleString()}</td><td>${p.payment_method}</td></tr>`; });
+  html += `</tbody></table>`;
+  return html;
+}
+
+function renderFinInvoices(type) {
+  recomputeInvoiceStatuses();
+  const f = state.filters;
+  let items = DATA.invoices.filter(i => i.type === type);
+  if (f.search) { const s = f.search.toLowerCase(); items = items.filter(i => i.party_name.toLowerCase().includes(s) || i.id.toLowerCase().includes(s)); }
+  if (state.sortCol) { const col = state.sortCol, dir = state.sortDir === 'asc' ? 1 : -1; items.sort((a, b) => { let va = a[col], vb = b[col]; if (typeof va === 'string') return va.localeCompare(vb) * dir; return (va - vb) * dir; }); }
+
+  const label = type === 'Sales' ? 'A/R' : 'A/P';
+  let html = `<div class="fade-in"><h2>${type} Invoices (${label})</h2><div class="md-layout">`;
+
+  html += `<div class="md-master">
+    <div class="filter-bar">
+      <input class="filter-input" placeholder="Search..." value="${f.search || ''}" oninput="state.filters.search=this.value;rerenderSection()" style="flex:1;min-width:100px">
+      <button class="btn btn-primary btn-sm" onclick="openNewInvoiceModal('${type}')"><i class="fa-solid fa-plus"></i> New</button>
+    </div>
+    <div style="padding:6px 14px 4px;font-size:11px;color:var(--text-sec);background:#fafafa;border-bottom:1px solid var(--border);">${items.length} invoices</div>
+    <div class="list-container">`;
+  if (items.length === 0) html += `<div class="empty-state"><i class="fa-solid fa-inbox"></i><p>No invoices found</p></div>`;
+  items.forEach(inv => {
+    const isOverdue = inv.status === 'Overdue';
+    html += `<div class="list-item ${state.selectedId === inv.id ? 'selected' : ''}" onclick="selectFinItem('${inv.id}')">
+      <div class="avatar" style="width:36px;height:36px;background:${isOverdue ? 'var(--error)' : 'var(--blue)'};font-size:12px;color:#fff">${initials(inv.party_name)}</div>
+      <div class="list-item-body">
+        <div class="list-item-title">${inv.party_name}</div>
+        <div class="list-item-desc">${inv.id} · ${inv.date}${inv.due_date ? ' · Due: ' + inv.due_date : ''}</div>
+      </div>
+      <div class="list-item-right">
+        <span class="status-pill status-${inv.status.toLowerCase().replace(/ /g, '-')}">${inv.status}</span>
+        <div class="list-item-date" style="margin-top:3px;">$${parseFloat(inv.total_amount).toLocaleString()}</div>
+      </div>
+    </div>`;
+  });
+  html += `</div></div>`;
+
+  html += `<div class="md-detail ${state.selectedId ? 'has-item' : ''}" style="padding:0;">`;
+  if (state.selectedId) {
+    const inv = DATA.invoices.find(x => x.id === state.selectedId);
+    if (inv) html += renderFinInvoiceDetail(inv);
+  } else {
+    html += `<div class="empty-state" style="min-height:400px;"><i class="fa-solid fa-hand-pointer"></i><p>Select an invoice to view details</p></div>`;
+  }
+  html += `</div></div></div>`;
+  return html;
+}
+
+function openNewInvoiceModal(type) {
+  const partyOptions = type === 'Sales'
+    ? DATA.accounts.map(a => `<option value="${a.name}">${a.name}</option>`).join('')
+    : DATA.suppliers.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+  const ccOptions = DATA.costCenters.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  const taxOptions = DATA.taxTemplates.map(t => `<option value="${t.id}" data-rate="${t.rate}">${t.name} (${t.rate}%)</option>`).join('');
+
+  const body = `<div style="display:flex;flex-direction:column;gap:12px">
+    <label style="font-size:12px;font-weight:600;color:var(--text-sec)">Party</label>
+    <select class="filter-input" id="ni-party">
+      <option value="">— Select ${type === 'Sales' ? 'Customer' : 'Supplier'} —</option>
+      ${partyOptions}
+    </select>
+    <input type="date" class="filter-input" id="ni-due" placeholder="Due Date" />
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div><label style="font-size:12px;font-weight:600;color:var(--text-sec)">Cost Center</label>
+      <select class="filter-input" id="ni-cc"><option value="">— None —</option>${ccOptions}</select></div>
+      <div><label style="font-size:12px;font-weight:600;color:var(--text-sec)">Tax Template</label>
+      <select class="filter-input" id="ni-tax" onchange="calcInvoiceTotal()"><option value="">— None —</option>${taxOptions}</select></div>
+    </div>
+    <div id="ni-items">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:4px 0">
+        <label style="font-size:12px;font-weight:600;color:var(--text-sec)">Line Items</label>
+        <button class="btn btn-sm btn-outline" onclick="addInvoiceItemRow()"><i class="fa-solid fa-plus"></i> Add Item</button>
+      </div>
+      <div class="ni-item-row" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:6px;margin-bottom:6px">
+        <input class="filter-input" placeholder="Item name" style="font-size:12px" />
+        <input type="number" class="filter-input" placeholder="Qty" value="1" style="font-size:12px" oninput="calcInvoiceItemRow(this)" />
+        <input type="number" class="filter-input" placeholder="Rate" style="font-size:12px" oninput="calcInvoiceItemRow(this)" />
+        <input class="filter-input" placeholder="Amount" readonly style="font-size:12px;background:#f5f5f5" />
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;padding:8px 0;border-top:1px solid var(--border);font-size:14px">
+      <div style="text-align:right"><div>Subtotal: $<span id="ni-subtotal">0.00</span></div>
+      <div>Tax: $<span id="ni-tax-amt">0.00</span></div>
+      <div style="border-top:2px solid var(--border);padding-top:4px;margin-top:4px;font-size:16px">Total: $<span id="ni-total">0.00</span></div></div>
+    </div>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewInvoice('${type}')">Save Invoice</button>`;
+  openModal(`New ${type} Invoice`, body, footer);
+}
+
+function addInvoiceItemRow() {
+  const container = $('#ni-items');
+  const row = document.createElement('div');
+  row.className = 'ni-item-row';
+  row.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:6px;margin-bottom:6px';
+  row.innerHTML = `<input class="filter-input" placeholder="Item name" style="font-size:12px" />
+    <input type="number" class="filter-input" placeholder="Qty" value="1" style="font-size:12px" oninput="calcInvoiceItemRow(this)" />
+    <input type="number" class="filter-input" placeholder="Rate" style="font-size:12px" oninput="calcInvoiceItemRow(this)" />
+    <div style="display:flex;gap:4px"><input class="filter-input" placeholder="Amount" readonly style="font-size:12px;background:#f5f5f5;flex:1" /><button class="btn btn-sm btn-outline" style="color:var(--error);border-color:var(--error);padding:2px 6px" onclick="this.closest('.ni-item-row').remove();calcInvoiceTotal()"><i class="fa-solid fa-xmark"></i></button></div>`;
+  container.appendChild(row);
+}
+
+function calcInvoiceItemRow(el) {
+  const row = el.closest('.ni-item-row');
+  const qty = parseFloat(row.querySelector('input[placeholder="Qty"]').value) || 0;
+  const rate = parseFloat(row.querySelector('input[placeholder="Rate"]').value) || 0;
+  row.querySelector('input[placeholder="Amount"]').value = (qty * rate).toFixed(2);
+  calcInvoiceTotal();
+}
+
+function calcInvoiceTotal() {
+  let subTotal = 0;
+  document.querySelectorAll('.ni-item-row').forEach(row => {
+    subTotal += parseFloat(row.querySelector('input[placeholder="Amount"]').value) || 0;
+  });
+  const taxSel = document.getElementById('ni-tax');
+  const taxRate = taxSel && taxSel.selectedOptions[0] ? parseFloat(taxSel.selectedOptions[0].getAttribute('data-rate')) || 0 : 0;
+  const taxAmt = subTotal * taxRate / 100;
+  document.getElementById('ni-subtotal') && (document.getElementById('ni-subtotal').textContent = subTotal.toFixed(2));
+  document.getElementById('ni-tax-amt') && (document.getElementById('ni-tax-amt').textContent = taxAmt.toFixed(2));
+  document.getElementById('ni-total') && (document.getElementById('ni-total').textContent = (subTotal + taxAmt).toFixed(2));
+}
+
+async function submitNewInvoice(type) {
+  const party = $('#ni-party').value.trim();
+  if (!party) { showToast('Please select a party', 'error'); return; }
+
+  const itemRows = document.querySelectorAll('.ni-item-row');
+  const items = [];
+  let subTotal = 0;
+  itemRows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const item = inputs[0].value.trim();
+    const qty = parseFloat(inputs[1].value) || 0;
+    const rate = parseFloat(inputs[2].value) || 0;
+    const amt = qty * rate;
+    if (item && qty > 0) { items.push({ item, description: '', qty, rate, amount: amt }); subTotal += amt; }
+  });
+  if (items.length === 0) { showToast('Add at least one line item', 'error'); return; }
+
+  const taxSel = document.getElementById('ni-tax');
+  const taxId = taxSel ? taxSel.value : '';
+  const taxTemplate = taxId ? DATA.taxTemplates.find(t => t.id === taxId) : null;
+  const taxRate = taxTemplate ? taxTemplate.rate : 0;
+  const taxAmt = subTotal * taxRate / 100;
+
+  const invPrefix = type === 'Sales' ? 'INV-' : 'PINV-';
+  const newInv = {
+    id: invPrefix + Date.now(), type, party_name: party, date: new Date().toISOString().split('T')[0],
+    due_date: $('#ni-due').value || null, total_amount: subTotal + taxAmt, status: 'Unpaid', deal_id: null,
+    cost_center_id: $('#ni-cc').value || null, tax_template_id: taxId || null, tax_rate: taxRate, tax_amount: taxAmt, items
+  };
+
+  if (supabase) {
+    const { error } = await supabase.from('fin_invoices').insert(newInv);
+    if (error) { showToast('Error saving', 'error'); return; }
+  }
+  DATA.invoices.push(newInv);
+  const drAccount = newInv.type === 'Sales' ? 'ACC-AR' : 'ACC-OPEX';
+  const crAccount = newInv.type === 'Sales' ? 'ACC-REV' : 'ACC-AP';
+  autoPostJE(newInv.id, 'Invoice ' + newInv.id + ' auto-posting', [{account_id:drAccount, debit:newInv.total_amount, credit:0},{account_id:crAccount, debit:0, credit:newInv.total_amount}]);
+  closeModal(); showToast('Invoice saved', 'success'); rerenderSection();
+}
+
+/* ── Aging Reports ── */
+function renderFinAging(type) {
+  recomputeInvoiceStatuses();
+  const label = type === 'Sales' ? 'Accounts Receivable Aging' : 'Accounts Payable Aging';
+  const today = new Date();
+  const buckets = [{ label: '0–30 Days', min: 0, max: 30 }, { label: '31–60 Days', min: 31, max: 60 }, { label: '61–90 Days', min: 61, max: 90 }, { label: '90+ Days', min: 91, max: Infinity }];
+  const overdue = DATA.invoices.filter(i => i.type === type && i.status === 'Overdue');
+
+  let html = `<div class="fade-in"><h2>${label}</h2>
+  <table class="table"><thead><tr><th>Bucket</th><th>Count</th><th>Total Amount</th><th>Invoices</th></tr></thead><tbody>`;
+  buckets.forEach(b => {
+    const inBucket = overdue.filter(i => { const d = Math.floor((today - new Date(i.due_date)) / (1000 * 60 * 60 * 24)); return d >= b.min && d <= b.max; });
+    const total = inBucket.reduce((s, i) => s + parseFloat(i.total_amount), 0);
+    html += `<tr><td>${b.label}</td><td>${inBucket.length}</td><td>$${total.toLocaleString()}</td><td style="font-size:12px">${inBucket.map(i => i.id).join(', ') || '—'}</td></tr>`;
+  });
+  const grandTotal = overdue.reduce((s, i) => s + parseFloat(i.total_amount), 0);
+  html += `<tr style="background:#f5f6f7;font-weight:700"><td>Total Overdue</td><td>${overdue.length}</td><td>$${grandTotal.toLocaleString()}</td><td></td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+/* ── General Ledger ── */
+function renderFinGL() {
+  recomputeInvoiceStatuses();
+  const entries = [];
+  DATA.invoices.forEach(inv => {
+    const amt = parseFloat(inv.total_amount);
+    if (inv.type === 'Sales') {
+      entries.push({ date: inv.date, type: 'Invoice', ref: inv.id, account: 'Accounts Receivable', debit: amt, credit: 0, desc: inv.party_name });
+      entries.push({ date: inv.date, type: 'Invoice', ref: inv.id, account: 'Revenue', debit: 0, credit: amt, desc: inv.party_name });
+    } else {
+      entries.push({ date: inv.date, type: 'Invoice', ref: inv.id, account: 'Expense / Inventory', debit: amt, credit: 0, desc: inv.party_name });
+      entries.push({ date: inv.date, type: 'Invoice', ref: inv.id, account: 'Accounts Payable', debit: 0, credit: amt, desc: inv.party_name });
+    }
+  });
+  DATA.payments.forEach(p => {
+    const inv = DATA.invoices.find(i => i.id === p.invoice_id);
+    const amt = parseFloat(p.amount);
+    if (inv && inv.type === 'Sales') {
+      entries.push({ date: p.date, type: 'Payment', ref: p.id, account: 'Bank', debit: amt, credit: 0, desc: 'Received from ' + inv.party_name });
+      entries.push({ date: p.date, type: 'Payment', ref: p.id, account: 'Accounts Receivable', debit: 0, credit: amt, desc: 'Cleared ' + inv.party_name });
+    } else if (inv && inv.type === 'Purchase') {
+      entries.push({ date: p.date, type: 'Payment', ref: p.id, account: 'Accounts Payable', debit: amt, credit: 0, desc: 'Paid to ' + inv.party_name });
+      entries.push({ date: p.date, type: 'Payment', ref: p.id, account: 'Bank', debit: 0, credit: amt, desc: 'Payment ' + inv.party_name });
+    }
+  });
+  entries.sort((a, b) => a.date.localeCompare(b.date));
+
+  let runningBalance = 0;
+  let html = `<div class="fade-in"><h2 style="margin-bottom:12px">General Ledger</h2>
+  <table class="table"><thead><tr><th>Date</th><th>Type</th><th>Ref</th><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>`;
+  entries.forEach(e => {
+    runningBalance += e.debit - e.credit;
+    html += `<tr><td>${e.date}</td><td>${e.type}</td><td>${e.ref}</td><td>${e.account}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
+      <td style="color:${e.debit > 0 ? 'var(--error)' : 'var(--text-sec)'}">${e.debit > 0 ? '$' + e.debit.toLocaleString() : '—'}</td>
+      <td style="color:${e.credit > 0 ? 'var(--success)' : 'var(--text-sec)'}">${e.credit > 0 ? '$' + e.credit.toLocaleString() : '—'}</td>
+      <td class="ledger-balance">$${runningBalance.toLocaleString()}</td></tr>`;
+  });
+  if (entries.length === 0) html += `<tr><td colspan="8" style="text-align:center">No entries found.</td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+/* ── Profit & Loss ── */
+function renderFinPL() {
+  recomputeInvoiceStatuses();
+  let totalIncome = 0, totalExpenses = 0;
+  DATA.invoices.forEach(inv => {
+    const amt = parseFloat(inv.total_amount);
+    if (inv.type === 'Sales') totalIncome += amt;
+    else totalExpenses += amt;
+  });
+  const netIncome = totalIncome - totalExpenses;
+  return `<div class="fade-in"><h2>Profit & Loss Statement</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:16px">
+      <div class="kpi-card" style="border-left:4px solid var(--success)"><div class="kpi-label">Total Income (Revenue)</div><div class="kpi-value">$${totalIncome.toLocaleString()}</div></div>
+      <div class="kpi-card" style="border-left:4px solid var(--error)"><div class="kpi-label">Total Expenses</div><div class="kpi-value">$${totalExpenses.toLocaleString()}</div></div>
+      <div class="kpi-card" style="border-left:4px solid ${netIncome >= 0 ? 'var(--blue)' : 'var(--orange)'}"><div class="kpi-label">Net Income</div><div class="kpi-value">$${netIncome.toLocaleString()}</div><div class="kpi-change ${netIncome >= 0 ? 'kpi-up' : 'kpi-down'}">${netIncome >= 0 ? 'Profit' : 'Loss'}</div></div>
+    </div>
+    <table class="table" style="margin-top:20px"><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>
+      <tr><td><strong>Income</strong></td><td></td></tr>
+      ${DATA.invoices.filter(i => i.type === 'Sales').map(i => `<tr><td style="padding-left:32px">${i.party_name} (${i.id})</td><td>$${parseFloat(i.total_amount).toLocaleString()}</td></tr>`).join('')}
+      <tr style="background:#f5f6f7;font-weight:700"><td>Total Income</td><td>$${totalIncome.toLocaleString()}</td></tr>
+      <tr><td><strong>Expenses</strong></td><td></td></tr>
+      ${DATA.invoices.filter(i => i.type === 'Purchase').map(i => `<tr><td style="padding-left:32px">${i.party_name} (${i.id})</td><td>$${parseFloat(i.total_amount).toLocaleString()}</td></tr>`).join('')}
+      <tr style="background:#f5f6f7;font-weight:700"><td>Total Expenses</td><td>$${totalExpenses.toLocaleString()}</td></tr>
+      <tr style="background:var(--blue);color:#fff;font-weight:700"><td>Net Income</td><td>$${netIncome.toLocaleString()}</td></tr>
+    </tbody></table>
+  </div>`;
+}
+
+/* ── Balance Sheet ── */
+function renderFinBS() {
+  recomputeInvoiceStatuses();
+  const entries = [];
+  DATA.invoices.forEach(inv => {
+    const amt = parseFloat(inv.total_amount);
+    if (inv.type === 'Sales') {
+      entries.push({ account: 'Accounts Receivable', debit: amt, credit: 0 });
+      entries.push({ account: 'Revenue', debit: 0, credit: amt });
+    } else {
+      entries.push({ account: 'Expense / Inventory', debit: amt, credit: 0 });
+      entries.push({ account: 'Accounts Payable', debit: 0, credit: amt });
+    }
+  });
+  DATA.payments.forEach(p => {
+    const inv = DATA.invoices.find(i => i.id === p.invoice_id);
+    const amt = parseFloat(p.amount);
+    if (inv && inv.type === 'Sales') {
+      entries.push({ account: 'Bank', debit: amt, credit: 0 });
+      entries.push({ account: 'Accounts Receivable', debit: 0, credit: amt });
+    } else if (inv && inv.type === 'Purchase') {
+      entries.push({ account: 'Accounts Payable', debit: amt, credit: 0 });
+      entries.push({ account: 'Bank', debit: 0, credit: amt });
+    }
+  });
+
+  const balances = {};
+  entries.forEach(e => {
+    if (!balances[e.account]) balances[e.account] = 0;
+    balances[e.account] += e.debit - e.credit;
+  });
+
+  const totalAssets = (balances['Accounts Receivable'] || 0) + (balances['Bank'] || 0);
+  const totalLiabilities = (balances['Accounts Payable'] || 0);
+  const equity = (balances['Revenue'] || 0) - (balances['Expense / Inventory'] || 0) + totalLiabilities;
+  const totalEqLiab = totalLiabilities + Math.abs(equity);
+
+  return `<div class="fade-in"><h2>Balance Sheet</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:16px">
+      <div class="kpi-card" style="border-left:4px solid var(--success)"><div class="kpi-label">Total Assets</div><div class="kpi-value">$${totalAssets.toLocaleString()}</div></div>
+      <div class="kpi-card" style="border-left:4px solid var(--error)"><div class="kpi-label">Total Liabilities</div><div class="kpi-value">$${Math.abs(totalLiabilities).toLocaleString()}</div></div>
+      <div class="kpi-card" style="border-left:4px solid var(--blue)"><div class="kpi-label">Equity (Balancing)</div><div class="kpi-value">$${Math.abs(equity).toLocaleString()}</div></div>
+    </div>
+    <table class="table" style="margin-top:20px"><thead><tr><th>Category</th><th>Account</th><th>Balance</th></tr></thead><tbody>
+      <tr><td><strong>Assets</strong></td><td></td><td></td></tr>
+      <tr><td></td><td>Accounts Receivable</td><td>$${(balances['Accounts Receivable'] || 0).toLocaleString()}</td></tr>
+      <tr><td></td><td>Bank</td><td>$${(balances['Bank'] || 0).toLocaleString()}</td></tr>
+      <tr style="background:#f5f6f7;font-weight:700"><td></td><td>Total Assets</td><td>$${totalAssets.toLocaleString()}</td></tr>
+      <tr><td><strong>Liabilities</strong></td><td></td><td></td></tr>
+      <tr><td></td><td>Accounts Payable</td><td>$${Math.abs(balances['Accounts Payable'] || 0).toLocaleString()}</td></tr>
+      <tr style="background:#f5f6f7;font-weight:700"><td></td><td>Total Liabilities</td><td>$${Math.abs(totalLiabilities).toLocaleString()}</td></tr>
+      <tr><td><strong>Equity</strong></td><td></td><td></td></tr>
+      <tr><td></td><td>Retained Earnings / Net Income</td><td>$${Math.abs(equity).toLocaleString()}</td></tr>
+      <tr style="background:var(--blue);color:#fff;font-weight:700"><td></td><td>Total Liabilities + Equity</td><td>$${totalEqLiab.toLocaleString()}</td></tr>
+    </tbody></table>
+  </div>`;
+}
+
+/* ── Cost Centers ── */
+function renderFinCostCenters() {
+  let html = `<div class="fade-in"><h2>Cost Centers</h2>
+  <table class="table"><thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Total Invoiced (Sales)</th><th>Total Purchases</th></tr></thead><tbody>`;
+  DATA.costCenters.forEach(cc => {
+    const salesTotal = DATA.invoices.filter(i => i.type === 'Sales' && i.cost_center_id === cc.id).reduce((s, i) => s + parseFloat(i.total_amount), 0);
+    const purchTotal = DATA.invoices.filter(i => i.type === 'Purchase' && i.cost_center_id === cc.id).reduce((s, i) => s + parseFloat(i.total_amount), 0);
+    html += `<tr><td>${cc.id}</td><td>${cc.name}</td><td>${cc.dept}</td><td>$${salesTotal.toLocaleString()}</td><td>$${purchTotal.toLocaleString()}</td></tr>`;
+  });
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+/* ── Chart of Accounts ── */
+function renderFinChartAccounts() {
+  const rootAccounts = DATA.chartAccounts.filter(a => a.parent_id === null);
+  function renderTree(parents, depth) {
+    let h = '';
+    parents.forEach(acc => {
+      const children = DATA.chartAccounts.filter(a => a.parent_id === acc.id);
+      let bal = 0;
+      DATA.invoices.forEach(inv => {
+        if (acc.id === 'ACC-AR' && inv.type === 'Sales') bal += parseFloat(inv.total_amount) - DATA.payments.filter(p => p.invoice_id === inv.id).reduce((s, p) => s + parseFloat(p.amount), 0);
+        if (acc.id === 'ACC-AP' && inv.type === 'Purchase') bal += parseFloat(inv.total_amount) - DATA.payments.filter(p => p.invoice_id === inv.id).reduce((s, p) => s + parseFloat(p.amount), 0);
+        if (acc.id === 'ACC-BANK') DATA.payments.forEach(p => { if (inv && inv.type === 'Sales') bal += parseFloat(p.amount); else if (inv && inv.type === 'Purchase') bal -= parseFloat(p.amount); });
+        if (acc.id === 'ACC-REV' && inv.type === 'Sales') bal += parseFloat(inv.total_amount);
+        if (acc.id === 'ACC-OPEX' && inv.type === 'Purchase') bal += parseFloat(inv.total_amount);
+        if (acc.id === 'ACC-FA') bal += 0; // Fixed assets balance computed separately
+      });
+      acc.balance = bal;
+      h += `<tr>
+        <td style="padding-left:${depth * 24 + 12}px">${acc.is_group ? '<i class="fa-solid fa-folder-open" style="color:var(--orange);margin-right:4px"></i>' : '<i class="fa-solid fa-file-invoice" style="color:var(--text-sec);margin-right:4px"></i>'} ${acc.name}</td>
+        <td>${acc.id}</td><td>${acc.type}</td><td>${acc.is_group ? 'Group' : 'Detail'}</td>
+        <td style="text-align:right;font-weight:${acc.is_group ? '700' : '400'}">$${bal.toLocaleString()}</td>
+        <td><button class="btn btn-sm btn-outline" onclick="openNewChartAccountModal('${acc.id}')" ${acc.is_group ? '' : 'style="opacity:0.6"'}>+ Child</button></td>
+      </tr>`;
+      if (children.length > 0) h += renderTree(children, depth + 1);
+    });
+    return h;
+  }
+
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Chart of Accounts</h2>
+    <button class="btn btn-primary btn-sm" onclick="openNewChartAccountModal('')">+ New Account</button>
+  </div>
+  <table class="table"><thead><tr><th>Account Name</th><th>Code</th><th>Type</th><th>Group/Detail</th><th style="text-align:right">Balance</th><th></th></tr></thead><tbody>`;
+  html += renderTree(rootAccounts, 0);
+  if (rootAccounts.length === 0) html += `<tr><td colspan="6" style="text-align:center">No accounts defined.</td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+function openNewChartAccountModal(parentId) {
+  const parent = parentId ? DATA.chartAccounts.find(a => a.id === parentId) : null;
+  const body = `<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="nca-name" placeholder="Account Name" />
+    <input class="filter-input" id="nca-id" placeholder="Account Code (e.g. ACC-CASH)" value="${parentId ? parentId.replace(/-.*$/, '-') : 'ACC-'}" />
+    <select class="filter-input" id="nca-type"><option value="Asset">Asset</option><option value="Liability">Liability</option><option value="Equity">Equity</option><option value="Income">Income</option><option value="Expense">Expense</option></select>
+    <label style="font-size:12px;color:var(--text-sec)"><input type="checkbox" id="nca-group" checked /> Is Group (can have child accounts)</label>
+    <div style="font-size:12px;color:var(--text-sec)">Parent: ${parent ? parent.name : '— Root —'}</div>
+    <input type="hidden" id="nca-parent" value="${parentId}" />
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewChartAccount()">Save Account</button>`;
+  openModal(parentId ? 'Add Child Account' : 'New Account', body, footer);
+}
+
+async function submitNewChartAccount() {
+  const name = $('#nca-name').value.trim();
+  const id = $('#nca-id').value.trim();
+  const type = $('#nca-type').value;
+  const isGroup = $('#nca-group').checked;
+  const parentId = $('#nca-parent').value || null;
+  if (!name || !id) { showToast('Name and Code required', 'error'); return; }
+  if (DATA.chartAccounts.find(a => a.id === id)) { showToast('Account code already exists', 'error'); return; }
+  const acc = { id, name, type, parent_id: parentId, is_group: isGroup, balance: 0 };
+  if (supabase) supabase.from('fin_chart_accounts').insert(acc).catch(() => {});
+  DATA.chartAccounts.push(acc);
+  closeModal(); showToast('Account created', 'success'); rerenderSection();
+}
+
+/* ── Journal Entries ── */
+function renderFinJournalEntries() {
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Journal Entries</h2>
+    <button class="btn btn-primary btn-sm" onclick="openNewJournalEntryModal()">+ New Entry</button>
+  </div>`;
+
+  if (DATA.journalEntries.length === 0) {
+    html += `<div class="empty-state"><i class="fa-solid fa-book"></i><p>No journal entries yet.</p></div>`;
+  } else {
+    html += `<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">`;
+    [...DATA.journalEntries].reverse().forEach(je => {
+      const totalDebit = je.entries.reduce((s, e) => s + e.debit, 0);
+      const totalCredit = je.entries.reduce((s, e) => s + e.credit, 0);
+      html += `<div class="sec-card" style="cursor:pointer" onclick="this.querySelector('.je-detail').classList.toggle('hidden')">
+        <div class="sec-card-header" style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>${je.id}</strong> · ${je.date} · ${je.description}</div>
+          <div><span style="font-size:12px;color:var(--text-sec)">Dr $${totalDebit.toLocaleString()} / Cr $${totalCredit.toLocaleString()}</span> <i class="fa-solid fa-chevron-down"></i></div>
+        </div>
+        <div class="je-detail hidden" style="margin-top:8px">
+          <table class="table"><thead><tr><th>Account</th><th>Debit</th><th>Credit</th></tr></thead><tbody>`;
+      je.entries.forEach(e => {
+        const acc = DATA.chartAccounts.find(a => a.id === e.account_id);
+        html += `<tr><td>${acc ? acc.name : e.account_id}</td><td style="color:var(--error)">${e.debit > 0 ? '$' + e.debit.toLocaleString() : '—'}</td><td style="color:var(--success)">${e.credit > 0 ? '$' + e.credit.toLocaleString() : '—'}</td></tr>`;
+      });
+      html += `</tbody></table>
+          <div style="font-size:11px;color:var(--text-sec);margin-top:4px">Reference: ${je.reference || '—'}</div>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function openNewJournalEntryModal() {
+  const accOptions = DATA.chartAccounts.filter(a => !a.is_group).map(a => `<option value="${a.id}">${a.name} (${a.id})</option>`).join('');
+  const body = `<div style="display:flex;flex-direction:column;gap:12px">
+    <input type="date" class="filter-input" id="nje-date" value="${new Date().toISOString().split('T')[0]}" />
+    <input class="filter-input" id="nje-desc" placeholder="Description" />
+    <input class="filter-input" id="nje-ref" placeholder="Reference (optional)" />
+    <div id="nje-entries">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:4px 0">
+        <label style="font-size:12px;font-weight:600;color:var(--text-sec)">Debit/Credit Lines</label>
+        <button class="btn btn-sm btn-outline" onclick="addJELine()"><i class="fa-solid fa-plus"></i> Add Line</button>
+      </div>
+      <div class="je-line" style="display:grid;grid-template-columns:3fr 1fr 1fr;gap:6px;margin-bottom:6px">
+        <select class="filter-input" style="font-size:12px">${accOptions}</select>
+        <input type="number" class="filter-input" placeholder="Debit" value="0" style="font-size:12px;color:var(--error)" oninput="calcJETotal()" />
+        <input type="number" class="filter-input" placeholder="Credit" value="0" style="font-size:12px;color:var(--success)" oninput="calcJETotal()" />
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px">
+      <span id="nje-balance" style="font-weight:700;color:var(--success)">Balanced ✓ (Dr $0 = Cr $0)</span>
+    </div>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewJournalEntry()">Post Entry</button>`;
+  openModal('New Journal Entry', body, footer);
+}
+
+function addJELine() {
+  const accOptions = DATA.chartAccounts.filter(a => !a.is_group).map(a => `<option value="${a.id}">${a.name} (${a.id})</option>`).join('');
+  const container = $('#nje-entries');
+  const line = document.createElement('div');
+  line.className = 'je-line';
+  line.style.cssText = 'display:grid;grid-template-columns:3fr 1fr 1fr;gap:6px;margin-bottom:6px';
+  line.innerHTML = `<select class="filter-input" style="font-size:12px">${accOptions}</select>
+    <input type="number" class="filter-input" placeholder="Debit" value="0" style="font-size:12px;color:var(--error)" oninput="calcJETotal()" />
+    <div style="display:flex;gap:4px"><input type="number" class="filter-input" placeholder="Credit" value="0" style="font-size:12px;color:var(--success)" oninput="calcJETotal()" />
+    <button class="btn btn-sm btn-outline" style="color:var(--error);border-color:var(--error);padding:2px 6px" onclick="this.closest('.je-line').remove();calcJETotal()"><i class="fa-solid fa-xmark"></i></button></div>`;
+  container.appendChild(line);
+}
+
+function calcJETotal() {
+  let totalDr = 0, totalCr = 0;
+  document.querySelectorAll('.je-line').forEach(line => {
+    const inputs = line.querySelectorAll('input');
+    totalDr += parseFloat(inputs[0].value) || 0;
+    totalCr += parseFloat(inputs[1] ? inputs[1].value : 0) || 0;
+  });
+  const el = document.getElementById('nje-balance');
+  if (el) {
+    const diff = Math.abs(totalDr - totalCr);
+    if (diff < 0.01) el.innerHTML = `<span style="color:var(--success)">Balanced ✓ (Dr $${totalDr.toLocaleString()} = Cr $${totalCr.toLocaleString()})</span>`;
+    else el.innerHTML = `<span style="color:var(--error)">Out of balance ✗ (Dr $${totalDr.toLocaleString()} ≠ Cr $${totalCr.toLocaleString()}, Diff $${diff.toFixed(2)})</span>`;
+  }
+}
+
+async function submitNewJournalEntry() {
+  const date = $('#nje-date').value;
+  const desc = $('#nje-desc').value.trim();
+  if (!date || !desc) { showToast('Date and Description required', 'error'); return; }
+
+  const lines = document.querySelectorAll('.je-line');
+  const entries = [];
+  let totalDr = 0, totalCr = 0;
+  lines.forEach(line => {
+    const sel = line.querySelector('select');
+    const inputs = line.querySelectorAll('input');
+    const dr = parseFloat(inputs[0].value) || 0;
+    const cr = parseFloat(inputs[1] ? inputs[1].value : 0) || 0;
+    if (sel.value && (dr > 0 || cr > 0)) {
+      entries.push({ account_id: sel.value, debit: dr, credit: cr });
+      totalDr += dr; totalCr += cr;
+    }
+  });
+  if (entries.length === 0) { showToast('Add at least one line', 'error'); return; }
+  if (Math.abs(totalDr - totalCr) > 0.01) { showToast('Debit and Credit must balance', 'error'); return; }
+
+  const ref = $('#nje-ref').value.trim();
+  const je = { id: 'JE-' + Date.now(), date, reference: ref || null, description: desc, entries };
+  if (supabase) supabase.from('fin_journal_entries').insert(je).catch(() => {});
+  DATA.journalEntries.push(je);
+  closeModal(); showToast('Journal entry posted', 'success'); rerenderSection();
+}
+
+/* ── Auto-posting: create Journal Entry when invoice or payment is created ── */
+function autoPostJE(reference, description, entries) {
+  const je = { id: 'JE-' + Date.now(), date: new Date().toISOString().split('T')[0], reference, description, entries };
+  DATA.journalEntries.push(je);
+  if (supabase) supabase.from('fin_journal_entries').insert(je).catch(() => {});
+}
+
+/* ── Fixed Assets ── */
+function renderFinFixedAssets() {
+  function computeDepreciation(fa) {
+    if (fa.depreciation_method === 'Straight Line') {
+      const annualDep = (fa.cost - fa.salvage_value) / fa.useful_life_years;
+      const purchaseDate = new Date(fa.purchase_date);
+      const monthsOwned = Math.floor((new Date() - purchaseDate) / (1000 * 60 * 60 * 24 * 30.44));
+      const accumDep = Math.min(annualDep * monthsOwned / 12, fa.cost - fa.salvage_value);
+      return { annual: annualDep, accum: Math.max(accumDep, fa.accumulated_depreciation || 0), nbv: fa.cost - Math.max(accumDep, fa.accumulated_depreciation || 0) };
+    }
+    return { annual: 0, accum: fa.accumulated_depreciation || 0, nbv: fa.cost - (fa.accumulated_depreciation || 0) };
+  }
+
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Fixed Assets Register</h2>
+    <button class="btn btn-primary btn-sm" onclick="openNewFixedAssetModal()">+ Add Asset</button>
+  </div>
+  <table class="table"><thead><tr><th>Asset</th><th>Type</th><th>Purchase Date</th><th>Cost</th><th>Salvage Value</th><th>Life (yrs)</th><th>Annual Depr.</th><th>Accum. Depr.</th><th>Net Book Value</th><th>Status</th><th></th></tr></thead><tbody>`;
+
+  DATA.fixedAssets.forEach(fa => {
+    const dep = computeDepreciation(fa);
+    html += `<tr>
+      <td><strong>${fa.name}</strong></td><td>${fa.type}</td><td>${fa.purchase_date}</td>
+      <td>$${fa.cost.toLocaleString()}</td><td>$${fa.salvage_value.toLocaleString()}</td><td>${fa.useful_life_years}</td>
+      <td>$${dep.annual.toLocaleString()}</td><td>$${Math.round(dep.accum).toLocaleString()}</td>
+      <td style="font-weight:700;color:${dep.nbv > fa.cost * 0.5 ? 'var(--blue)' : 'var(--orange)'}">$${Math.round(dep.nbv).toLocaleString()}</td>
+      <td><span class="status-pill status-${fa.status.toLowerCase().replace(/ /g, '-')}">${fa.status}</span></td>
+      <td><button class="btn btn-sm btn-outline" onclick="openNewFixedAssetModal('${fa.id}')">Edit</button></td>
+    </tr>`;
+  });
+  if (DATA.fixedAssets.length === 0) html += `<tr><td colspan="11" style="text-align:center">No fixed assets registered.</td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+function openNewFixedAssetModal(editId) {
+  const fa = editId ? DATA.fixedAssets.find(a => a.id === editId) : null;
+  const supOptions = DATA.suppliers.map(s => `<option value="${s.id}" ${fa && fa.supplier_id === s.id ? 'selected' : ''}>${s.name}</option>`).join('');
+  const isEdit = !!fa;
+  const body = `<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="nfa-name" placeholder="Asset Name" value="${fa ? fa.name : ''}" />
+    <select class="filter-input" id="nfa-type"><option value="Machinery & Equipment" ${fa && fa.type === 'Machinery & Equipment' ? 'selected' : ''}>Machinery & Equipment</option><option value="Safety Equipment" ${fa && fa.type === 'Safety Equipment' ? 'selected' : ''}>Safety Equipment</option><option value="Transport & Material Handling" ${fa && fa.type === 'Transport & Material Handling' ? 'selected' : ''}>Transport & Material Handling</option><option value="IT & Software" ${fa && fa.type === 'IT & Software' ? 'selected' : ''}>IT & Software</option><option value="Buildings & Infrastructure" ${fa && fa.type === 'Buildings & Infrastructure' ? 'selected' : ''}>Buildings & Infrastructure</option></select>
+    <input type="date" class="filter-input" id="nfa-pdate" value="${fa ? fa.purchase_date : ''}" />
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input type="number" class="filter-input" id="nfa-cost" placeholder="Cost ($)" value="${fa ? fa.cost : ''}" />
+      <input type="number" class="filter-input" id="nfa-salvage" placeholder="Salvage Value ($)" value="${fa ? fa.salvage_value : ''}" />
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input type="number" class="filter-input" id="nfa-life" placeholder="Useful Life (years)" value="${fa ? fa.useful_life_years : ''}" />
+      <select class="filter-input" id="nfa-depr"><option value="Straight Line" ${fa && fa.depreciation_method === 'Straight Line' ? 'selected' : ''}>Straight Line</option><option value="WDV" ${fa && fa.depreciation_method === 'WDV' ? 'selected' : ''}>Written Down Value</option></select>
+    </div>
+    <select class="filter-input" id="nfa-supplier"><option value="">— Supplier —</option>${supOptions}</select>
+    <select class="filter-input" id="nfa-status"><option value="In Use" ${fa && fa.status === 'In Use' ? 'selected' : ''}>In Use</option><option value="Under Maintenance" ${fa && fa.status === 'Under Maintenance' ? 'selected' : ''}>Under Maintenance</option><option value="Disposed" ${fa && fa.status === 'Disposed' ? 'selected' : ''}>Disposed</option></select>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewFixedAsset('${editId || ''}')">${isEdit ? 'Update' : 'Add'} Asset</button>`;
+  openModal(isEdit ? 'Edit Fixed Asset' : 'Add Fixed Asset', body, footer);
+}
+
+async function submitNewFixedAsset(editId) {
+  const name = $('#nfa-name').value.trim();
+  if (!name) { showToast('Asset name required', 'error'); return; }
+  const asset = {
+    id: editId || 'FA-' + Date.now(), name, type: $('#nfa-type').value,
+    purchase_date: $('#nfa-pdate').value, cost: parseFloat($('#nfa-cost').value) || 0,
+    salvage_value: parseFloat($('#nfa-salvage').value) || 0, useful_life_years: parseInt($('#nfa-life').value) || 5,
+    depreciation_method: $('#nfa-depr').value, accumulated_depreciation: 0, net_book_value: parseFloat($('#nfa-cost').value) || 0,
+    status: $('#nfa-status').value, supplier_id: $('#nfa-supplier').value || null
+  };
+  if (!editId) {
+    if (supabase) supabase.from('fin_fixed_assets').insert(asset).catch(() => {});
+    DATA.fixedAssets.push(asset);
+    autoPostJE(asset.id, 'Fixed Asset ' + name + ' acquired', [{account_id:'ACC-FA', debit:asset.cost, credit:0},{account_id:'ACC-AP', debit:0, credit:asset.cost}]);
+  } else {
+    const idx = DATA.fixedAssets.findIndex(a => a.id === editId);
+    if (idx >= 0) DATA.fixedAssets[idx] = asset;
+    if (supabase) supabase.from('fin_fixed_assets').upsert(asset).catch(() => {});
+  }
+  closeModal(); showToast(editId ? 'Asset updated' : 'Asset added', 'success'); rerenderSection();
+}
+
+function renderFinPayments() {
+  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Payments Ledger</h2>
+  </div>
+  <table class="table">
+    <thead><tr><th>ID</th><th>Invoice / Ref</th><th>Date</th><th>Amount</th><th>Method</th><th>Source</th></tr></thead>
+    <tbody>`;
+  DATA.payments.forEach(p => {
+    const source = p.salary_slip_id
+      ? `<span style="color:var(--blue);cursor:pointer" onclick="switchModule('hr');switchSection('compensation')">${p.salary_slip_id}</span>`
+      : p.invoice_id && p.invoice_id.startsWith('PAYROLL-')
+        ? `<span style="color:var(--text-sec)">Payroll</span>`
+        : `<span style="color:var(--text-sec)">—</span>`;
+    html+=`<tr>
+      <td>${p.id}</td><td>${p.invoice_id}</td><td>${p.date}</td>
+      <td>$${parseFloat(p.amount).toLocaleString()}</td><td>${p.payment_method}</td><td>${source}</td>
+    </tr>`;
+  });
+  if(DATA.payments.length===0) html+=`<tr><td colspan="6" style="text-align:center">No payments recorded.</td></tr>`;
+  html+=`</tbody></table></div>`;
+  return html;
+}
+
+function openNewPaymentModal(invoiceId) {
+  const inv = DATA.invoices.find(i=>i.id===invoiceId);
+  const paidAlready = DATA.payments.filter(p=>p.invoice_id===invoiceId).reduce((s,p)=>s+parseFloat(p.amount),0);
+  const balance = Math.max(0, parseFloat(inv.total_amount) - paidAlready);
+
+  const body=`<div style="display:flex;flex-direction:column;gap:12px">
+    <div><strong>Invoice:</strong> ${invoiceId}</div>
+    <div><strong>Balance Due:</strong> $${balance.toLocaleString()}</div>
+    <input type="number" class="filter-input" id="np-amt" placeholder="Amount to Pay ($)" value="${balance}" />
+    <select class="filter-select" id="np-method">
+      <option value="Bank Transfer">Bank Transfer</option><option value="Credit Card">Credit Card</option><option value="Cash">Cash</option>
+    </select>
+  </div>`;
+  const footer=`<button class="btn btn-primary" onclick="submitNewPayment('${invoiceId}')">Log Payment</button>`;
+  openModal('Log Payment', body, footer);
+}
+
+async function submitNewPayment(invoiceId) {
+  const amt=parseFloat($('#np-amt').value);
+  if(!amt){showToast('Amount required','error');return;}
+  
+  const newPay = { id:'PAY-'+Date.now(), invoice_id:invoiceId, date:new Date().toISOString().split('T')[0], amount:amt, payment_method:$('#np-method').value };
+  
+  if (supabase) {
+    const { error } = await supabase.from('fin_payments').insert(newPay);
+    if (error) { showToast('Error saving payment','error'); return; }
+  }
+  DATA.payments.push(newPay);
+
+  // Auto-post JE
+  const inv = DATA.invoices.find(i=>i.id===invoiceId);
+  if (inv) {
+    const drAccount = inv.type === 'Sales' ? 'ACC-BANK' : 'ACC-AP';
+    const crAccount = inv.type === 'Sales' ? 'ACC-AR' : 'ACC-BANK';
+    autoPostJE(newPay.id, 'Payment ' + newPay.id + ' auto-posting', [{account_id:drAccount, debit:amt, credit:0},{account_id:crAccount, debit:0, credit:amt}]);
+  }
+
+  // Update Invoice Status if fully paid
+  const totalPaid = DATA.payments.filter(p=>p.invoice_id===invoiceId).reduce((s,p)=>s+parseFloat(p.amount),0);
+  if(totalPaid >= parseFloat(inv.total_amount)) {
+    inv.status = 'Paid';
+    if(supabase) await supabase.from('fin_invoices').update({status:'Paid'}).eq('id', invoiceId);
+  }
+
+  closeModal(); showToast('Payment logged','success'); rerenderSection();
+}
+
 /* ── EXPOSE TO GLOBAL SCOPE FOR INLINE ONCLICK ── */
+window.openNewInvoiceModal = openNewInvoiceModal;
+window.submitNewInvoice = submitNewInvoice;
+window.openNewPaymentModal = openNewPaymentModal;
+window.submitNewPayment = submitNewPayment;
+window.selectFinItem = selectFinItem;
+window.addInvoiceItemRow = addInvoiceItemRow;
+window.calcInvoiceItemRow = calcInvoiceItemRow;
+window.calcInvoiceTotal = calcInvoiceTotal;
+window.openNewChartAccountModal = openNewChartAccountModal;
+window.submitNewChartAccount = submitNewChartAccount;
+window.openNewJournalEntryModal = openNewJournalEntryModal;
+window.submitNewJournalEntry = submitNewJournalEntry;
+window.addJELine = addJELine;
+window.calcJETotal = calcJETotal;
+window.openNewFixedAssetModal = openNewFixedAssetModal;
+window.submitNewFixedAsset = submitNewFixedAsset;
+window.openNewInventoryModal = openNewInventoryModal;
+window.submitNewInventory = submitNewInventory;
+window.openNewQIModal = openNewQIModal;
+window.submitNewQI = submitNewQI;
+window.showQIParams = showQIParams;
+window.openNewLCVModal = openNewLCVModal;
+window.submitNewLCV = submitNewLCV;
+window.showLCVItems = showLCVItems;
+window.openNewRRModal = openNewRRModal;
+window.submitNewRR = submitNewRR;
+window.autoGenerateMR = autoGenerateMR;
+window.openNewPositionModal = openNewPositionModal;
+window.submitNewPosition = submitNewPosition;
+window.openNewReviewModal = openNewReviewModal;
+window.submitNewReview = submitNewReview;
+window.openNewFSLModal = openNewFSLModal;
+window.submitNewFSL = submitNewFSL;
+window.hrCheckIn = hrCheckIn;
+window.hrCheckOut = hrCheckOut;
+window.openNewExpenseModal = openNewExpenseModal;
+window.submitNewExpense = submitNewExpense;
+window.openNewSalarySlipModal = openNewSalarySlipModal;
+window.submitNewSalarySlip = submitNewSalarySlip;
+window.openNewLeadModal = openNewLeadModal;
+window.submitNewLead = submitNewLead;
+window.openNewDealModal = openNewDealModal;
+window.submitNewDeal = submitNewDeal;
+window.openNewTaskModal = openNewTaskModal;
+window.submitNewTask = submitNewTask;
 window.toggleLang = toggleLang;
 window.switchModule = switchModule;
 window.switchSection = switchSection;
@@ -2450,11 +6674,20 @@ window.submitNewAccount = submitNewAccount;
 window.selectCertItem = selectCertItem;
 window.openNewCertModal = openNewCertModal;
 window.submitNewCert = submitNewCert;
-window.selectPOItem = selectPOItem;
-window.approvePO = approvePO;
-window.selectSupplierItem = selectSupplierItem;
-window.openNewPOModal = openNewPOModal;
-window.submitNewPO = submitNewPO;
+window.approveCert = approveCert;
+window.rejectCert = rejectCert;
+window.openBulkCertModal = openBulkCertModal;
+window.addBulkRow = addBulkRow;
+window.removeBulkRow = removeBulkRow;
+window.updateBulkItem = updateBulkItem;
+window.batchSetDefaults = batchSetDefaults;
+window.calcBulkExpiry = calcBulkExpiry;
+window.submitBulkCerts = submitBulkCerts;
+window.togglePushNotif = togglePushNotif;
+window.checkPushHealth = checkPushHealth;
+window.requestNotifPermission = requestNotifPermission;
+window.fetchFreeModels = fetchFreeModels;
+window.selectAIModel = selectAIModel;
 window.toggleAIPanel = toggleAIPanel;
 window.saveAPIKey = saveAPIKey;
 window.clearAPIKey = clearAPIKey;
@@ -2462,3 +6695,15 @@ window.confirmAction = confirmAction;
 window.dismissAction = dismissAction;
 window.sendChip = sendChip;
 if (typeof sendAIMessage !== 'undefined') window.sendAIMessage = sendAIMessage;
+
+// New CRM exports
+window.openNewContactModal = openNewContactModal;
+window.submitContact = submitContact;
+window.deleteContact = deleteContact;
+window.openNewQuotationModal = openNewQuotationModal;
+window.submitQuotation = submitQuotation;
+window.openNewProspectModal = openNewProspectModal;
+window.submitProspect = submitProspect;
+window.deleteProspect = deleteProspect;
+window.openNewCommModal = openNewCommModal;
+window.submitComm = submitComm;

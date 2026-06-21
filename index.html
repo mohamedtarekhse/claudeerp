@@ -127,6 +127,60 @@
 
 <div class="dropdown" id="dropdown"></div>
 
+<!-- Certificate Detail Drawer -->
+<div class="sap-drawer-overlay" id="certDrawerOverlay">
+  <div class="sap-drawer">
+    <div class="sap-drawer__header">
+      <div class="sap-drawer__title">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+        <span>Certificate Details</span>
+      </div>
+      <button class="sap-drawer__close" onclick="closeCertDrawer()">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="sap-drawer__body" id="certDrawerBody"></div>
+    <div class="sap-drawer__footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeCertDrawer()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Certificate Reject Modal -->
+<div class="reject-modal-overlay" id="certRejectModal">
+  <div class="reject-modal">
+    <div class="reject-modal__header">
+      <h3><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Reject Certificate</h3>
+      <button class="sap-drawer__close" onclick="closeCertRejectModal()">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="reject-modal__body">
+      <div id="certRejectInfo" style="background:var(--bg);border-radius:6px;padding:12px;margin-bottom:14px;font-size:13px;"></div>
+      <div><label class="form-label">Rejection Reason <span style="color:var(--error)">*</span></label>
+      <textarea id="certRejectReason" class="form-textarea" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;font-size:13px;"></textarea></div>
+    </div>
+    <div class="reject-modal__footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeCertRejectModal()">Cancel</button>
+      <button class="btn btn-danger btn-sm" onclick="confirmCertReject()">Confirm Rejection</button>
+    </div>
+  </div>
+</div>
+
+<!-- Certificate QR Modal -->
+<div class="qr-modal-overlay" id="certQRModal">
+  <div class="qr-modal-card">
+    <button class="qr-modal-close" onclick="closeCertQRModal()">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <div class="qr-img-wrap" id="certQRImgWrap">
+      <img id="certQRImg" alt="QR Code"/>
+    </div>
+    <div class="qr-title" id="certQRTitle">Certificate QR</div>
+    <div class="qr-subtitle" id="certQRSubtitle"></div>
+  </div>
+</div>
+
 <script type="module" src="/main.js"></script>
 </body>
 </html>

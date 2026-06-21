@@ -3546,15 +3546,15 @@ function updateLoadingProgress(pct) {
 
 /* ── INITIALIZATION & AUTH ── */
 let _appInitialized = false;
+function hideLoading() { document.getElementById('loadingOverlay').classList.add('hidden'); }
 async function initializeApp() {
-  if (_appInitialized) return;
+  if (_appInitialized) { hideLoading(); return; }
   _appInitialized = true;
   document.getElementById('loadingOverlay').classList.remove('hidden');
   document.getElementById('authOverlay').classList.add('hidden');
   await loadData();
   renderAll();
-  const loadingEl = document.getElementById('loadingOverlay');
-  setTimeout(() => loadingEl.classList.add('hidden'), 400);
+  hideLoading();
   const certAlerts = DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring');
   const notifBadge = document.getElementById('notifBadge');
   if (notifBadge) notifBadge.textContent = certAlerts.length + DATA.leaveRequests.filter(l=>l.status==='Pending').length;
@@ -3565,6 +3565,9 @@ async function initializeApp() {
   
   setTimeout(()=> showToast('Welcome to AMICI ERP · All modules live','success'), 700);
 }
+
+// Guard: if bfcache restores the page, ensure loading overlay stays hidden
+window.addEventListener('pageshow', () => { if (_appInitialized) hideLoading(); });
 
 document.addEventListener('DOMContentLoaded', async () => {
   if (!supabase) {
@@ -3580,7 +3583,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('authOverlay').classList.add('hidden');
     initializeApp();
   } else {
-    document.getElementById('loadingOverlay').classList.add('hidden');
+    hideLoading();
     document.getElementById('authOverlay').classList.remove('hidden');
   }
 
@@ -3592,7 +3595,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       initializeApp();
     } else if (event === 'SIGNED_OUT') {
       _appInitialized = false;
-      document.getElementById('loadingOverlay').classList.add('hidden');
+      hideLoading();
       document.getElementById('authOverlay').classList.remove('hidden');
       document.querySelector('.app-body').innerHTML = ''; // clear app body
       document.getElementById('tabBar').innerHTML = ''; // clear tabs

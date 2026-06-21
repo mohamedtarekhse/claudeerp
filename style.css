@@ -340,7 +340,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 .ai-btn:hover{transform:scale(1.08);box-shadow:0 0 0 3px rgba(107,63,160,.35);}
 .ai-btn.active{box-shadow:0 0 0 3px rgba(107,63,160,.5);}
 
-.ai-panel{position:fixed;top:var(--shell-h);right:0;bottom:0;width:380px;
+.ai-panel{position:fixed;top:calc(var(--shell-h) + var(--tab-h));right:0;bottom:0;width:380px;
   background:var(--white);border-left:1px solid var(--border);
   display:flex;flex-direction:column;z-index:850;
   transform:translateX(100%);transition:transform var(--motion-slow) var(--ease-standard);

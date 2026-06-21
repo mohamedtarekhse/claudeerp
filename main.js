@@ -81,7 +81,7 @@ let DATA = {
     {id:'LD-001', name:'Acme Corp', email:'info@acme.com', phone:'+1 555-0198', status:'New', source:'Website'}
   ],
   deals: [
-    {id:'DL-001', title:'Acme SaaS Deal', lead_id:'LD-001', account_id:null, value:15000, stage:'Prospecting', expected_close_date:'2026-08-01'}
+    {id:'DL-001', title:'Acme SaaS Deal', lead_id:'LD-001', account_id:null, value:15000, stage:'Prospecting', expected_close_date:'2026-08-01', invoice_id:null}
   ],
   tasks: [
     {id:'TSK-001', description:'Follow up with Acme', due_date:'2026-06-25', status:'pending', assigned_to:'EMP-001', related_lead_id:'LD-001', related_deal_id:null}
@@ -93,14 +93,18 @@ let DATA = {
     {id:'EXP-001', employee_id:'EMP-001', date:'2026-06-15', amount:250, category:'Travel', description:'Flight to site', status:'Pending'}
   ],
   salarySlips: [
-    {id:'SAL-001', employee_id:'EMP-001', month:6, year:2026, base_pay:5000, allowances:1000, deductions:500, net_pay:5500, status:'Paid'}
+    {id:'SAL-001', employee_id:'EMP-001', month:6, year:2026, base_pay:5000, allowances:1000, deductions:500, net_pay:5500, status:'Paid', payment_id:null}
   ],
   invoices: [
-    {id:'INV-001', type:'Sales', party_name:'Acme Corp', date:'2026-06-01', due_date:'2026-06-30', total_amount:15000, status:'Unpaid'},
-    {id:'PINV-001', type:'Purchase', party_name:'DrillTech Supplies', date:'2026-06-10', due_date:'2026-07-10', total_amount:4500, status:'Unpaid'}
+    {id:'INV-001', type:'Sales', party_name:'Acme Corp', date:'2026-05-01', due_date:'2026-06-01', total_amount:15000, status:'Unpaid', deal_id:null, cost_center_id:'CC-DRL-001', tax_template_id:'TAX-VAT-5', tax_rate:5, tax_amount:750, items:[{item:'Field Engineering Support', description:'Block 15 Rig Alpha - Q2 2026', qty:1, rate:15000, amount:15000}]},
+    {id:'INV-002', type:'Sales', party_name:'TotalEnergies E&P Oman', date:'2026-05-15', due_date:'2026-06-15', total_amount:22000, status:'Unpaid', deal_id:null, cost_center_id:'CC-HSE-001', tax_template_id:'TAX-VAT-10', tax_rate:10, tax_amount:2200, items:[{item:'HSE Consultancy Retainer', description:'Monthly HSE advisory', qty:1, rate:12000, amount:12000},{item:'Site Inspection Services', description:'Block 6 quarterly', qty:1, rate:10000, amount:10000}]},
+    {id:'INV-003', type:'Sales', party_name:'PDO', date:'2026-04-01', due_date:'2026-04-30', total_amount:8500, status:'Unpaid', deal_id:null, cost_center_id:'CC-GEO-001', tax_template_id:'TAX-VAT-5', tax_rate:5, tax_amount:425, items:[{item:'Corrosion Monitoring Report', description:'Q1 2026 analysis', qty:1, rate:8500, amount:8500}]},
+    {id:'INV-004', type:'Sales', party_name:'BP Oman', date:'2026-06-10', due_date:'2026-07-10', total_amount:5000, status:'Unpaid', deal_id:null, cost_center_id:'CC-OPS-001', items:[{item:'Process Safety Audit', description:'Gas Train A preliminary', qty:1, rate:5000, amount:5000}]},
+    {id:'PINV-001', type:'Purchase', party_name:'DrillTech Supplies', date:'2026-06-01', due_date:'2026-06-15', total_amount:4500, status:'Unpaid', deal_id:null, cost_center_id:'CC-DRL-001', items:[{item:'Drill Bits 8.5" Tricone', description:'For Block 15', qty:3, rate:1500, amount:4500}]},
+    {id:'PINV-002', type:'Purchase', party_name:'Nalco Champion', date:'2026-06-05', due_date:'2026-07-05', total_amount:12000, status:'Unpaid', deal_id:null, cost_center_id:'CC-PRD-002', tax_template_id:'TAX-WHT-3', tax_rate:3, tax_amount:360, items:[{item:'Corrosion Inhibitor CI-4400', description:'Bulk supply', qty:600, rate:20, amount:12000}]}
   ],
   payments: [
-    {id:'PAY-001', invoice_id:'INV-001', date:'2026-06-15', amount:5000, payment_method:'Bank Transfer'}
+    {id:'PAY-001', invoice_id:'INV-001', date:'2026-06-15', amount:5000, payment_method:'Bank Transfer', salary_slip_id:null}
   ],
   openPositions: [
     {id:'OP-001', title:'Senior Geologist', department:'Exploration', status:'Open', posted_date:'2026-06-01'}
@@ -113,6 +117,70 @@ let DATA = {
   ],
   orgUnits: [
     {id:'OU-001', name:'Drilling', head_count:45, manager:'EMP-010'}
+  ],
+  costCenters: [
+    {id:'CC-DRL-001', name:'Drilling Operations', dept:'Drilling'},
+    {id:'CC-PRD-002', name:'Production Operations', dept:'Production'},
+    {id:'CC-HSE-001', name:'HSE', dept:'HSE'},
+    {id:'CC-FIN-001', name:'Finance & Admin', dept:'Finance'},
+    {id:'CC-SCM-001', name:'Supply Chain', dept:'Procurement'},
+    {id:'CC-OPS-001', name:'Operations Management', dept:'Operations'},
+    {id:'CC-MNT-001', name:'Maintenance', dept:'Maintenance'},
+    {id:'CC-INS-001', name:'Instrumentation', dept:'Instrumentation'},
+    {id:'CC-GEO-001', name:'Geology & Exploration', dept:'Geology'},
+    {id:'CC-IT-001', name:'IT', dept:'IT'},
+  ],
+  taxTemplates: [
+    {id:'TAX-VAT-5', name:'VAT 5%', rate:5, account:'Output VAT'},
+    {id:'TAX-VAT-10', name:'VAT 10%', rate:10, account:'Output VAT'},
+    {id:'TAX-WHT-3', name:'WHT 3%', rate:3, account:'Withholding Tax'},
+  ],
+  chartAccounts: [
+    {id:'ACC-ASSET', name:'Assets', type:'Asset', parent_id:null, is_group:true, balance:0},
+    {id:'ACC-AR', name:'Accounts Receivable', type:'Asset', parent_id:'ACC-ASSET', is_group:false, balance:0},
+    {id:'ACC-BANK', name:'Bank', type:'Asset', parent_id:'ACC-ASSET', is_group:false, balance:0},
+    {id:'ACC-FA', name:'Fixed Assets', type:'Asset', parent_id:'ACC-ASSET', is_group:true, balance:0},
+    {id:'ACC-LIAB', name:'Liabilities', type:'Liability', parent_id:null, is_group:true, balance:0},
+    {id:'ACC-AP', name:'Accounts Payable', type:'Liability', parent_id:'ACC-LIAB', is_group:false, balance:0},
+    {id:'ACC-EQUITY', name:'Equity', type:'Equity', parent_id:null, is_group:true, balance:0},
+    {id:'ACC-RE', name:'Retained Earnings', type:'Equity', parent_id:'ACC-EQUITY', is_group:false, balance:0},
+    {id:'ACC-INCOME', name:'Income', type:'Income', parent_id:null, is_group:true, balance:0},
+    {id:'ACC-REV', name:'Revenue', type:'Income', parent_id:'ACC-INCOME', is_group:false, balance:0},
+    {id:'ACC-EXP', name:'Expenses', type:'Expense', parent_id:null, is_group:true, balance:0},
+    {id:'ACC-OPEX', name:'Operating Expenses', type:'Expense', parent_id:'ACC-EXP', is_group:false, balance:0},
+  ],
+  journalEntries: [
+    {id:'JE-001', date:'2026-06-01', reference:'INV-001', description:'Invoice INV-001 auto-posting', entries:[{account_id:'ACC-AR', debit:15000, credit:0},{account_id:'ACC-REV', debit:0, credit:15000}]},
+    {id:'JE-002', date:'2026-06-15', reference:'PAY-001', description:'Payment PAY-001 auto-posting', entries:[{account_id:'ACC-BANK', debit:5000, credit:0},{account_id:'ACC-AR', debit:0, credit:5000}]},
+  ],
+  fixedAssets: [
+    {id:'FA-001', name:'Mud Pump Rig Alpha', type:'Machinery & Equipment', purchase_date:'2024-01-15', cost:850000, salvage_value:50000, useful_life_years:10, depreciation_method:'Straight Line', accumulated_depreciation:127500, net_book_value:722500, status:'In Use', supplier_id:'SUP-002'},
+    {id:'FA-002', name:'BOP Stack 13-5/8"', type:'Safety Equipment', purchase_date:'2023-06-01', cost:1200000, salvage_value:100000, useful_life_years:15, depreciation_method:'Straight Line', accumulated_depreciation:256667, net_book_value:943333, status:'In Use', supplier_id:'SUP-009'},
+    {id:'FA-003', name:'Forklift Toyota 5-ton', type:'Transport & Material Handling', purchase_date:'2025-03-01', cost:45000, salvage_value:5000, useful_life_years:5, depreciation_method:'Straight Line', accumulated_depreciation:3000, net_book_value:42000, status:'In Use', supplier_id:'SUP-015'},
+  ],
+  qualityInspections: [
+    {id:'QI-001',poRef:'PO-2025-001',itemId:'INV-001',itemName:'Corrosion Inhibitor CI-4400',inspectionType:'Incoming',inspector:'Ahmed Al-Riyami',date:'2025-06-01',status:'Passed',parameters:[{param:'Viscosity (cP)',min:30,max:50,actual:42,result:'Pass'},{param:'Density (g/cm³)',min:0.9,max:1.1,actual:1.02,result:'Pass'},{param:'pH',min:6.5,max:8.5,actual:7.1,result:'Pass'}],notes:'All parameters within spec'},
+    {id:'QI-002',poRef:'PO-2025-003',itemId:'INV-005',itemName:'Anti-H2S Coveralls',inspectionType:'Incoming',inspector:'Noor Al-Balushi',date:'2025-06-12',status:'Passed',parameters:[{param:'Material Thickness (mm)',min:0.3,max:0.5,actual:0.42,result:'Pass'},{param:'Seam Strength (N)',min:200,max:500,actual:380,result:'Pass'}],notes:'Visual inspection OK'},
+    {id:'QI-003',poRef:'PO-2025-005',itemId:'INV-018',itemName:'Portable Fire Extinguisher 9kg',inspectionType:'Incoming',inspector:'Khalid Al-Maawali',date:'2025-06-18',status:'Failed',parameters:[{param:'Pressure (bar)',min:12,max:15,actual:9.2,result:'Fail'},{param:'Weight (kg)',min:8.5,max:10.5,actual:9.8,result:'Pass'}],notes:'Pressure below minimum — rejected'},
+    {id:'QI-004',poRef:'PO-2025-002',itemId:'INV-002',itemName:'Scale Inhibitor SI-210',inspectionType:'Incoming',inspector:'Ahmed Al-Riyami',date:'2025-06-20',status:'Pending',parameters:[{param:'Viscosity (cP)',min:25,max:45,actual:0,result:'Pending'},{param:'Density (g/cm³)',min:0.85,max:1.05,actual:0,result:'Pending'}],notes:'Awaiting lab results'},
+  ],
+  landedCostVouchers: [
+    {id:'LCV-001',poRef:'PO-2025-002',date:'2025-06-10',charges:{freight:12500,insurance:3400,duty:8900,handling:2100},totalCharges:26900,distribution:'By Value',items:[{itemId:'INV-001',itemName:'Corrosion Inhibitor CI-4400',proportion:0.6,allocated:16140},{itemId:'INV-002',itemName:'Scale Inhibitor SI-210',proportion:0.4,allocated:10760}]},
+    {id:'LCV-002',poRef:'PO-2025-003',date:'2025-06-15',charges:{freight:5800,insurance:1200,duty:0,handling:800},totalCharges:7800,distribution:'By Value',items:[{itemId:'INV-005',itemName:'Anti-H2S Coveralls',proportion:0.7,allocated:5460},{itemId:'INV-016',itemName:'Safety Boots',proportion:0.3,allocated:2340}]},
+  ],
+  reorderRules: [
+    {id:'RR-001',itemId:'INV-002',itemName:'Scale Inhibitor SI-210',supplierId:'SUP-003',minQty:1500,maxQty:4000,leadTimeDays:14,autoCreatePO:true,lastTriggered:null},
+    {id:'RR-002',itemId:'INV-004',itemName:'Mud Pump Liner 7.5"',supplierId:'SUP-002',minQty:4,maxQty:8,leadTimeDays:30,autoCreatePO:true,lastTriggered:null},
+    {id:'RR-003',itemId:'INV-006',itemName:'SCBA Set (complete)',supplierId:'SUP-008',minQty:10,maxQty:20,leadTimeDays:21,autoCreatePO:false,lastTriggered:'2025-05-01'},
+    {id:'RR-004',itemId:'INV-008',itemName:'H2S Gas Detector – Portable',supplierId:'SUP-013',minQty:10,maxQty:25,leadTimeDays:45,autoCreatePO:true,lastTriggered:null},
+    {id:'RR-005',itemId:'INV-010',itemName:'Control Valve – Fisher V250 4"',supplierId:'SUP-005',minQty:1,maxQty:4,leadTimeDays:60,autoCreatePO:true,lastTriggered:null},
+  ],
+  uomConversions: [
+    {from:'Litre', to:'Barrel', factor:0.00629},
+    {from:'Litre', to:'Gallon', factor:0.264172},
+    {from:'Unit', to:'Dozen', factor:12},
+    {from:'Kilogram', to:'Ton', factor:0.001},
+    {from:'Metre', to:'Feet', factor:3.28084},
   ],
   employees: [
     {id:'EMP-001',firstName:'Khalid',lastName:'Al-Rashidi',name:'Khalid Al-Rashidi',dept:'Drilling',position:'Senior Drilling Engineer',email:'k.alrashidi@amici.com',phone:'+968 9100 1001',status:'active',empType:'Full-time',site:'Block 15 – Rig Alpha',rotation:'28/28',crew:'Offshore',startDate:'2018-03-10',manager:'EMP-010',salaryBand:'G6',costCenter:'CC-DRL-001',nationality:'Omani',visa:'N/A',h2sLevel:'Level 3',medFit:true,medExpiry:'2025-12-01',workPermit:'N/A',
@@ -924,7 +992,7 @@ function renderCRMSidebar(){
     {group:'Activities',items:[
       {id:'myTasks',icon:'fa-list-check',label:t('myTasks'),badge:overdueCount},
       {id:'fieldServiceLogs',icon:'fa-screwdriver-wrench',label:t('fieldServiceLogs')},
-      {id:'partnersJVs',icon:'fa-partnersJVs',label:t('partnersJVs')},
+      {id:'partnersJVs',icon:'fa-handshake',label:t('partnersJVs')},
     ]},
     {group:'Admin',items:[
       {id:'crmSettings',icon:'fa-gear',label:t('crmSettings')},
@@ -1416,8 +1484,9 @@ DATA.purchaseOrders = [
 DATA.inventory = [
   {id:'INV-001',name:'Corrosion Inhibitor CI-4400',partNo:'CHM-CI4400',category:'Production Chemicals',site:'Onshore Processing Facility – South',warehouse:'WH-South-01',uom:'Litre',qtyOnHand:3200,reorderPoint:1500,maxStock:6000,unitCost:18,status:'normal',lastReceived:'2025-05-31',supplierId:'SUP-003'},
   {id:'INV-002',name:'Scale Inhibitor SI-210',partNo:'CHM-SI210',category:'Production Chemicals',site:'Onshore Processing Facility – South',warehouse:'WH-South-01',uom:'Litre',qtyOnHand:800,reorderPoint:1000,maxStock:4000,unitCost:22,status:'low',lastReceived:'2025-05-31',supplierId:'SUP-003'},
-  {id:'INV-003',name:'Drill Bits – PDC 8.5"',partNo:'DRL-PDC085',category:'Drilling Consumables',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Unit',qtyOnHand:4,reorderPoint:3,maxStock:12,unitCost:14500,status:'normal',lastReceived:'2025-04-20',supplierId:'SUP-002'},
-  {id:'INV-004',name:'Mud Pump Liner 7.5"',partNo:'DRL-MPL075',category:'Drilling Consumables',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Unit',qtyOnHand:1,reorderPoint:4,maxStock:8,unitCost:4500,status:'critical',lastReceived:'2025-03-15',supplierId:'SUP-002'},
+  {id:'INV-037',name:'Drill Bits & Consumables (Parent)',partNo:'DRL-GRP',category:'Drilling Consumables',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Unit',qtyOnHand:0,reorderPoint:0,maxStock:0,unitCost:0,status:'normal',lastReceived:'-',supplierId:'SUP-002',has_variants:true,parent_item:null},
+  {id:'INV-003',name:'Drill Bits – PDC 8.5"',partNo:'DRL-PDC085',category:'Drilling Consumables',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Unit',qtyOnHand:4,reorderPoint:3,maxStock:12,unitCost:14500,status:'normal',lastReceived:'2025-04-20',supplierId:'SUP-002',parent_item:'INV-037',serial_tracking:true,batch_tracking:false},
+  {id:'INV-004',name:'Mud Pump Liner 7.5"',partNo:'DRL-MPL075',category:'Drilling Consumables',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Unit',qtyOnHand:1,reorderPoint:4,maxStock:8,unitCost:4500,status:'critical',lastReceived:'2025-03-15',supplierId:'SUP-002',parent_item:'INV-037',serial_tracking:true,batch_tracking:false},
   {id:'INV-005',name:'Anti-H2S Coveralls',partNo:'PPE-CVRH2S',category:'PPE & Safety',site:'All Sites',warehouse:'WH-HO-01',uom:'Unit',qtyOnHand:45,reorderPoint:30,maxStock:120,unitCost:210,status:'normal',lastReceived:'2025-06-12',supplierId:'SUP-004'},
   {id:'INV-006',name:'SCBA Set (complete)',partNo:'PPE-SCBA01',category:'PPE & Safety',site:'Block 7 – Offshore Platform',warehouse:'WH-Block7-01',uom:'Set',qtyOnHand:6,reorderPoint:8,maxStock:20,unitCost:2800,status:'low',lastReceived:'2025-02-10',supplierId:'SUP-008'},
   {id:'INV-007',name:'Hydraulic Hose Assembly 1.5"',partNo:'HYD-HA015',category:'Hydraulics & Seals',site:'Block 15 – Rig Alpha',warehouse:'WH-Block15-01',uom:'Unit',qtyOnHand:8,reorderPoint:6,maxStock:24,unitCost:1200,status:'normal',lastReceived:'2025-04-05',supplierId:'SUP-007'},
@@ -1504,6 +1573,7 @@ function renderSCSidebar(){
       {id:'scDashboard',icon:'fa-gauge-high',label:t('scDashboard')},
       {id:'materialRequests',icon:'fa-clipboard-list',label:t('materialRequests'),badge:pendingMRs},
       {id:'allPOs',icon:'fa-file-invoice',label:t('allPOs')},
+      {id:'qualityInspections',icon:'fa-flask',label:'Quality Inspections'},
       {id:'pendingApprovalPO',icon:'fa-clock',label:t('pendingApprovalPO'),badge:pendingPOs},
       {id:'orderedItems',icon:'fa-truck-fast',label:t('orderedItems'),badge:DATA.purchaseOrders.filter(p=>p.status==='ordered').length,badgeCls:'blue'},
       {id:'receivedItems',icon:'fa-box-archive',label:t('receivedItems')},
@@ -1517,6 +1587,8 @@ function renderSCSidebar(){
       {id:'lowStockAlerts',icon:'fa-triangle-exclamation',label:t('lowStockAlerts'),badge:lowStock},
       {id:'stockLedger',icon:'fa-book',label:t('stockLedger')},
       {id:'warehouses',icon:'fa-warehouse',label:t('warehouses')},
+      {id:'landedCost',icon:'fa-ship',label:'Landed Cost'},
+      {id:'reorderRules',icon:'fa-cart-arrow-down',label:'Auto Reorder'},
     ]},
     {group:'Admin',items:[
       {id:'scSettings',icon:'fa-gear',label:t('scSettings')},
@@ -1773,20 +1845,20 @@ window.receivePO = async function(id) {
     po.status = 'received';
     if(supabase) await supabase.from('purchase_orders').update({status:'received'}).eq('id', id);
     
-    // Auto-update inventory
+    // Auto-update inventory + record in stock ledger
     const itemName = po.description || 'Received Item';
     let invItem = DATA.inventory.find(i => i.name.toLowerCase() === itemName.toLowerCase());
     if(invItem) {
-      invItem.stock += 1;
-      if(supabase) await supabase.from('inventory').update({stock_level: invItem.stock}).eq('id', invItem.id);
-      showToast('PO Received. Inventory updated for ' + itemName, 'success');
+      recordStockMovement(invItem.id, 'in', 1, invItem.unit || 'Lot', 'PO Receipt', id, 0, 'Received via PO ' + id);
+      showToast('PO Received. Inventory + stock ledger updated for ' + itemName, 'success');
     } else {
       const newInv = { id: 'INV-ITM-'+Date.now(), name: itemName, category: po.category, stock: 1, min: 5, unit: 'Lot', location: po.site };
       DATA.inventory.push(newInv);
       if(supabase) {
         await supabase.from('inventory').insert({id: newInv.id, item_name: itemName, category: po.category, stock_level: 1, min_stock: 5, unit: 'Lot', location: po.site});
       }
-      showToast('PO Received. New inventory item created for ' + itemName, 'success');
+      recordStockMovement(newInv.id, 'in', 1, 'Lot', 'PO Receipt', id, 0, 'Received via PO ' + id);
+      showToast('PO Received. New inventory item + stock ledger entry created for ' + itemName, 'success');
     }
     rerenderSection();
   }
@@ -1938,6 +2010,10 @@ function renderInventory(filterFn=null){
   const cats=[...new Set(DATA.inventory.map(i=>i.category))].sort();
   const stockBadge=s=>s==='out'?'<span class="pill pill-expired">Out of Stock</span>':s==='critical'?'<span class="pill pill-expiring">Critical</span>':s==='low'?'<span class="pill pill-leave">Low</span>':'<span class="pill pill-valid">Normal</span>';
   const stockCol=s=>s==='out'?'var(--error)':s==='critical'?'var(--warning)':s==='low'?'#b35d00':'var(--success)';
+  const parentsFirst = (a,b) => (a.has_variants ? -1 : a.parent_item ? 1 : 0) - (b.has_variants ? -1 : b.parent_item ? 1 : 0);
+
+  // sort: parents first, then alphabetically
+  items.sort((a,b) => parentsFirst(a,b) || a.name.localeCompare(b.name));
 
   let html=`<div class="fade-in">`;
   html+=renderSCKPIs();
@@ -1950,13 +2026,15 @@ function renderInventory(filterFn=null){
       <select class="filter-select" onchange="state.filters.status=this.value;rerenderSection()">
         <option value="all">All Status</option><option value="normal">Normal</option><option value="low">Low</option><option value="critical">Critical</option><option value="out">Out of Stock</option>
       </select>
-      <button class="btn btn-primary btn-sm" onclick="showToast('Stock count export started','info')"><i class="fa-solid fa-download"></i> Export</button>
+      <button class="btn btn-primary btn-sm" onclick="openNewInventoryModal()"><i class="fa-solid fa-plus"></i> Add Item</button>
+      <button class="btn btn-sm btn-outline" onclick="showToast('Stock count export started','info')"><i class="fa-solid fa-download"></i> Export</button>
     </div>
   </div>
   <div style="overflow-x:auto;"><table class="data-table">
     <thead><tr>
       <th onclick="sortBy('name')" class="${sortedCls('name')}">Item ${sortIcon('name')}</th>
       <th onclick="sortBy('partNo')" class="${sortedCls('partNo')}">Part No. ${sortIcon('partNo')}</th>
+      <th>Tracking</th>
       <th onclick="sortBy('category')" class="${sortedCls('category')}">Category ${sortIcon('category')}</th>
       <th onclick="sortBy('site')" class="${sortedCls('site')}">Site ${sortIcon('site')}</th>
       <th onclick="sortBy('qtyOnHand')" class="${sortedCls('qtyOnHand')}">On Hand ${sortIcon('qtyOnHand')}</th>
@@ -1965,12 +2043,19 @@ function renderInventory(filterFn=null){
       <th>Stock Status</th>
       <th onclick="sortBy('lastReceived')" class="${sortedCls('lastReceived')}">Last Received ${sortIcon('lastReceived')}</th>
     </tr></thead><tbody>`;
-  if(!items.length) html+=`<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-sec);">No inventory items found</td></tr>`;
+  if(!items.length) html+=`<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-sec);">No inventory items found</td></tr>`;
   items.forEach(i=>{
     const col=stockCol(i.status);
+    const indent = i.parent_item ? 'padding-left:24px;' : '';
+    const icon = i.has_variants ? '<i class="fa-solid fa-layer-group" style="color:var(--primary);margin-right:4px"></i>' : i.parent_item ? '<i class="fa-regular fa-copy" style="color:var(--text-sec);margin-right:4px"></i>' : '<i class="fa-solid fa-box" style="color:var(--text-sec);margin-right:4px"></i>';
+    const trackBadges = [];
+    if (i.serial_tracking) trackBadges.push('<span class="pill pill-valid" style="font-size:10px">Serial</span>');
+    if (i.batch_tracking) trackBadges.push('<span class="pill pill-leave" style="font-size:10px">Batch</span>');
+    if (i.has_variants) trackBadges.push('<span class="pill pill-valid" style="font-size:10px;background:var(--primary);color:#fff">Has Variants</span>');
     html+=`<tr>
-      <td><div style="font-weight:600">${i.name}</div></td>
+      <td><div style="font-weight:600;${indent}">${icon}${i.name}</div></td>
       <td style="font-size:12px;color:var(--text-sec)">${i.partNo}</td>
+      <td>${trackBadges.join(' ')}</td>
       <td>${i.category}</td>
       <td style="font-size:12px">${i.site}</td>
       <td style="font-weight:700;color:${col}">${i.qtyOnHand} <span style="font-weight:400;font-size:11px;color:var(--text-sec)">${i.uom}</span></td>
@@ -1982,6 +2067,356 @@ function renderInventory(filterFn=null){
   });
   html+=`</tbody></table></div></div></div>`;
   return html;
+}
+
+function openNewInventoryModal() {
+  const cats = [...new Set(DATA.inventory.map(i=>i.category))].sort();
+  const parents = DATA.inventory.filter(i => i.has_variants || !i.parent_item);
+  const body = `<div style="display:flex;flex-direction:column;gap:10px">
+    <input class="filter-input" id="ni-name" placeholder="Item Name" />
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input class="filter-input" id="ni-part" placeholder="Part No." />
+      <select class="filter-input" id="ni-cat"><option value="">— Category —</option>${cats.map(c=>`<option>${c}</option>`).join('')}<option>New Category</option></select>
+    </div>
+    <select class="filter-input" id="ni-parent"><option value="">— Parent Item (optional) —</option>${parents.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <input class="filter-input" id="ni-uom" placeholder="UOM" value="Unit" />
+      <input class="filter-input" id="ni-cost" type="number" placeholder="Unit Cost ($)" step="0.01" />
+      <input class="filter-input" id="ni-site" placeholder="Site / Location" />
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <input class="filter-input" id="ni-qty" type="number" placeholder="Qty On Hand" value="0" />
+      <input class="filter-input" id="ni-reorder" type="number" placeholder="Reorder Point" value="0" />
+      <input class="filter-input" id="ni-max" type="number" placeholder="Max Stock" value="0" />
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="ni-serial" /> Serialized item (track by serial number)</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="ni-batch" /> Batched item (track by batch/lot)</label>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewInventory()">Add Item</button>`;
+  openModal('Add Inventory Item', body, footer);
+}
+
+function submitNewInventory() {
+  const name = $('#ni-name').value.trim();
+  if (!name) { showToast('Item name required', 'error'); return; }
+  const item = {
+    id: 'INV-' + String(DATA.inventory.length + 1).padStart(3, '0'),
+    name, partNo: $('#ni-part').value.trim() || 'N/A',
+    category: $('#ni-cat').value || 'Uncategorized',
+    site: $('#ni-site').value.trim() || 'All Sites',
+    warehouse: 'WH-HO-01',
+    uom: $('#ni-uom').value.trim() || 'Unit',
+    qtyOnHand: parseFloat($('#ni-qty').value) || 0,
+    reorderPoint: parseFloat($('#ni-reorder').value) || 0,
+    maxStock: parseFloat($('#ni-max').value) || 0,
+    unitCost: parseFloat($('#ni-cost').value) || 0,
+    status: 'normal',
+    lastReceived: new Date().toISOString().slice(0,10),
+    supplierId: null,
+    parent_item: $('#ni-parent').value || null,
+    serial_tracking: $('#ni-serial').checked,
+    batch_tracking: $('#ni-batch').checked,
+    has_variants: false,
+  };
+  DATA.inventory.push(item);
+  if (supabase) supabase.from('inventory').insert(item).catch(() => {});
+  closeModal(); showToast('Item added', 'success'); rerenderSection();
+}
+
+/* ── Quality Inspections ── */
+function renderQualityInspections() {
+  const qis = DATA.qualityInspections || [];
+  const now = new Date();
+  const pending = qis.filter(q => q.status === 'Pending').length;
+  const passed = qis.filter(q => q.status === 'Passed').length;
+  const failed = qis.filter(q => q.status === 'Failed').length;
+
+  let html = `<div class="fade-in"><div class="kpi-grid">
+    <div class="kpi-card blue"><span class="kpi-label">Total Inspections</span><span class="kpi-value">${qis.length}</span></div>
+    <div class="kpi-card orange"><span class="kpi-label">Pending</span><span class="kpi-value">${pending}</span></div>
+    <div class="kpi-card green"><span class="kpi-label">Passed</span><span class="kpi-value">${passed}</span></div>
+    <div class="kpi-card red"><span class="kpi-label">Failed</span><span class="kpi-value">${failed}</span></div>
+  </div>
+  <div class="sec-card"><div class="sec-card-head">Quality Inspections
+    <button class="btn btn-primary btn-sm" onclick="openNewQIModal()"><i class="fa-solid fa-plus"></i> New Inspection</button>
+  </div>
+  <div style="overflow-x:auto"><table class="data-table"><thead><tr>
+    <th>ID</th><th>Date</th><th>Item</th><th>Type</th><th>Inspector</th><th>PO Ref</th><th>Parameters</th><th>Result</th><th>Notes</th><th></th>
+  </tr></thead><tbody>`;
+  if (!qis.length) html += `<tr><td colspan="10" style="text-align:center;padding:30px">No inspections found.</td></tr>`;
+  qis.forEach(q => {
+    const allPass = q.parameters.every(p => p.result === 'Pass');
+    const hasFail = q.parameters.some(p => p.result === 'Fail');
+    const statusLabel = q.status === 'Passed' ? '<span class="pill pill-valid">Passed</span>' : q.status === 'Failed' ? '<span class="pill pill-expired">Failed</span>' : '<span class="pill pill-leave">Pending</span>';
+    html += `<tr>
+      <td><strong>${q.id}</strong></td>
+      <td style="font-size:12px">${q.date}</td>
+      <td>${q.itemName}</td>
+      <td>${q.inspectionType}</td>
+      <td>${q.inspector}</td>
+      <td style="font-size:12px">${q.poRef}</td>
+      <td><button class="btn btn-sm btn-ghost" onclick="showQIParams('${q.id}')">${q.parameters.length} params</button></td>
+      <td>${statusLabel}</td>
+      <td style="font-size:12px;color:var(--text-sec);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${q.notes || '-'}</td>
+      <td><button class="btn btn-sm btn-outline" onclick="openNewQIModal('${q.id}')">Edit</button></td>
+    </tr>`;
+  });
+  html += `</tbody></table></div></div></div>`;
+  return html;
+}
+
+function openNewQIModal(editId) {
+  const qi = editId ? DATA.qualityInspections.find(q => q.id === editId) : null;
+  const items = DATA.inventory.map(i => `<option value="${i.id}" ${qi && qi.itemId === i.id ? 'selected' : ''}>${i.name}</option>`).join('');
+  const pos = DATA.purchaseOrders.filter(p => p.status !== 'cancelled').map(p => `<option value="${p.id}" ${qi && qi.poRef === p.id ? 'selected' : ''}>${p.id}</option>`).join('');
+  const inspectors = ['Ahmed Al-Riyami','Noor Al-Balushi','Khalid Al-Maawali','Salim Al-Hashmi','Muna Al-Said'];
+  const inspOpts = inspectors.map(i => `<option ${qi && qi.inspector === i ? 'selected' : ''}>${i}</option>`).join('');
+  const body = `<div style="display:flex;flex-direction:column;gap:10px">
+    <input class="filter-input" id="nqi-date" type="date" value="${qi ? qi.date : new Date().toISOString().slice(0,10)}" />
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <select class="filter-input" id="nqi-item"><option value="">— Item —</option>${items}</select>
+      <select class="filter-input" id="nqi-po"><option value="">— PO Ref —</option>${pos}</select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <select class="filter-input" id="nqi-type"><option value="Incoming" ${qi && qi.inspectionType === 'Incoming' ? 'selected' : ''}>Incoming</option><option value="In Process" ${qi && qi.inspectionType === 'In Process' ? 'selected' : ''}>In Process</option><option value="Outgoing" ${qi && qi.inspectionType === 'Outgoing' ? 'selected' : ''}>Outgoing</option></select>
+      <select class="filter-input" id="nqi-inspector"><option value="">— Inspector —</option>${inspOpts}</select>
+    </div>
+    <textarea class="filter-input" id="nqi-notes" placeholder="Notes" rows="2">${qi ? qi.notes : ''}</textarea>
+    <div style="font-size:13px;font-weight:600;margin-top:6px">Inspection Parameters (JSON array)</div>
+    <textarea class="filter-input" id="nqi-params" rows="4" placeholder='[{"param":"Viscosity","min":30,"max":50}]'>${qi ? JSON.stringify(qi.parameters) : ''}</textarea>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewQI('${editId || ''}')">${editId ? 'Update' : 'Create'} Inspection</button>`;
+  openModal(editId ? 'Edit Quality Inspection' : 'New Quality Inspection', body, footer);
+}
+
+function submitNewQI(editId) {
+  const date = $('#nqi-date').value;
+  const itemId = $('#nqi-item').value;
+  if (!itemId) { showToast('Select an item', 'error'); return; }
+  const item = DATA.inventory.find(i => i.id === itemId);
+  let params = [];
+  try { params = JSON.parse($('#nqi-params').value || '[]'); } catch(e) { showToast('Invalid JSON parameters', 'error'); return; }
+  params.forEach(p => { if (p.actual === undefined) p.actual = 0; if (p.result === undefined) p.result = p.actual >= p.min && p.actual <= p.max ? 'Pass' : 'Fail'; });
+  const allPass = params.every(p => p.result === 'Pass');
+  const anyFail = params.some(p => p.result === 'Fail');
+  const status = params.length === 0 ? 'Pending' : anyFail ? 'Failed' : 'Passed';
+  const qi = {
+    id: editId || 'QI-' + String(DATA.qualityInspections.length + 1).padStart(3, '0'),
+    date, itemId, itemName: item ? item.name : itemId,
+    inspectionType: $('#nqi-type').value,
+    poRef: $('#nqi-po').value || null,
+    inspector: $('#nqi-inspector').value || 'N/A',
+    parameters: params, notes: $('#nqi-notes').value.trim(), status,
+  };
+  if (!editId) { DATA.qualityInspections.push(qi); if(supabase) supabase.from('quality_inspections').insert(qi).catch(() => {}); }
+  else { const idx = DATA.qualityInspections.findIndex(q => q.id === editId); DATA.qualityInspections[idx] = qi; if(supabase) supabase.from('quality_inspections').upsert(qi).catch(() => {}); }
+  closeModal(); showToast(editId ? 'Inspection updated' : 'Inspection created', 'success'); rerenderSection();
+}
+
+function showQIParams(id) {
+  const qi = DATA.qualityInspections.find(q => q.id === id);
+  if (!qi) return;
+  let body = `<table class="data-table"><thead><tr><th>Parameter</th><th>Min</th><th>Max</th><th>Actual</th><th>Result</th></tr></thead><tbody>`;
+  qi.parameters.forEach(p => {
+    const ok = p.result === 'Pass';
+    body += `<tr><td>${p.param}</td><td>${p.min}</td><td>${p.max}</td><td style="font-weight:600">${p.actual}</td><td>${ok ? '<span class="pill pill-valid">Pass</span>' : '<span class="pill pill-expired">Fail</span>'}</td></tr>`;
+  });
+  body += `</tbody></table>`;
+  openModal('Parameters — ' + qi.id, body, `<button class="btn btn-primary" onclick="closeModal()">OK</button>`);
+}
+
+/* ── Landed Cost ── */
+function renderLandedCost() {
+  let html = `<div class="fade-in"><div class="kpi-grid">
+    <div class="kpi-card blue"><span class="kpi-label">Total Vouchers</span><span class="kpi-value">${DATA.landedCostVouchers.length}</span></div>
+    <div class="kpi-card green"><span class="kpi-label">Total Charges</span><span class="kpi-value">${fmt(DATA.landedCostVouchers.reduce((s,v)=>s+v.totalCharges,0))}</span></div>
+  </div>
+  <div class="sec-card"><div class="sec-card-head">Landed Cost Vouchers
+    <button class="btn btn-primary btn-sm" onclick="openNewLCVModal()"><i class="fa-solid fa-plus"></i> New Voucher</button>
+  </div>
+  <div style="overflow-x:auto"><table class="data-table"><thead><tr>
+    <th>Voucher</th><th>Date</th><th>PO Ref</th><th>Freight</th><th>Insurance</th><th>Duty</th><th>Handling</th><th>Total</th><th>Distribution</th><th>Items</th><th></th>
+  </tr></thead><tbody>`;
+  if (!DATA.landedCostVouchers.length) html += `<tr><td colspan="11" style="text-align:center;padding:30px">No landed cost vouchers found.</td></tr>`;
+  DATA.landedCostVouchers.forEach(v => {
+    html += `<tr>
+      <td><strong>${v.id}</strong></td>
+      <td style="font-size:12px">${v.date}</td>
+      <td style="font-size:12px">${v.poRef}</td>
+      <td>${fmt(v.charges.freight)}</td>
+      <td>${fmt(v.charges.insurance)}</td>
+      <td>${fmt(v.charges.duty)}</td>
+      <td>${fmt(v.charges.handling)}</td>
+      <td style="font-weight:700">${fmt(v.totalCharges)}</td>
+      <td>${v.distribution}</td>
+      <td><button class="btn btn-sm btn-ghost" onclick="showLCVItems('${v.id}')">${v.items.length} items</button></td>
+      <td><button class="btn btn-sm btn-outline" onclick="openNewLCVModal('${v.id}')">Edit</button></td>
+    </tr>`;
+  });
+  html += `</tbody></table></div></div></div>`;
+  return html;
+}
+
+function openNewLCVModal(editId) {
+  const v = editId ? DATA.landedCostVouchers.find(x => x.id === editId) : null;
+  const pos = DATA.purchaseOrders.filter(p => p.status !== 'cancelled').map(p => `<option value="${p.id}" ${v && v.poRef === p.id ? 'selected' : ''}>${p.id}</option>`).join('');
+  const body = `<div style="display:flex;flex-direction:column;gap:10px">
+    <input class="filter-input" id="nl-date" type="date" value="${v ? v.date : new Date().toISOString().slice(0,10)}" />
+    <select class="filter-input" id="nl-po"><option value="">— PO Ref —</option>${pos}</select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input class="filter-input" id="nl-freight" type="number" placeholder="Freight ($)" value="${v ? v.charges.freight : 0}" />
+      <input class="filter-input" id="nl-insurance" type="number" placeholder="Insurance ($)" value="${v ? v.charges.insurance : 0}" />
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input class="filter-input" id="nl-duty" type="number" placeholder="Customs Duty ($)" value="${v ? v.charges.duty : 0}" />
+      <input class="filter-input" id="nl-handling" type="number" placeholder="Handling ($)" value="${v ? v.charges.handling : 0}" />
+    </div>
+    <select class="filter-input" id="nl-dist"><option value="By Value" ${v && v.distribution === 'By Value' ? 'selected' : ''}>By Value</option><option value="By Qty" ${v && v.distribution === 'By Qty' ? 'selected' : ''}>By Quantity</option></select>
+    <div style="font-size:13px;font-weight:600">Items allocation (JSON: itemId, proportion)</div>
+    <textarea class="filter-input" id="nl-items" rows="3" placeholder='[{"itemId":"INV-001","proportion":0.6}]'>${v ? JSON.stringify(v.items.map(i=>({itemId:i.itemId,proportion:i.proportion}))) : ''}</textarea>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewLCV('${editId || ''}')">${editId ? 'Update' : 'Create'} Voucher</button>`;
+  openModal(editId ? 'Edit Landed Cost Voucher' : 'New Landed Cost Voucher', body, footer);
+}
+
+function submitNewLCV(editId) {
+  const freight = parseFloat($('#nl-freight').value) || 0;
+  const insurance = parseFloat($('#nl-insurance').value) || 0;
+  const duty = parseFloat($('#nl-duty').value) || 0;
+  const handling = parseFloat($('#nl-handling').value) || 0;
+  const total = freight + insurance + duty + handling;
+  let items = [];
+  try { items = JSON.parse($('#nl-items').value || '[]'); } catch(e) { showToast('Invalid items JSON', 'error'); return; }
+  if (!items.length) { showToast('At least one item required', 'error'); return; }
+  const totalProp = items.reduce((s,i) => s + i.proportion, 0);
+  const alloc = items.map(i => ({
+    itemId: i.itemId,
+    itemName: (DATA.inventory.find(x => x.id === i.itemId) || {}).name || i.itemId,
+    proportion: i.proportion,
+    allocated: Math.round((i.proportion / totalProp) * total * 100) / 100,
+  }));
+  const v = {
+    id: editId || 'LCV-' + String(DATA.landedCostVouchers.length + 1).padStart(3, '0'),
+    date: $('#nl-date').value, poRef: $('#nl-po').value || null,
+    charges: {freight, insurance, duty, handling},
+    totalCharges: total, distribution: $('#nl-dist').value, items: alloc,
+  };
+  if (!editId) { DATA.landedCostVouchers.push(v); if(supabase) supabase.from('landed_cost_vouchers').insert(v).catch(() => {}); }
+  else { const idx = DATA.landedCostVouchers.findIndex(x => x.id === editId); DATA.landedCostVouchers[idx] = v; if(supabase) supabase.from('landed_cost_vouchers').upsert(v).catch(() => {}); }
+  closeModal(); showToast(editId ? 'Voucher updated' : 'Voucher created', 'success'); rerenderSection();
+}
+
+function showLCVItems(id) {
+  const v = DATA.landedCostVouchers.find(x => x.id === id);
+  if (!v) return;
+  let body = `<div style="margin-bottom:8px;font-size:13px;color:var(--text-sec)">Total charges: <strong>${fmt(v.totalCharges)}</strong> | Distribution: ${v.distribution}</div>
+  <table class="data-table"><thead><tr><th>Item</th><th>Proportion</th><th>Allocated</th></tr></thead><tbody>`;
+  v.items.forEach(i => { body += `<tr><td>${i.itemName}</td><td>${Math.round(i.proportion * 100)}%</td><td style="font-weight:600">${fmt(i.allocated)}</td></tr>`; });
+  body += `</tbody></table>`;
+  openModal('Landed Cost — ' + v.id, body, `<button class="btn btn-primary" onclick="closeModal()">OK</button>`);
+}
+
+/* ── Auto Reorder ── */
+function renderReorderRules() {
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Auto Reorder Rules</h2>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary btn-sm" onclick="openNewRRModal()"><i class="fa-solid fa-plus"></i> New Rule</button>
+      <button class="btn btn-sm btn-outline" onclick="autoGenerateMR()"><i class="fa-solid fa-wand-magic-sparkles"></i> Run Auto Reorder</button>
+    </div>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi-card blue"><span class="kpi-label">Total Rules</span><span class="kpi-value">${DATA.reorderRules.length}</span></div>
+    <div class="kpi-card orange"><span class="kpi-label">Items Below Min</span><span class="kpi-value">${DATA.reorderRules.filter(r => { const item = DATA.inventory.find(i => i.id === r.itemId); return item && item.qtyOnHand < r.minQty; }).length}</span></div>
+    <div class="kpi-card green"><span class="kpi-label">Auto-Create PO</span><span class="kpi-value">${DATA.reorderRules.filter(r => r.autoCreatePO).length}</span></div>
+  </div>
+  <div class="sec-card"><div style="overflow-x:auto"><table class="data-table"><thead><tr>
+    <th>Item</th><th>Min Qty</th><th>Max Qty</th><th>On Hand</th><th>Reorder?</th><th>Supplier</th><th>Lead Time</th><th>Auto PO</th><th>Last Triggered</th><th></th>
+  </tr></thead><tbody>`;
+  if (!DATA.reorderRules.length) html += `<tr><td colspan="10" style="text-align:center;padding:30px">No reorder rules defined.</td></tr>`;
+  DATA.reorderRules.forEach(r => {
+    const item = DATA.inventory.find(i => i.id === r.itemId);
+    const qty = item ? item.qtyOnHand : 0;
+    const needsReorder = qty < r.minQty;
+    const sup = DATA.suppliers.find(s => s.id === r.supplierId);
+    html += `<tr style="${needsReorder ? 'background:rgba(255,87,34,0.06)' : ''}">
+      <td><strong>${r.itemName}</strong></td>
+      <td>${r.minQty}</td><td>${r.maxQty}</td>
+      <td style="font-weight:700;color:${needsReorder ? 'var(--warning)' : 'var(--success)'}">${qty}</td>
+      <td>${needsReorder ? '<span class="pill pill-expiring" style="font-size:10px">Yes</span>' : '<span class="pill pill-valid" style="font-size:10px">OK</span>'}</td>
+      <td style="font-size:12px">${sup ? sup.name : r.supplierId}</td>
+      <td>${r.leadTimeDays}d</td>
+      <td>${r.autoCreatePO ? '<span class="pill pill-valid">Yes</span>' : '<span style="color:var(--text-sec)">No</span>'}</td>
+      <td style="font-size:12px;color:var(--text-sec)">${r.lastTriggered || '-'}</td>
+      <td><button class="btn btn-sm btn-outline" onclick="openNewRRModal('${r.id}')">Edit</button></td>
+    </tr>`;
+  });
+  html += `</tbody></table></div></div></div>`;
+  return html;
+}
+
+function openNewRRModal(editId) {
+  const r = editId ? DATA.reorderRules.find(x => x.id === editId) : null;
+  const items = DATA.inventory.filter(i => !i.has_variants).map(i => `<option value="${i.id}" ${r && r.itemId === i.id ? 'selected' : ''}>${i.name}</option>`).join('');
+  const sups = DATA.suppliers.map(s => `<option value="${s.id}" ${r && r.supplierId === s.id ? 'selected' : ''}>${s.name}</option>`).join('');
+  const body = `<div style="display:flex;flex-direction:column;gap:10px">
+    <select class="filter-input" id="nrr-item"><option value="">— Item —</option>${items}</select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input class="filter-input" id="nrr-min" type="number" placeholder="Min Qty" value="${r ? r.minQty : 0}" />
+      <input class="filter-input" id="nrr-max" type="number" placeholder="Max Qty" value="${r ? r.maxQty : 0}" />
+    </div>
+    <select class="filter-input" id="nrr-supplier"><option value="">— Supplier —</option>${sups}</select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input class="filter-input" id="nrr-lead" type="number" placeholder="Lead Time (days)" value="${r ? r.leadTimeDays : 14}" />
+      <label style="display:flex;align-items:center;font-size:13px;gap:4px"><input type="checkbox" id="nrr-auto" ${r && r.autoCreatePO ? 'checked' : ''} /> Auto Create PO</label>
+    </div>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewRR('${editId || ''}')">${editId ? 'Update' : 'Add'} Rule</button>`;
+  openModal(editId ? 'Edit Reorder Rule' : 'New Reorder Rule', body, footer);
+}
+
+function submitNewRR(editId) {
+  const itemId = $('#nrr-item').value;
+  if (!itemId) { showToast('Select an item', 'error'); return; }
+  const item = DATA.inventory.find(i => i.id === itemId);
+  const r = {
+    id: editId || 'RR-' + String(DATA.reorderRules.length + 1).padStart(3, '0'),
+    itemId, itemName: item ? item.name : itemId,
+    supplierId: $('#nrr-supplier').value || null,
+    minQty: parseFloat($('#nrr-min').value) || 0,
+    maxQty: parseFloat($('#nrr-max').value) || 0,
+    leadTimeDays: parseInt($('#nrr-lead').value) || 14,
+    autoCreatePO: $('#nrr-auto').checked,
+    lastTriggered: null,
+  };
+  if (!editId) { DATA.reorderRules.push(r); if(supabase) supabase.from('reorder_rules').insert(r).catch(() => {}); }
+  else { const idx = DATA.reorderRules.findIndex(x => x.id === editId); DATA.reorderRules[idx] = r; if(supabase) supabase.from('reorder_rules').upsert(r).catch(() => {}); }
+  closeModal(); showToast(editId ? 'Rule updated' : 'Rule added', 'success'); rerenderSection();
+}
+
+function autoGenerateMR() {
+  const created = [];
+  DATA.reorderRules.forEach(r => {
+    const item = DATA.inventory.find(i => i.id === r.itemId);
+    if (!item || item.qtyOnHand >= r.minQty) return;
+    const reorderQty = r.maxQty - item.qtyOnHand;
+    const mr = {
+      id: 'MR-' + Date.now() + '-' + r.id,
+      date: new Date().toISOString().slice(0,10),
+      items: [{itemId: r.itemId, itemName: r.itemName || item.name, qty: reorderQty, uom: item.uom}],
+      status: 'pending',
+      priority: item.status === 'critical' ? 'Critical' : item.status === 'out' ? 'Critical' : 'High',
+      notes: `Auto-generated — below min qty (${item.qtyOnHand} < ${r.minQty})`,
+    };
+    DATA.materialRequests.push(mr);
+    r.lastTriggered = new Date().toISOString().slice(0,10);
+    if (supabase) supabase.from('material_requests').insert(mr).catch(() => {});
+    if (supabase) supabase.from('reorder_rules').upsert(r).catch(() => {});
+    created.push(`${item.name} (${reorderQty} ${item.uom})`);
+  });
+  if (created.length === 0) { showToast('No items below reorder point', 'info'); return; }
+  showToast(`Created ${created.length} MRs: ${created.join(', ')}`, 'success');
+  rerenderSection();
 }
 
 /* ═══════════════════════════════════════════════
@@ -2540,6 +2975,9 @@ function renderContent(){
     else if(state.section==='receivedItems') html=renderAllPOs(p=>p.status==='received');
     else if(state.section==='allSuppliers'||state.section==='supplierPerformance') html=renderAllSuppliers();
     else if(state.section==='inventoryItems') html=renderInventory();
+    else if(state.section==='qualityInspections') html=renderQualityInspections();
+    else if(state.section==='landedCost') html=renderLandedCost();
+    else if(state.section==='reorderRules') html=renderReorderRules();
     else if(state.section==='lowStockAlerts') html=renderInventory(i=>i.status!=='normal');
     else if(state.section==='stockLedger') html=renderStockLedgerPage();
     else if(state.section==='scSettings') html=renderSCSettings();
@@ -2550,6 +2988,15 @@ function renderContent(){
     else if(state.section==='finSales') html=renderFinInvoices('Sales');
     else if(state.section==='finPurchases') html=renderFinInvoices('Purchase');
     else if(state.section==='finPayments') html=renderFinPayments();
+    else if(state.section==='arAging') html=renderFinAging('Sales');
+    else if(state.section==='apAging') html=renderFinAging('Purchase');
+    else if(state.section==='finGL') html=renderFinGL();
+    else if(state.section==='finPL') html=renderFinPL();
+    else if(state.section==='finBS') html=renderFinBS();
+    else if(state.section==='finJournalEntries') html=renderFinJournalEntries();
+    else if(state.section==='finFixedAssets') html=renderFinFixedAssets();
+    else if(state.section==='finCostCenters') html=renderFinCostCenters();
+    else if(state.section==='finChartAccounts') html=renderFinChartAccounts();
     else if(state.section==='finSettings') html=renderFinSettings();
     else html=renderFinDashboard();
   }
@@ -2564,6 +3011,7 @@ function renderAll(){
 
 function rerenderSection(){
   destroyCharts();
+  recomputeInvoiceStatuses();
   renderTabBar();
   renderSidebar();
   renderContent();
@@ -3152,7 +3600,7 @@ async function loadData() {
     const { data: deals } = await supabase.from('crm_deals').select('*');
     if (deals && deals.length > 0) {
       DATA.deals = deals.map(d => ({
-        id: d.id, title: d.title, lead_id: d.lead_id, account_id: d.account_id, value: d.value, stage: d.stage, expected_close_date: d.expected_close_date
+        id: d.id, title: d.title, lead_id: d.lead_id, account_id: d.account_id, value: d.value, stage: d.stage, expected_close_date: d.expected_close_date, invoice_id: d.invoice_id || null
       }));
     }
 
@@ -3216,22 +3664,33 @@ async function loadData() {
     const { data: sal } = await supabase.from('hr_salary_slips').select('*');
     if (sal && sal.length > 0) {
       DATA.salarySlips = sal.map(s => ({
-        id: s.id, employee_id: s.employee_id, month: s.month, year: s.year, base_pay: s.base_pay, allowances: s.allowances, deductions: s.deductions, net_pay: s.net_pay, status: s.status
+        id: s.id, employee_id: s.employee_id, month: s.month, year: s.year, base_pay: s.base_pay, allowances: s.allowances, deductions: s.deductions, net_pay: s.net_pay, status: s.status, payment_id: s.payment_id || null
       }));
     }
-    // 13. Fetch Finance Invoices
+    // 13. Fetch Cost Centers & Tax Templates
+    const { data: ccs } = await supabase.from('fin_cost_centers').select('*');
+    if (ccs && ccs.length > 0) DATA.costCenters = ccs.map(c => ({ id: c.id, name: c.name, dept: c.dept }));
+    const { data: txs } = await supabase.from('fin_tax_templates').select('*');
+    if (txs && txs.length > 0) DATA.taxTemplates = txs.map(t => ({ id: t.id, name: t.name, rate: t.rate, account: t.account }));
+    const { data: chAccs } = await supabase.from('fin_chart_accounts').select('*');
+    if (chAccs && chAccs.length > 0) DATA.chartAccounts = chAccs.map(a => ({ id: a.id, name: a.name, type: a.type, parent_id: a.parent_id, is_group: a.is_group, balance: a.balance || 0 }));
+    const { data: jes } = await supabase.from('fin_journal_entries').select('*');
+    if (jes && jes.length > 0) DATA.journalEntries = jes.map(j => ({ id: j.id, date: j.date, reference: j.reference, description: j.description, entries: j.entries }));
+    const { data: fas } = await supabase.from('fin_fixed_assets').select('*');
+    if (fas && fas.length > 0) DATA.fixedAssets = fas.map(f => ({ id: f.id, name: f.name, type: f.type, purchase_date: f.purchase_date, cost: f.cost, salvage_value: f.salvage_value, useful_life_years: f.useful_life_years, depreciation_method: f.depreciation_method, accumulated_depreciation: f.accumulated_depreciation || 0, net_book_value: f.net_book_value || f.cost, status: f.status, supplier_id: f.supplier_id || null }));
+    // 14. Fetch Finance Invoices
     const { data: invs } = await supabase.from('fin_invoices').select('*');
     if (invs && invs.length > 0) {
       DATA.invoices = invs.map(i => ({
-        id: i.id, type: i.type, party_name: i.party_name, date: i.date, due_date: i.due_date, total_amount: i.total_amount, status: i.status
+        id: i.id, type: i.type, party_name: i.party_name, date: i.date, due_date: i.due_date, total_amount: i.total_amount, status: i.status, deal_id: i.deal_id || null, items: i.items || [], cost_center_id: i.cost_center_id || null, tax_template_id: i.tax_template_id || null, tax_rate: i.tax_rate || 0, tax_amount: i.tax_amount || 0
       }));
     }
 
-    // 14. Fetch Finance Payments
+    // 15. Fetch Finance Payments
     const { data: pays } = await supabase.from('fin_payments').select('*');
     if (pays && pays.length > 0) {
       DATA.payments = pays.map(p => ({
-        id: p.id, invoice_id: p.invoice_id, date: p.date, amount: p.amount, payment_method: p.payment_method
+        id: p.id, invoice_id: p.invoice_id, date: p.date, amount: p.amount, payment_method: p.payment_method, salary_slip_id: p.salary_slip_id || null
       }));
     }
 
@@ -3243,7 +3702,10 @@ async function loadData() {
 }
 
 /* ── INITIALIZATION & AUTH ── */
+let _appInitialized = false;
 async function initializeApp() {
+  if (_appInitialized) return;
+  _appInitialized = true;
   await loadData();
   renderAll();
   const certAlerts = DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring');
@@ -3278,6 +3740,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('authOverlay').classList.add('hidden');
       initializeApp();
     } else if (event === 'SIGNED_OUT') {
+      _appInitialized = false;
       document.getElementById('authOverlay').classList.remove('hidden');
       document.querySelector('.app-body').innerHTML = ''; // clear app body
       document.getElementById('tabBar').innerHTML = ''; // clear tabs
@@ -3430,12 +3893,22 @@ window.dropDeal = async function(e, stage) {
     deal.stage = stage;
     if (supabase) await supabase.from('crm_deals').update({stage}).eq('id', id);
     if(stage === 'Closed Won') {
+      const partyName = deal.account_id
+        ? (DATA.accounts.find(a=>a.id===deal.account_id)?.name || deal.title)
+        : deal.lead_id
+          ? (DATA.leads.find(l=>l.id===deal.lead_id)?.name || deal.title)
+          : deal.title;
       const newInv = {
-        id: 'INV-' + Date.now(), type: 'Sales', party_name: deal.company, date: new Date().toISOString().split('T')[0],
-        due_date: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0], total_amount: deal.value, status: 'Draft'
+        id: 'INV-' + Date.now(), type: 'Sales', party_name: partyName, date: new Date().toISOString().split('T')[0],
+        due_date: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
+        total_amount: deal.value, status: 'Draft', deal_id: deal.id,
+        cost_center_id: null, tax_template_id: null, tax_rate: 0, tax_amount: 0,
+        items: [{ item: deal.title, description: 'Auto-generated from won deal', qty: 1, rate: deal.value, amount: deal.value }]
       };
       if (supabase) await supabase.from('fin_invoices').insert(newInv);
       DATA.invoices.push(newInv);
+      autoPostJE(newInv.id, 'Invoice ' + newInv.id + ' auto-posting', [{account_id:'ACC-AR', debit:deal.value, credit:0},{account_id:'ACC-REV', debit:0, credit:deal.value}]);
+      deal.invoice_id = newInv.id;
       showToast('Deal won! Draft Invoice ' + newInv.id + ' auto-generated.', 'success');
     }
     rerenderSection();
@@ -3914,10 +4387,12 @@ window.approveSalarySlip = async function(id) {
     slip.status = 'Approved';
     if(supabase) await supabase.from('hr_salary_slips').update({status:'Approved'}).eq('id', id);
     
-    // HR -> Finance Automation: Auto-journal / Payment record
+    // HR -> Finance Automation: Creates a payroll payment with salary_slip_id link
     const newPay = {
-      id: 'PAY-' + Date.now(), invoice_id: 'Payroll', date: new Date().toISOString().split('T')[0], amount: slip.net_pay, payment_method: 'Bank Transfer'
+      id: 'PAY-' + Date.now(), invoice_id: 'PAYROLL-' + slip.id, date: new Date().toISOString().split('T')[0],
+      amount: slip.net_pay, payment_method: 'Bank Transfer', salary_slip_id: slip.id
     };
+    slip.payment_id = newPay.id;
     if (supabase) await supabase.from('fin_payments').insert(newPay);
     DATA.payments.push(newPay);
     showToast('Payroll Approved. Payment recorded in Finance.', 'success');
@@ -3935,6 +4410,23 @@ function renderFinSidebar() {
       {id:'finSales',icon:'fa-file-invoice-dollar',label:'Sales Invoices (A/R)'},
       {id:'finPurchases',icon:'fa-file-invoice',label:'Purchase Invoices (A/P)'},
       {id:'finPayments',icon:'fa-money-bill-transfer',label:'Payments'},
+    ]},
+    {group:'Reports', items:[
+      {id:'arAging',icon:'fa-clock',label:'AR Aging'},
+      {id:'apAging',icon:'fa-clock',label:'AP Aging'},
+      {id:'finGL',icon:'fa-book',label:'General Ledger'},
+      {id:'finPL',icon:'fa-chart-line',label:'Profit & Loss'},
+      {id:'finBS',icon:'fa-scale-balanced',label:'Balance Sheet'},
+    ]},
+    {group:'Accounting', items:[
+      {id:'finJournalEntries',icon:'fa-book-open',label:'Journal Entries'},
+    ]},
+    {group:'Assets', items:[
+      {id:'finFixedAssets',icon:'fa-industry',label:'Fixed Assets'},
+    ]},
+    {group:'Dimensions', items:[
+      {id:'finCostCenters',icon:'fa-building-columns',label:'Cost Centers'},
+      {id:'finChartAccounts',icon:'fa-sitemap',label:'Chart of Accounts'},
     ]},
     {group:'Admin', items:[
       {id:'finSettings',icon:'fa-gear',label:'Settings'},
@@ -3959,6 +4451,7 @@ function renderFinStub(name) {
 }
 
 function renderFinDashboard() {
+  recomputeInvoiceStatuses();
   const totalReceivables = DATA.invoices.filter(i=>i.type==='Sales' && (i.status==='Unpaid'||i.status==='Overdue')).reduce((sum,i)=>sum+parseFloat(i.total_amount),0);
   const totalPayables = DATA.invoices.filter(i=>i.type==='Purchase' && (i.status==='Unpaid'||i.status==='Overdue')).reduce((sum,i)=>sum+parseFloat(i.total_amount),0);
   const totalCashIn = DATA.payments.filter(p=>DATA.invoices.find(i=>i.id===p.invoice_id)?.type==='Sales').reduce((sum,p)=>sum+parseFloat(p.amount),0);
@@ -3987,53 +4480,666 @@ function renderFinDashboard() {
   </div>`;
 }
 
-function renderFinInvoices(type) {
-  let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
-    <h2>${type} Invoices</h2>
-    <button class="btn btn-primary" onclick="openNewInvoiceModal('${type}')">+ New ${type} Invoice</button>
-  </div>
-  <table class="table">
-    <thead><tr><th>ID</th><th>Party Name</th><th>Date</th><th>Due Date</th><th>Total Amount</th><th>Status</th><th>Actions</th></tr></thead>
-    <tbody>`;
-  DATA.invoices.filter(i=>i.type===type).forEach(i => {
-    html+=`<tr style="cursor:pointer" onclick="alert('Details for ${i.id}')">
-      <td><strong>${i.id}</strong></td><td>${i.party_name}</td><td>${i.date}</td><td>${i.due_date||'-'}</td>
-      <td>$${parseFloat(i.total_amount).toLocaleString()}</td>
-      <td><span class="status-pill status-${i.status.toLowerCase().replace(' ','-')}">${i.status}</span></td>
-      <td>
-        ${(i.status==='Unpaid'||i.status==='Overdue') ? `<button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openNewPaymentModal('${i.id}')">Log Payment</button>` : ''}
-      </td>
-    </tr>`;
+/* ── Invoice Status / Aging ── */
+function recomputeInvoiceStatuses() {
+  const today = new Date();
+  DATA.invoices.forEach(inv => {
+    if (inv.status === 'Paid') return;
+    const totalPaid = DATA.payments.filter(p => p.invoice_id === inv.id).reduce((s, p) => s + parseFloat(p.amount), 0);
+    if (totalPaid >= parseFloat(inv.total_amount)) { inv.status = 'Paid'; return; }
+    if (inv.due_date && new Date(inv.due_date) < today) inv.status = 'Overdue';
+    else if (inv.status !== 'Paid') inv.status = 'Unpaid';
   });
-  if(DATA.invoices.filter(i=>i.type===type).length===0) html+=`<tr><td colspan="7" style="text-align:center">No invoices found.</td></tr>`;
-  html+=`</tbody></table></div>`;
+}
+
+/* ── Invoice Master-Detail ── */
+function selectFinItem(id) { state.selectedId = id; state.detailTab = 'info'; rerenderSection(); }
+
+function renderFinInvoiceDetail(inv) {
+  const tabs = [{ id: 'info', label: 'Info & Items' }, { id: 'payments', label: 'Payments' }];
+  const tab = state.detailTab || 'info';
+  let html = `<div class="detail-tabs">`;
+  tabs.forEach(t => { html += `<div class="detail-tab ${tab === t.id ? 'active' : ''}" onclick="state.detailTab='${t.id}';rerenderSection()">${t.label}</div>`; });
+  html += `</div><div class="detail-tab-body">`;
+  if (tab === 'info') html += renderFinInvoiceInfoTab(inv);
+  else if (tab === 'payments') html += renderFinInvoicePaymentsTab(inv);
+  html += `</div>`;
+  return html;
+}
+
+function renderFinInvoiceInfoTab(inv) {
+  const totalPaid = DATA.payments.filter(p => p.invoice_id === inv.id).reduce((s, p) => s + parseFloat(p.amount), 0);
+  const balance = parseFloat(inv.total_amount) - totalPaid;
+  const subTotal = inv.items ? inv.items.reduce((s, it) => s + parseFloat(it.amount), 0) : parseFloat(inv.total_amount);
+  const cc = DATA.costCenters.find(c => c.id === inv.cost_center_id);
+  const tax = DATA.taxTemplates.find(t => t.id === inv.tax_template_id);
+  let html = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px">
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">Invoice ID</div><div style="font-size:14px;font-weight:600">${inv.id}</div></div>
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">Party</div><div style="font-size:14px;font-weight:600">${inv.party_name}</div></div>
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">Status</div><div>${statusPill(inv.status)}</div></div>
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">Date</div><div style="font-size:14px">${inv.date}</div></div>
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">Due Date</div><div style="font-size:14px">${inv.due_date || '—'}</div></div>
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">Cost Center</div><div style="font-size:14px">${cc ? cc.name : '—'}</div></div>
+  </div>`;
+  if (inv.items && inv.items.length > 0) {
+    html += `<h4 style="margin:0 0 8px;font-size:13px;font-weight:600">Line Items</h4><table class="table"><thead><tr><th>Item</th><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody>`;
+    inv.items.forEach(it => { html += `<tr><td>${it.item}</td><td>${it.description || '—'}</td><td>${it.qty}</td><td>$${parseFloat(it.rate).toLocaleString()}</td><td>$${parseFloat(it.amount).toLocaleString()}</td></tr>`; });
+    html += `</tbody></table>`;
+  }
+  if (inv.tax_template_id) {
+    const taxAmt = inv.tax_amount || (subTotal * (inv.tax_rate || 0) / 100);
+    html += `<div style="display:flex;justify-content:flex-end;margin-top:8px;font-size:14px">
+      <div style="text-align:right"><div>Subtotal: <strong>$${subTotal.toLocaleString()}</strong></div>
+      <div>${tax ? tax.name : 'Tax'} (${inv.tax_rate || 0}%): <strong>$${taxAmt.toLocaleString()}</strong></div>
+      <div style="border-top:2px solid var(--border);padding-top:4px;margin-top:4px;font-size:16px">Grand Total: <strong style="color:var(--blue)">$${parseFloat(inv.total_amount).toLocaleString()}</strong></div></div>
+    </div>`;
+  }
+  if (inv.status === 'Unpaid' || inv.status === 'Overdue') html += `<div style="margin-top:16px"><button class="btn btn-primary" onclick="openNewPaymentModal('${inv.id}')">Log Payment</button></div>`;
+  return html;
+}
+
+function renderFinInvoicePaymentsTab(inv) {
+  const payments = DATA.payments.filter(p => p.invoice_id === inv.id);
+  if (payments.length === 0) return `<div style="color:var(--text-sec);padding:20px;text-align:center">No payments recorded for this invoice.</div>`;
+  let html = `<table class="table"><thead><tr><th>ID</th><th>Date</th><th>Amount</th><th>Method</th></tr></thead><tbody>`;
+  payments.forEach(p => { html += `<tr><td>${p.id}</td><td>${p.date}</td><td>$${parseFloat(p.amount).toLocaleString()}</td><td>${p.payment_method}</td></tr>`; });
+  html += `</tbody></table>`;
+  return html;
+}
+
+function renderFinInvoices(type) {
+  recomputeInvoiceStatuses();
+  const f = state.filters;
+  let items = DATA.invoices.filter(i => i.type === type);
+  if (f.search) { const s = f.search.toLowerCase(); items = items.filter(i => i.party_name.toLowerCase().includes(s) || i.id.toLowerCase().includes(s)); }
+  if (state.sortCol) { const col = state.sortCol, dir = state.sortDir === 'asc' ? 1 : -1; items.sort((a, b) => { let va = a[col], vb = b[col]; if (typeof va === 'string') return va.localeCompare(vb) * dir; return (va - vb) * dir; }); }
+
+  const label = type === 'Sales' ? 'A/R' : 'A/P';
+  let html = `<div class="fade-in"><h2>${type} Invoices (${label})</h2><div class="md-layout">`;
+
+  html += `<div class="md-master">
+    <div class="filter-bar">
+      <input class="filter-input" placeholder="Search..." value="${f.search || ''}" oninput="state.filters.search=this.value;rerenderSection()" style="flex:1;min-width:100px">
+      <button class="btn btn-primary btn-sm" onclick="openNewInvoiceModal('${type}')"><i class="fa-solid fa-plus"></i> New</button>
+    </div>
+    <div style="padding:6px 14px 4px;font-size:11px;color:var(--text-sec);background:#fafafa;border-bottom:1px solid var(--border);">${items.length} invoices</div>
+    <div class="list-container">`;
+  if (items.length === 0) html += `<div class="empty-state"><i class="fa-solid fa-inbox"></i><p>No invoices found</p></div>`;
+  items.forEach(inv => {
+    const isOverdue = inv.status === 'Overdue';
+    html += `<div class="list-item ${state.selectedId === inv.id ? 'selected' : ''}" onclick="selectFinItem('${inv.id}')">
+      <div class="avatar" style="width:36px;height:36px;background:${isOverdue ? 'var(--error)' : 'var(--blue)'};font-size:12px;color:#fff">${initials(inv.party_name)}</div>
+      <div class="list-item-body">
+        <div class="list-item-title">${inv.party_name}</div>
+        <div class="list-item-desc">${inv.id} · ${inv.date}${inv.due_date ? ' · Due: ' + inv.due_date : ''}</div>
+      </div>
+      <div class="list-item-right">
+        <span class="status-pill status-${inv.status.toLowerCase().replace(/ /g, '-')}">${inv.status}</span>
+        <div class="list-item-date" style="margin-top:3px;">$${parseFloat(inv.total_amount).toLocaleString()}</div>
+      </div>
+    </div>`;
+  });
+  html += `</div></div>`;
+
+  html += `<div class="md-detail ${state.selectedId ? 'has-item' : ''}" style="padding:0;">`;
+  if (state.selectedId) {
+    const inv = DATA.invoices.find(x => x.id === state.selectedId);
+    if (inv) html += renderFinInvoiceDetail(inv);
+  } else {
+    html += `<div class="empty-state" style="min-height:400px;"><i class="fa-solid fa-hand-pointer"></i><p>Select an invoice to view details</p></div>`;
+  }
+  html += `</div></div></div>`;
   return html;
 }
 
 function openNewInvoiceModal(type) {
-  const body=`<div style="display:flex;flex-direction:column;gap:12px">
-    <input class="filter-input" id="ni-party" placeholder="${type==='Sales'?'Customer Name':'Supplier Name'}" />
+  const partyOptions = type === 'Sales'
+    ? DATA.accounts.map(a => `<option value="${a.name}">${a.name}</option>`).join('')
+    : DATA.suppliers.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+  const ccOptions = DATA.costCenters.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  const taxOptions = DATA.taxTemplates.map(t => `<option value="${t.id}" data-rate="${t.rate}">${t.name} (${t.rate}%)</option>`).join('');
+
+  const body = `<div style="display:flex;flex-direction:column;gap:12px">
+    <label style="font-size:12px;font-weight:600;color:var(--text-sec)">Party</label>
+    <select class="filter-input" id="ni-party">
+      <option value="">— Select ${type === 'Sales' ? 'Customer' : 'Supplier'} —</option>
+      ${partyOptions}
+    </select>
     <input type="date" class="filter-input" id="ni-due" placeholder="Due Date" />
-    <input type="number" class="filter-input" id="ni-amt" placeholder="Total Amount ($)" />
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div><label style="font-size:12px;font-weight:600;color:var(--text-sec)">Cost Center</label>
+      <select class="filter-input" id="ni-cc"><option value="">— None —</option>${ccOptions}</select></div>
+      <div><label style="font-size:12px;font-weight:600;color:var(--text-sec)">Tax Template</label>
+      <select class="filter-input" id="ni-tax" onchange="calcInvoiceTotal()"><option value="">— None —</option>${taxOptions}</select></div>
+    </div>
+    <div id="ni-items">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:4px 0">
+        <label style="font-size:12px;font-weight:600;color:var(--text-sec)">Line Items</label>
+        <button class="btn btn-sm btn-outline" onclick="addInvoiceItemRow()"><i class="fa-solid fa-plus"></i> Add Item</button>
+      </div>
+      <div class="ni-item-row" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:6px;margin-bottom:6px">
+        <input class="filter-input" placeholder="Item name" style="font-size:12px" />
+        <input type="number" class="filter-input" placeholder="Qty" value="1" style="font-size:12px" oninput="calcInvoiceItemRow(this)" />
+        <input type="number" class="filter-input" placeholder="Rate" style="font-size:12px" oninput="calcInvoiceItemRow(this)" />
+        <input class="filter-input" placeholder="Amount" readonly style="font-size:12px;background:#f5f5f5" />
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;padding:8px 0;border-top:1px solid var(--border);font-size:14px">
+      <div style="text-align:right"><div>Subtotal: $<span id="ni-subtotal">0.00</span></div>
+      <div>Tax: $<span id="ni-tax-amt">0.00</span></div>
+      <div style="border-top:2px solid var(--border);padding-top:4px;margin-top:4px;font-size:16px">Total: $<span id="ni-total">0.00</span></div></div>
+    </div>
   </div>`;
-  const footer=`<button class="btn btn-primary" onclick="submitNewInvoice('${type}')">Save Invoice</button>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewInvoice('${type}')">Save Invoice</button>`;
   openModal(`New ${type} Invoice`, body, footer);
 }
 
+function addInvoiceItemRow() {
+  const container = $('#ni-items');
+  const row = document.createElement('div');
+  row.className = 'ni-item-row';
+  row.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:6px;margin-bottom:6px';
+  row.innerHTML = `<input class="filter-input" placeholder="Item name" style="font-size:12px" />
+    <input type="number" class="filter-input" placeholder="Qty" value="1" style="font-size:12px" oninput="calcInvoiceItemRow(this)" />
+    <input type="number" class="filter-input" placeholder="Rate" style="font-size:12px" oninput="calcInvoiceItemRow(this)" />
+    <div style="display:flex;gap:4px"><input class="filter-input" placeholder="Amount" readonly style="font-size:12px;background:#f5f5f5;flex:1" /><button class="btn btn-sm btn-outline" style="color:var(--error);border-color:var(--error);padding:2px 6px" onclick="this.closest('.ni-item-row').remove();calcInvoiceTotal()"><i class="fa-solid fa-xmark"></i></button></div>`;
+  container.appendChild(row);
+}
+
+function calcInvoiceItemRow(el) {
+  const row = el.closest('.ni-item-row');
+  const qty = parseFloat(row.querySelector('input[placeholder="Qty"]').value) || 0;
+  const rate = parseFloat(row.querySelector('input[placeholder="Rate"]').value) || 0;
+  row.querySelector('input[placeholder="Amount"]').value = (qty * rate).toFixed(2);
+  calcInvoiceTotal();
+}
+
+function calcInvoiceTotal() {
+  let subTotal = 0;
+  document.querySelectorAll('.ni-item-row').forEach(row => {
+    subTotal += parseFloat(row.querySelector('input[placeholder="Amount"]').value) || 0;
+  });
+  const taxSel = document.getElementById('ni-tax');
+  const taxRate = taxSel && taxSel.selectedOptions[0] ? parseFloat(taxSel.selectedOptions[0].getAttribute('data-rate')) || 0 : 0;
+  const taxAmt = subTotal * taxRate / 100;
+  document.getElementById('ni-subtotal') && (document.getElementById('ni-subtotal').textContent = subTotal.toFixed(2));
+  document.getElementById('ni-tax-amt') && (document.getElementById('ni-tax-amt').textContent = taxAmt.toFixed(2));
+  document.getElementById('ni-total') && (document.getElementById('ni-total').textContent = (subTotal + taxAmt).toFixed(2));
+}
+
 async function submitNewInvoice(type) {
-  const party=$('#ni-party').value.trim();
-  const amt=parseFloat($('#ni-amt').value);
-  if(!party||!amt){showToast('Party Name and Amount required','error');return;}
-  
-  const invPrefix = type==='Sales' ? 'INV-' : 'PINV-';
-  const newInv = { id:invPrefix+Date.now(), type, party_name:party, date:new Date().toISOString().split('T')[0], due_date:$('#ni-due').value||null, total_amount:amt, status:'Unpaid' };
-  
+  const party = $('#ni-party').value.trim();
+  if (!party) { showToast('Please select a party', 'error'); return; }
+
+  const itemRows = document.querySelectorAll('.ni-item-row');
+  const items = [];
+  let subTotal = 0;
+  itemRows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const item = inputs[0].value.trim();
+    const qty = parseFloat(inputs[1].value) || 0;
+    const rate = parseFloat(inputs[2].value) || 0;
+    const amt = qty * rate;
+    if (item && qty > 0) { items.push({ item, description: '', qty, rate, amount: amt }); subTotal += amt; }
+  });
+  if (items.length === 0) { showToast('Add at least one line item', 'error'); return; }
+
+  const taxSel = document.getElementById('ni-tax');
+  const taxId = taxSel ? taxSel.value : '';
+  const taxTemplate = taxId ? DATA.taxTemplates.find(t => t.id === taxId) : null;
+  const taxRate = taxTemplate ? taxTemplate.rate : 0;
+  const taxAmt = subTotal * taxRate / 100;
+
+  const invPrefix = type === 'Sales' ? 'INV-' : 'PINV-';
+  const newInv = {
+    id: invPrefix + Date.now(), type, party_name: party, date: new Date().toISOString().split('T')[0],
+    due_date: $('#ni-due').value || null, total_amount: subTotal + taxAmt, status: 'Unpaid', deal_id: null,
+    cost_center_id: $('#ni-cc').value || null, tax_template_id: taxId || null, tax_rate: taxRate, tax_amount: taxAmt, items
+  };
+
   if (supabase) {
     const { error } = await supabase.from('fin_invoices').insert(newInv);
-    if (error) { showToast('Error saving','error'); return; }
+    if (error) { showToast('Error saving', 'error'); return; }
   }
   DATA.invoices.push(newInv);
-  closeModal(); showToast('Invoice saved','success'); rerenderSection();
+  const drAccount = newInv.type === 'Sales' ? 'ACC-AR' : 'ACC-OPEX';
+  const crAccount = newInv.type === 'Sales' ? 'ACC-REV' : 'ACC-AP';
+  autoPostJE(newInv.id, 'Invoice ' + newInv.id + ' auto-posting', [{account_id:drAccount, debit:newInv.total_amount, credit:0},{account_id:crAccount, debit:0, credit:newInv.total_amount}]);
+  closeModal(); showToast('Invoice saved', 'success'); rerenderSection();
+}
+
+/* ── Aging Reports ── */
+function renderFinAging(type) {
+  recomputeInvoiceStatuses();
+  const label = type === 'Sales' ? 'Accounts Receivable Aging' : 'Accounts Payable Aging';
+  const today = new Date();
+  const buckets = [{ label: '0–30 Days', min: 0, max: 30 }, { label: '31–60 Days', min: 31, max: 60 }, { label: '61–90 Days', min: 61, max: 90 }, { label: '90+ Days', min: 91, max: Infinity }];
+  const overdue = DATA.invoices.filter(i => i.type === type && i.status === 'Overdue');
+
+  let html = `<div class="fade-in"><h2>${label}</h2>
+  <table class="table"><thead><tr><th>Bucket</th><th>Count</th><th>Total Amount</th><th>Invoices</th></tr></thead><tbody>`;
+  buckets.forEach(b => {
+    const inBucket = overdue.filter(i => { const d = Math.floor((today - new Date(i.due_date)) / (1000 * 60 * 60 * 24)); return d >= b.min && d <= b.max; });
+    const total = inBucket.reduce((s, i) => s + parseFloat(i.total_amount), 0);
+    html += `<tr><td>${b.label}</td><td>${inBucket.length}</td><td>$${total.toLocaleString()}</td><td style="font-size:12px">${inBucket.map(i => i.id).join(', ') || '—'}</td></tr>`;
+  });
+  const grandTotal = overdue.reduce((s, i) => s + parseFloat(i.total_amount), 0);
+  html += `<tr style="background:#f5f6f7;font-weight:700"><td>Total Overdue</td><td>${overdue.length}</td><td>$${grandTotal.toLocaleString()}</td><td></td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+/* ── General Ledger ── */
+function renderFinGL() {
+  recomputeInvoiceStatuses();
+  const entries = [];
+  DATA.invoices.forEach(inv => {
+    const amt = parseFloat(inv.total_amount);
+    if (inv.type === 'Sales') {
+      entries.push({ date: inv.date, type: 'Invoice', ref: inv.id, account: 'Accounts Receivable', debit: amt, credit: 0, desc: inv.party_name });
+      entries.push({ date: inv.date, type: 'Invoice', ref: inv.id, account: 'Revenue', debit: 0, credit: amt, desc: inv.party_name });
+    } else {
+      entries.push({ date: inv.date, type: 'Invoice', ref: inv.id, account: 'Expense / Inventory', debit: amt, credit: 0, desc: inv.party_name });
+      entries.push({ date: inv.date, type: 'Invoice', ref: inv.id, account: 'Accounts Payable', debit: 0, credit: amt, desc: inv.party_name });
+    }
+  });
+  DATA.payments.forEach(p => {
+    const inv = DATA.invoices.find(i => i.id === p.invoice_id);
+    const amt = parseFloat(p.amount);
+    if (inv && inv.type === 'Sales') {
+      entries.push({ date: p.date, type: 'Payment', ref: p.id, account: 'Bank', debit: amt, credit: 0, desc: 'Received from ' + inv.party_name });
+      entries.push({ date: p.date, type: 'Payment', ref: p.id, account: 'Accounts Receivable', debit: 0, credit: amt, desc: 'Cleared ' + inv.party_name });
+    } else if (inv && inv.type === 'Purchase') {
+      entries.push({ date: p.date, type: 'Payment', ref: p.id, account: 'Accounts Payable', debit: amt, credit: 0, desc: 'Paid to ' + inv.party_name });
+      entries.push({ date: p.date, type: 'Payment', ref: p.id, account: 'Bank', debit: 0, credit: amt, desc: 'Payment ' + inv.party_name });
+    }
+  });
+  entries.sort((a, b) => a.date.localeCompare(b.date));
+
+  let runningBalance = 0;
+  let html = `<div class="fade-in"><h2 style="margin-bottom:12px">General Ledger</h2>
+  <table class="table"><thead><tr><th>Date</th><th>Type</th><th>Ref</th><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>`;
+  entries.forEach(e => {
+    runningBalance += e.debit - e.credit;
+    html += `<tr><td>${e.date}</td><td>${e.type}</td><td>${e.ref}</td><td>${e.account}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
+      <td style="color:${e.debit > 0 ? 'var(--error)' : 'var(--text-sec)'}">${e.debit > 0 ? '$' + e.debit.toLocaleString() : '—'}</td>
+      <td style="color:${e.credit > 0 ? 'var(--success)' : 'var(--text-sec)'}">${e.credit > 0 ? '$' + e.credit.toLocaleString() : '—'}</td>
+      <td class="ledger-balance">$${runningBalance.toLocaleString()}</td></tr>`;
+  });
+  if (entries.length === 0) html += `<tr><td colspan="8" style="text-align:center">No entries found.</td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+/* ── Profit & Loss ── */
+function renderFinPL() {
+  recomputeInvoiceStatuses();
+  let totalIncome = 0, totalExpenses = 0;
+  DATA.invoices.forEach(inv => {
+    const amt = parseFloat(inv.total_amount);
+    if (inv.type === 'Sales') totalIncome += amt;
+    else totalExpenses += amt;
+  });
+  const netIncome = totalIncome - totalExpenses;
+  return `<div class="fade-in"><h2>Profit & Loss Statement</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:16px">
+      <div class="kpi-card" style="border-left:4px solid var(--success)"><div class="kpi-label">Total Income (Revenue)</div><div class="kpi-value">$${totalIncome.toLocaleString()}</div></div>
+      <div class="kpi-card" style="border-left:4px solid var(--error)"><div class="kpi-label">Total Expenses</div><div class="kpi-value">$${totalExpenses.toLocaleString()}</div></div>
+      <div class="kpi-card" style="border-left:4px solid ${netIncome >= 0 ? 'var(--blue)' : 'var(--orange)'}"><div class="kpi-label">Net Income</div><div class="kpi-value">$${netIncome.toLocaleString()}</div><div class="kpi-change ${netIncome >= 0 ? 'kpi-up' : 'kpi-down'}">${netIncome >= 0 ? 'Profit' : 'Loss'}</div></div>
+    </div>
+    <table class="table" style="margin-top:20px"><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>
+      <tr><td><strong>Income</strong></td><td></td></tr>
+      ${DATA.invoices.filter(i => i.type === 'Sales').map(i => `<tr><td style="padding-left:32px">${i.party_name} (${i.id})</td><td>$${parseFloat(i.total_amount).toLocaleString()}</td></tr>`).join('')}
+      <tr style="background:#f5f6f7;font-weight:700"><td>Total Income</td><td>$${totalIncome.toLocaleString()}</td></tr>
+      <tr><td><strong>Expenses</strong></td><td></td></tr>
+      ${DATA.invoices.filter(i => i.type === 'Purchase').map(i => `<tr><td style="padding-left:32px">${i.party_name} (${i.id})</td><td>$${parseFloat(i.total_amount).toLocaleString()}</td></tr>`).join('')}
+      <tr style="background:#f5f6f7;font-weight:700"><td>Total Expenses</td><td>$${totalExpenses.toLocaleString()}</td></tr>
+      <tr style="background:var(--blue);color:#fff;font-weight:700"><td>Net Income</td><td>$${netIncome.toLocaleString()}</td></tr>
+    </tbody></table>
+  </div>`;
+}
+
+/* ── Balance Sheet ── */
+function renderFinBS() {
+  recomputeInvoiceStatuses();
+  const entries = [];
+  DATA.invoices.forEach(inv => {
+    const amt = parseFloat(inv.total_amount);
+    if (inv.type === 'Sales') {
+      entries.push({ account: 'Accounts Receivable', debit: amt, credit: 0 });
+      entries.push({ account: 'Revenue', debit: 0, credit: amt });
+    } else {
+      entries.push({ account: 'Expense / Inventory', debit: amt, credit: 0 });
+      entries.push({ account: 'Accounts Payable', debit: 0, credit: amt });
+    }
+  });
+  DATA.payments.forEach(p => {
+    const inv = DATA.invoices.find(i => i.id === p.invoice_id);
+    const amt = parseFloat(p.amount);
+    if (inv && inv.type === 'Sales') {
+      entries.push({ account: 'Bank', debit: amt, credit: 0 });
+      entries.push({ account: 'Accounts Receivable', debit: 0, credit: amt });
+    } else if (inv && inv.type === 'Purchase') {
+      entries.push({ account: 'Accounts Payable', debit: amt, credit: 0 });
+      entries.push({ account: 'Bank', debit: 0, credit: amt });
+    }
+  });
+
+  const balances = {};
+  entries.forEach(e => {
+    if (!balances[e.account]) balances[e.account] = 0;
+    balances[e.account] += e.debit - e.credit;
+  });
+
+  const totalAssets = (balances['Accounts Receivable'] || 0) + (balances['Bank'] || 0);
+  const totalLiabilities = (balances['Accounts Payable'] || 0);
+  const equity = (balances['Revenue'] || 0) - (balances['Expense / Inventory'] || 0) + totalLiabilities;
+  const totalEqLiab = totalLiabilities + Math.abs(equity);
+
+  return `<div class="fade-in"><h2>Balance Sheet</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:16px">
+      <div class="kpi-card" style="border-left:4px solid var(--success)"><div class="kpi-label">Total Assets</div><div class="kpi-value">$${totalAssets.toLocaleString()}</div></div>
+      <div class="kpi-card" style="border-left:4px solid var(--error)"><div class="kpi-label">Total Liabilities</div><div class="kpi-value">$${Math.abs(totalLiabilities).toLocaleString()}</div></div>
+      <div class="kpi-card" style="border-left:4px solid var(--blue)"><div class="kpi-label">Equity (Balancing)</div><div class="kpi-value">$${Math.abs(equity).toLocaleString()}</div></div>
+    </div>
+    <table class="table" style="margin-top:20px"><thead><tr><th>Category</th><th>Account</th><th>Balance</th></tr></thead><tbody>
+      <tr><td><strong>Assets</strong></td><td></td><td></td></tr>
+      <tr><td></td><td>Accounts Receivable</td><td>$${(balances['Accounts Receivable'] || 0).toLocaleString()}</td></tr>
+      <tr><td></td><td>Bank</td><td>$${(balances['Bank'] || 0).toLocaleString()}</td></tr>
+      <tr style="background:#f5f6f7;font-weight:700"><td></td><td>Total Assets</td><td>$${totalAssets.toLocaleString()}</td></tr>
+      <tr><td><strong>Liabilities</strong></td><td></td><td></td></tr>
+      <tr><td></td><td>Accounts Payable</td><td>$${Math.abs(balances['Accounts Payable'] || 0).toLocaleString()}</td></tr>
+      <tr style="background:#f5f6f7;font-weight:700"><td></td><td>Total Liabilities</td><td>$${Math.abs(totalLiabilities).toLocaleString()}</td></tr>
+      <tr><td><strong>Equity</strong></td><td></td><td></td></tr>
+      <tr><td></td><td>Retained Earnings / Net Income</td><td>$${Math.abs(equity).toLocaleString()}</td></tr>
+      <tr style="background:var(--blue);color:#fff;font-weight:700"><td></td><td>Total Liabilities + Equity</td><td>$${totalEqLiab.toLocaleString()}</td></tr>
+    </tbody></table>
+  </div>`;
+}
+
+/* ── Cost Centers ── */
+function renderFinCostCenters() {
+  let html = `<div class="fade-in"><h2>Cost Centers</h2>
+  <table class="table"><thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Total Invoiced (Sales)</th><th>Total Purchases</th></tr></thead><tbody>`;
+  DATA.costCenters.forEach(cc => {
+    const salesTotal = DATA.invoices.filter(i => i.type === 'Sales' && i.cost_center_id === cc.id).reduce((s, i) => s + parseFloat(i.total_amount), 0);
+    const purchTotal = DATA.invoices.filter(i => i.type === 'Purchase' && i.cost_center_id === cc.id).reduce((s, i) => s + parseFloat(i.total_amount), 0);
+    html += `<tr><td>${cc.id}</td><td>${cc.name}</td><td>${cc.dept}</td><td>$${salesTotal.toLocaleString()}</td><td>$${purchTotal.toLocaleString()}</td></tr>`;
+  });
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+/* ── Chart of Accounts ── */
+function renderFinChartAccounts() {
+  const rootAccounts = DATA.chartAccounts.filter(a => a.parent_id === null);
+  function renderTree(parents, depth) {
+    let h = '';
+    parents.forEach(acc => {
+      const children = DATA.chartAccounts.filter(a => a.parent_id === acc.id);
+      let bal = 0;
+      DATA.invoices.forEach(inv => {
+        if (acc.id === 'ACC-AR' && inv.type === 'Sales') bal += parseFloat(inv.total_amount) - DATA.payments.filter(p => p.invoice_id === inv.id).reduce((s, p) => s + parseFloat(p.amount), 0);
+        if (acc.id === 'ACC-AP' && inv.type === 'Purchase') bal += parseFloat(inv.total_amount) - DATA.payments.filter(p => p.invoice_id === inv.id).reduce((s, p) => s + parseFloat(p.amount), 0);
+        if (acc.id === 'ACC-BANK') DATA.payments.forEach(p => { if (inv && inv.type === 'Sales') bal += parseFloat(p.amount); else if (inv && inv.type === 'Purchase') bal -= parseFloat(p.amount); });
+        if (acc.id === 'ACC-REV' && inv.type === 'Sales') bal += parseFloat(inv.total_amount);
+        if (acc.id === 'ACC-OPEX' && inv.type === 'Purchase') bal += parseFloat(inv.total_amount);
+        if (acc.id === 'ACC-FA') bal += 0; // Fixed assets balance computed separately
+      });
+      acc.balance = bal;
+      h += `<tr>
+        <td style="padding-left:${depth * 24 + 12}px">${acc.is_group ? '<i class="fa-solid fa-folder-open" style="color:var(--orange);margin-right:4px"></i>' : '<i class="fa-solid fa-file-invoice" style="color:var(--text-sec);margin-right:4px"></i>'} ${acc.name}</td>
+        <td>${acc.id}</td><td>${acc.type}</td><td>${acc.is_group ? 'Group' : 'Detail'}</td>
+        <td style="text-align:right;font-weight:${acc.is_group ? '700' : '400'}">$${bal.toLocaleString()}</td>
+        <td><button class="btn btn-sm btn-outline" onclick="openNewChartAccountModal('${acc.id}')" ${acc.is_group ? '' : 'style="opacity:0.6"'}>+ Child</button></td>
+      </tr>`;
+      if (children.length > 0) h += renderTree(children, depth + 1);
+    });
+    return h;
+  }
+
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Chart of Accounts</h2>
+    <button class="btn btn-primary btn-sm" onclick="openNewChartAccountModal('')">+ New Account</button>
+  </div>
+  <table class="table"><thead><tr><th>Account Name</th><th>Code</th><th>Type</th><th>Group/Detail</th><th style="text-align:right">Balance</th><th></th></tr></thead><tbody>`;
+  html += renderTree(rootAccounts, 0);
+  if (rootAccounts.length === 0) html += `<tr><td colspan="6" style="text-align:center">No accounts defined.</td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+function openNewChartAccountModal(parentId) {
+  const parent = parentId ? DATA.chartAccounts.find(a => a.id === parentId) : null;
+  const body = `<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="nca-name" placeholder="Account Name" />
+    <input class="filter-input" id="nca-id" placeholder="Account Code (e.g. ACC-CASH)" value="${parentId ? parentId.replace(/-.*$/, '-') : 'ACC-'}" />
+    <select class="filter-input" id="nca-type"><option value="Asset">Asset</option><option value="Liability">Liability</option><option value="Equity">Equity</option><option value="Income">Income</option><option value="Expense">Expense</option></select>
+    <label style="font-size:12px;color:var(--text-sec)"><input type="checkbox" id="nca-group" checked /> Is Group (can have child accounts)</label>
+    <div style="font-size:12px;color:var(--text-sec)">Parent: ${parent ? parent.name : '— Root —'}</div>
+    <input type="hidden" id="nca-parent" value="${parentId}" />
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewChartAccount()">Save Account</button>`;
+  openModal(parentId ? 'Add Child Account' : 'New Account', body, footer);
+}
+
+async function submitNewChartAccount() {
+  const name = $('#nca-name').value.trim();
+  const id = $('#nca-id').value.trim();
+  const type = $('#nca-type').value;
+  const isGroup = $('#nca-group').checked;
+  const parentId = $('#nca-parent').value || null;
+  if (!name || !id) { showToast('Name and Code required', 'error'); return; }
+  if (DATA.chartAccounts.find(a => a.id === id)) { showToast('Account code already exists', 'error'); return; }
+  const acc = { id, name, type, parent_id: parentId, is_group: isGroup, balance: 0 };
+  if (supabase) supabase.from('fin_chart_accounts').insert(acc).catch(() => {});
+  DATA.chartAccounts.push(acc);
+  closeModal(); showToast('Account created', 'success'); rerenderSection();
+}
+
+/* ── Journal Entries ── */
+function renderFinJournalEntries() {
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Journal Entries</h2>
+    <button class="btn btn-primary btn-sm" onclick="openNewJournalEntryModal()">+ New Entry</button>
+  </div>`;
+
+  if (DATA.journalEntries.length === 0) {
+    html += `<div class="empty-state"><i class="fa-solid fa-book"></i><p>No journal entries yet.</p></div>`;
+  } else {
+    html += `<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">`;
+    [...DATA.journalEntries].reverse().forEach(je => {
+      const totalDebit = je.entries.reduce((s, e) => s + e.debit, 0);
+      const totalCredit = je.entries.reduce((s, e) => s + e.credit, 0);
+      html += `<div class="sec-card" style="cursor:pointer" onclick="this.querySelector('.je-detail').classList.toggle('hidden')">
+        <div class="sec-card-header" style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>${je.id}</strong> · ${je.date} · ${je.description}</div>
+          <div><span style="font-size:12px;color:var(--text-sec)">Dr $${totalDebit.toLocaleString()} / Cr $${totalCredit.toLocaleString()}</span> <i class="fa-solid fa-chevron-down"></i></div>
+        </div>
+        <div class="je-detail hidden" style="margin-top:8px">
+          <table class="table"><thead><tr><th>Account</th><th>Debit</th><th>Credit</th></tr></thead><tbody>`;
+      je.entries.forEach(e => {
+        const acc = DATA.chartAccounts.find(a => a.id === e.account_id);
+        html += `<tr><td>${acc ? acc.name : e.account_id}</td><td style="color:var(--error)">${e.debit > 0 ? '$' + e.debit.toLocaleString() : '—'}</td><td style="color:var(--success)">${e.credit > 0 ? '$' + e.credit.toLocaleString() : '—'}</td></tr>`;
+      });
+      html += `</tbody></table>
+          <div style="font-size:11px;color:var(--text-sec);margin-top:4px">Reference: ${je.reference || '—'}</div>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function openNewJournalEntryModal() {
+  const accOptions = DATA.chartAccounts.filter(a => !a.is_group).map(a => `<option value="${a.id}">${a.name} (${a.id})</option>`).join('');
+  const body = `<div style="display:flex;flex-direction:column;gap:12px">
+    <input type="date" class="filter-input" id="nje-date" value="${new Date().toISOString().split('T')[0]}" />
+    <input class="filter-input" id="nje-desc" placeholder="Description" />
+    <input class="filter-input" id="nje-ref" placeholder="Reference (optional)" />
+    <div id="nje-entries">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:4px 0">
+        <label style="font-size:12px;font-weight:600;color:var(--text-sec)">Debit/Credit Lines</label>
+        <button class="btn btn-sm btn-outline" onclick="addJELine()"><i class="fa-solid fa-plus"></i> Add Line</button>
+      </div>
+      <div class="je-line" style="display:grid;grid-template-columns:3fr 1fr 1fr;gap:6px;margin-bottom:6px">
+        <select class="filter-input" style="font-size:12px">${accOptions}</select>
+        <input type="number" class="filter-input" placeholder="Debit" value="0" style="font-size:12px;color:var(--error)" oninput="calcJETotal()" />
+        <input type="number" class="filter-input" placeholder="Credit" value="0" style="font-size:12px;color:var(--success)" oninput="calcJETotal()" />
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px">
+      <span id="nje-balance" style="font-weight:700;color:var(--success)">Balanced ✓ (Dr $0 = Cr $0)</span>
+    </div>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewJournalEntry()">Post Entry</button>`;
+  openModal('New Journal Entry', body, footer);
+}
+
+function addJELine() {
+  const accOptions = DATA.chartAccounts.filter(a => !a.is_group).map(a => `<option value="${a.id}">${a.name} (${a.id})</option>`).join('');
+  const container = $('#nje-entries');
+  const line = document.createElement('div');
+  line.className = 'je-line';
+  line.style.cssText = 'display:grid;grid-template-columns:3fr 1fr 1fr;gap:6px;margin-bottom:6px';
+  line.innerHTML = `<select class="filter-input" style="font-size:12px">${accOptions}</select>
+    <input type="number" class="filter-input" placeholder="Debit" value="0" style="font-size:12px;color:var(--error)" oninput="calcJETotal()" />
+    <div style="display:flex;gap:4px"><input type="number" class="filter-input" placeholder="Credit" value="0" style="font-size:12px;color:var(--success)" oninput="calcJETotal()" />
+    <button class="btn btn-sm btn-outline" style="color:var(--error);border-color:var(--error);padding:2px 6px" onclick="this.closest('.je-line').remove();calcJETotal()"><i class="fa-solid fa-xmark"></i></button></div>`;
+  container.appendChild(line);
+}
+
+function calcJETotal() {
+  let totalDr = 0, totalCr = 0;
+  document.querySelectorAll('.je-line').forEach(line => {
+    const inputs = line.querySelectorAll('input');
+    totalDr += parseFloat(inputs[0].value) || 0;
+    totalCr += parseFloat(inputs[1] ? inputs[1].value : 0) || 0;
+  });
+  const el = document.getElementById('nje-balance');
+  if (el) {
+    const diff = Math.abs(totalDr - totalCr);
+    if (diff < 0.01) el.innerHTML = `<span style="color:var(--success)">Balanced ✓ (Dr $${totalDr.toLocaleString()} = Cr $${totalCr.toLocaleString()})</span>`;
+    else el.innerHTML = `<span style="color:var(--error)">Out of balance ✗ (Dr $${totalDr.toLocaleString()} ≠ Cr $${totalCr.toLocaleString()}, Diff $${diff.toFixed(2)})</span>`;
+  }
+}
+
+async function submitNewJournalEntry() {
+  const date = $('#nje-date').value;
+  const desc = $('#nje-desc').value.trim();
+  if (!date || !desc) { showToast('Date and Description required', 'error'); return; }
+
+  const lines = document.querySelectorAll('.je-line');
+  const entries = [];
+  let totalDr = 0, totalCr = 0;
+  lines.forEach(line => {
+    const sel = line.querySelector('select');
+    const inputs = line.querySelectorAll('input');
+    const dr = parseFloat(inputs[0].value) || 0;
+    const cr = parseFloat(inputs[1] ? inputs[1].value : 0) || 0;
+    if (sel.value && (dr > 0 || cr > 0)) {
+      entries.push({ account_id: sel.value, debit: dr, credit: cr });
+      totalDr += dr; totalCr += cr;
+    }
+  });
+  if (entries.length === 0) { showToast('Add at least one line', 'error'); return; }
+  if (Math.abs(totalDr - totalCr) > 0.01) { showToast('Debit and Credit must balance', 'error'); return; }
+
+  const ref = $('#nje-ref').value.trim();
+  const je = { id: 'JE-' + Date.now(), date, reference: ref || null, description: desc, entries };
+  if (supabase) supabase.from('fin_journal_entries').insert(je).catch(() => {});
+  DATA.journalEntries.push(je);
+  closeModal(); showToast('Journal entry posted', 'success'); rerenderSection();
+}
+
+/* ── Auto-posting: create Journal Entry when invoice or payment is created ── */
+function autoPostJE(reference, description, entries) {
+  const je = { id: 'JE-' + Date.now(), date: new Date().toISOString().split('T')[0], reference, description, entries };
+  DATA.journalEntries.push(je);
+  if (supabase) supabase.from('fin_journal_entries').insert(je).catch(() => {});
+}
+
+/* ── Fixed Assets ── */
+function renderFinFixedAssets() {
+  function computeDepreciation(fa) {
+    if (fa.depreciation_method === 'Straight Line') {
+      const annualDep = (fa.cost - fa.salvage_value) / fa.useful_life_years;
+      const purchaseDate = new Date(fa.purchase_date);
+      const monthsOwned = Math.floor((new Date() - purchaseDate) / (1000 * 60 * 60 * 24 * 30.44));
+      const accumDep = Math.min(annualDep * monthsOwned / 12, fa.cost - fa.salvage_value);
+      return { annual: annualDep, accum: Math.max(accumDep, fa.accumulated_depreciation || 0), nbv: fa.cost - Math.max(accumDep, fa.accumulated_depreciation || 0) };
+    }
+    return { annual: 0, accum: fa.accumulated_depreciation || 0, nbv: fa.cost - (fa.accumulated_depreciation || 0) };
+  }
+
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
+    <h2>Fixed Assets Register</h2>
+    <button class="btn btn-primary btn-sm" onclick="openNewFixedAssetModal()">+ Add Asset</button>
+  </div>
+  <table class="table"><thead><tr><th>Asset</th><th>Type</th><th>Purchase Date</th><th>Cost</th><th>Salvage Value</th><th>Life (yrs)</th><th>Annual Depr.</th><th>Accum. Depr.</th><th>Net Book Value</th><th>Status</th><th></th></tr></thead><tbody>`;
+
+  DATA.fixedAssets.forEach(fa => {
+    const dep = computeDepreciation(fa);
+    html += `<tr>
+      <td><strong>${fa.name}</strong></td><td>${fa.type}</td><td>${fa.purchase_date}</td>
+      <td>$${fa.cost.toLocaleString()}</td><td>$${fa.salvage_value.toLocaleString()}</td><td>${fa.useful_life_years}</td>
+      <td>$${dep.annual.toLocaleString()}</td><td>$${Math.round(dep.accum).toLocaleString()}</td>
+      <td style="font-weight:700;color:${dep.nbv > fa.cost * 0.5 ? 'var(--blue)' : 'var(--orange)'}">$${Math.round(dep.nbv).toLocaleString()}</td>
+      <td><span class="status-pill status-${fa.status.toLowerCase().replace(/ /g, '-')}">${fa.status}</span></td>
+      <td><button class="btn btn-sm btn-outline" onclick="openNewFixedAssetModal('${fa.id}')">Edit</button></td>
+    </tr>`;
+  });
+  if (DATA.fixedAssets.length === 0) html += `<tr><td colspan="11" style="text-align:center">No fixed assets registered.</td></tr>`;
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+function openNewFixedAssetModal(editId) {
+  const fa = editId ? DATA.fixedAssets.find(a => a.id === editId) : null;
+  const supOptions = DATA.suppliers.map(s => `<option value="${s.id}" ${fa && fa.supplier_id === s.id ? 'selected' : ''}>${s.name}</option>`).join('');
+  const isEdit = !!fa;
+  const body = `<div style="display:flex;flex-direction:column;gap:12px">
+    <input class="filter-input" id="nfa-name" placeholder="Asset Name" value="${fa ? fa.name : ''}" />
+    <select class="filter-input" id="nfa-type"><option value="Machinery & Equipment" ${fa && fa.type === 'Machinery & Equipment' ? 'selected' : ''}>Machinery & Equipment</option><option value="Safety Equipment" ${fa && fa.type === 'Safety Equipment' ? 'selected' : ''}>Safety Equipment</option><option value="Transport & Material Handling" ${fa && fa.type === 'Transport & Material Handling' ? 'selected' : ''}>Transport & Material Handling</option><option value="IT & Software" ${fa && fa.type === 'IT & Software' ? 'selected' : ''}>IT & Software</option><option value="Buildings & Infrastructure" ${fa && fa.type === 'Buildings & Infrastructure' ? 'selected' : ''}>Buildings & Infrastructure</option></select>
+    <input type="date" class="filter-input" id="nfa-pdate" value="${fa ? fa.purchase_date : ''}" />
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input type="number" class="filter-input" id="nfa-cost" placeholder="Cost ($)" value="${fa ? fa.cost : ''}" />
+      <input type="number" class="filter-input" id="nfa-salvage" placeholder="Salvage Value ($)" value="${fa ? fa.salvage_value : ''}" />
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input type="number" class="filter-input" id="nfa-life" placeholder="Useful Life (years)" value="${fa ? fa.useful_life_years : ''}" />
+      <select class="filter-input" id="nfa-depr"><option value="Straight Line" ${fa && fa.depreciation_method === 'Straight Line' ? 'selected' : ''}>Straight Line</option><option value="WDV" ${fa && fa.depreciation_method === 'WDV' ? 'selected' : ''}>Written Down Value</option></select>
+    </div>
+    <select class="filter-input" id="nfa-supplier"><option value="">— Supplier —</option>${supOptions}</select>
+    <select class="filter-input" id="nfa-status"><option value="In Use" ${fa && fa.status === 'In Use' ? 'selected' : ''}>In Use</option><option value="Under Maintenance" ${fa && fa.status === 'Under Maintenance' ? 'selected' : ''}>Under Maintenance</option><option value="Disposed" ${fa && fa.status === 'Disposed' ? 'selected' : ''}>Disposed</option></select>
+  </div>`;
+  const footer = `<button class="btn btn-primary" onclick="submitNewFixedAsset('${editId || ''}')">${isEdit ? 'Update' : 'Add'} Asset</button>`;
+  openModal(isEdit ? 'Edit Fixed Asset' : 'Add Fixed Asset', body, footer);
+}
+
+async function submitNewFixedAsset(editId) {
+  const name = $('#nfa-name').value.trim();
+  if (!name) { showToast('Asset name required', 'error'); return; }
+  const asset = {
+    id: editId || 'FA-' + Date.now(), name, type: $('#nfa-type').value,
+    purchase_date: $('#nfa-pdate').value, cost: parseFloat($('#nfa-cost').value) || 0,
+    salvage_value: parseFloat($('#nfa-salvage').value) || 0, useful_life_years: parseInt($('#nfa-life').value) || 5,
+    depreciation_method: $('#nfa-depr').value, accumulated_depreciation: 0, net_book_value: parseFloat($('#nfa-cost').value) || 0,
+    status: $('#nfa-status').value, supplier_id: $('#nfa-supplier').value || null
+  };
+  if (!editId) {
+    if (supabase) supabase.from('fin_fixed_assets').insert(asset).catch(() => {});
+    DATA.fixedAssets.push(asset);
+    autoPostJE(asset.id, 'Fixed Asset ' + name + ' acquired', [{account_id:'ACC-FA', debit:asset.cost, credit:0},{account_id:'ACC-AP', debit:0, credit:asset.cost}]);
+  } else {
+    const idx = DATA.fixedAssets.findIndex(a => a.id === editId);
+    if (idx >= 0) DATA.fixedAssets[idx] = asset;
+    if (supabase) supabase.from('fin_fixed_assets').upsert(asset).catch(() => {});
+  }
+  closeModal(); showToast(editId ? 'Asset updated' : 'Asset added', 'success'); rerenderSection();
 }
 
 function renderFinPayments() {
@@ -4041,15 +5147,20 @@ function renderFinPayments() {
     <h2>Payments Ledger</h2>
   </div>
   <table class="table">
-    <thead><tr><th>ID</th><th>Invoice ID</th><th>Date</th><th>Amount</th><th>Method</th></tr></thead>
+    <thead><tr><th>ID</th><th>Invoice / Ref</th><th>Date</th><th>Amount</th><th>Method</th><th>Source</th></tr></thead>
     <tbody>`;
   DATA.payments.forEach(p => {
+    const source = p.salary_slip_id
+      ? `<span style="color:var(--blue);cursor:pointer" onclick="switchModule('hr');switchSection('compensation')">${p.salary_slip_id}</span>`
+      : p.invoice_id && p.invoice_id.startsWith('PAYROLL-')
+        ? `<span style="color:var(--text-sec)">Payroll</span>`
+        : `<span style="color:var(--text-sec)">—</span>`;
     html+=`<tr>
       <td>${p.id}</td><td>${p.invoice_id}</td><td>${p.date}</td>
-      <td>$${parseFloat(p.amount).toLocaleString()}</td><td>${p.payment_method}</td>
+      <td>$${parseFloat(p.amount).toLocaleString()}</td><td>${p.payment_method}</td><td>${source}</td>
     </tr>`;
   });
-  if(DATA.payments.length===0) html+=`<tr><td colspan="5" style="text-align:center">No payments recorded.</td></tr>`;
+  if(DATA.payments.length===0) html+=`<tr><td colspan="6" style="text-align:center">No payments recorded.</td></tr>`;
   html+=`</tbody></table></div>`;
   return html;
 }
@@ -4083,8 +5194,15 @@ async function submitNewPayment(invoiceId) {
   }
   DATA.payments.push(newPay);
 
-  // Update Invoice Status if fully paid
+  // Auto-post JE
   const inv = DATA.invoices.find(i=>i.id===invoiceId);
+  if (inv) {
+    const drAccount = inv.type === 'Sales' ? 'ACC-BANK' : 'ACC-AP';
+    const crAccount = inv.type === 'Sales' ? 'ACC-AR' : 'ACC-BANK';
+    autoPostJE(newPay.id, 'Payment ' + newPay.id + ' auto-posting', [{account_id:drAccount, debit:amt, credit:0},{account_id:crAccount, debit:0, credit:amt}]);
+  }
+
+  // Update Invoice Status if fully paid
   const totalPaid = DATA.payments.filter(p=>p.invoice_id===invoiceId).reduce((s,p)=>s+parseFloat(p.amount),0);
   if(totalPaid >= parseFloat(inv.total_amount)) {
     inv.status = 'Paid';
@@ -4099,6 +5217,29 @@ window.openNewInvoiceModal = openNewInvoiceModal;
 window.submitNewInvoice = submitNewInvoice;
 window.openNewPaymentModal = openNewPaymentModal;
 window.submitNewPayment = submitNewPayment;
+window.selectFinItem = selectFinItem;
+window.addInvoiceItemRow = addInvoiceItemRow;
+window.calcInvoiceItemRow = calcInvoiceItemRow;
+window.calcInvoiceTotal = calcInvoiceTotal;
+window.openNewChartAccountModal = openNewChartAccountModal;
+window.submitNewChartAccount = submitNewChartAccount;
+window.openNewJournalEntryModal = openNewJournalEntryModal;
+window.submitNewJournalEntry = submitNewJournalEntry;
+window.addJELine = addJELine;
+window.calcJETotal = calcJETotal;
+window.openNewFixedAssetModal = openNewFixedAssetModal;
+window.submitNewFixedAsset = submitNewFixedAsset;
+window.openNewInventoryModal = openNewInventoryModal;
+window.submitNewInventory = submitNewInventory;
+window.openNewQIModal = openNewQIModal;
+window.submitNewQI = submitNewQI;
+window.showQIParams = showQIParams;
+window.openNewLCVModal = openNewLCVModal;
+window.submitNewLCV = submitNewLCV;
+window.showLCVItems = showLCVItems;
+window.openNewRRModal = openNewRRModal;
+window.submitNewRR = submitNewRR;
+window.autoGenerateMR = autoGenerateMR;
 window.openNewPositionModal = openNewPositionModal;
 window.submitNewPosition = submitNewPosition;
 window.openNewReviewModal = openNewReviewModal;

@@ -1810,6 +1810,9 @@ function renderCertificates(filterFn){
 }
 
 /* ── Entity view: Clients ── */
+function openNewCertClientModal() {
+  openNewAccountModal();
+}
 function renderCertClientsView(){
   const now=new Date().toISOString().split('T')[0];
   let activeClients=DATA.accounts.filter(a=>a.status==='active');
@@ -1820,7 +1823,7 @@ function renderCertClientsView(){
     const allowedClientIds=[...new Set(openJobs.map(j=>j.clientId).filter(Boolean))];
     activeClients=activeClients.filter(c=>allowedClientIds.includes(c.id));
   }
-  let html='<div class="cert-entity-grid" style="padding:16px;">';
+  let html='<div style="padding:16px;display:flex;justify-content:flex-end;"><button class="btn btn-primary btn-sm" onclick="openNewCertClientModal()"><i class="fa-solid fa-plus"></i> New Client</button></div><div class="cert-entity-grid" style="padding:0 16px 16px;">';
   activeClients.forEach(cl=>{
     const fls=DATA.functionalLocations.filter(f=>f.clientId===cl.id);
     const certs=DATA.certificates.filter(c=>c.clientId===cl.id);
@@ -1850,6 +1853,37 @@ function renderCertClientsView(){
 }
 
 /* ── Entity view: Functional Locations ── */
+function openNewFLModal() {
+  const clientOpts = DATA.accounts.filter(a=>a.status==='active').map(a=>`<option value="${a.id}">${h(a.name)}</option>`).join('');
+  openModal('New Functional Location', `<div class="modal-body">
+    <div class="form-group"><label>Location Name *</label>
+      <input id="fl-name" class="form-input" placeholder="e.g. Rig Alpha"></div>
+    <div class="form-row"><div class="form-group">
+      <label>FL ID / Code</label>
+      <input id="fl-code" class="form-input" placeholder="e.g. FL-OQ-RG01"></div>
+    <div class="form-group">
+      <label>Type</label>
+      <select id="fl-type" class="form-input">
+        <option value="Rig">Rig</option><option value="Workshop">Workshop</option>
+        <option value="Warehouse">Warehouse</option><option value="Yard">Yard</option>
+        <option value="Other">Other</option>
+      </select></div></div>
+    <div class="form-group"><label>Client</label>
+      <select id="fl-client" class="form-input"><option value="">None</option>${clientOpts}</select></div>
+  </div>`, `<button class="btn btn-primary" onclick="submitNewFL()">Save</button>
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`);
+}
+async function submitNewFL() {
+  const name = document.getElementById('fl-name')?.value?.trim();
+  if(!name){showToast('Location name required','error');return;}
+  const id='FL-'+String(DATA.functionalLocations.length+1).padStart(3,'0');
+  const code = document.getElementById('fl-code')?.value?.trim() || id;
+  const rec={id,flId:code,name,type:document.getElementById('fl-type')?.value||'Other',clientId:document.getElementById('fl-client')?.value||null,status:'active'};
+  DATA.functionalLocations.push(rec);
+  closeModal();
+  showToast('Functional location added','success');
+  rerenderSection();
+}
 function renderCertFLView(){
   let fls=DATA.functionalLocations.filter(f=>f.status==='active');
   if(state.currentInspectorId){
@@ -1859,7 +1893,7 @@ function renderCertFLView(){
     const allowedFlIds=[...new Set(openJobs.map(j=>j.flId).filter(Boolean))];
     fls=fls.filter(f=>allowedFlIds.includes(f.id));
   }
-  let html='<div class="cert-entity-grid" style="padding:16px;">';
+  let html='<div style="padding:16px;display:flex;justify-content:flex-end;"><button class="btn btn-primary btn-sm" onclick="openNewFLModal()"><i class="fa-solid fa-plus"></i> New Location</button></div><div class="cert-entity-grid" style="padding:0 16px 16px;">';
   fls.forEach(fl=>{
     const client=DATA.accounts.find(a=>a.id===fl.clientId);
     const certs=DATA.certificates.filter(c=>c.flId===fl.id);
@@ -1882,9 +1916,39 @@ function renderCertFLView(){
 }
 
 /* ── Entity view: Inspectors ── */
+function openNewInspectorModal() {
+  const empOpts = DATA.employees.filter(e=>e.status==='active').map(e=>`<option value="${e.id}">${e.name} — ${e.position}</option>`).join('');
+  openModal('New Inspector', `<div class="modal-body">
+    <div class="form-group"><label>Employee *</label>
+      <select id="ins-emp" class="form-input">${empOpts}</select></div>
+    <div class="form-group"><label>Inspector Title</label>
+      <input id="ins-title" class="form-input" placeholder="e.g. Senior HSE Inspector"></div>
+    <div class="form-row"><div class="form-group">
+      <label>Color Tag</label>
+      <input id="ins-color" class="form-input" type="color" value="#e53935"></div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="ins-status" class="form-input">
+        <option value="active">Active</option><option value="inactive">Inactive</option>
+      </select></div></div>
+  </div>`, `<button class="btn btn-primary" onclick="submitNewInspector()">Save</button>
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`);
+}
+async function submitNewInspector() {
+  const empId = document.getElementById('ins-emp')?.value;
+  if(!empId){showToast('Employee required','error');return;}
+  const emp = DATA.employees.find(e=>e.id===empId);
+  if(!emp){showToast('Employee not found','error');return;}
+  const id='INS-'+String(DATA.inspectors.length+1).padStart(3,'0');
+  const rec={id,inspectorNumber:id,employeeId:empId,name:emp.name,title:document.getElementById('ins-title')?.value?.trim()||emp.position,email:emp.email,phone:emp.phone,status:document.getElementById('ins-status')?.value||'active',color:document.getElementById('ins-color')?.value||'#6a6d70'};
+  DATA.inspectors.push(rec);
+  closeModal();
+  showToast('Inspector added','success');
+  rerenderSection();
+}
 function renderCertInspectorsView(){
   const inspectors=DATA.inspectors.filter(i=>i.status==='active');
-  let html='<div class="cert-entity-grid" style="padding:16px;">';
+  let html='<div style="padding:16px;display:flex;justify-content:flex-end;"><button class="btn btn-primary btn-sm" onclick="openNewInspectorModal()"><i class="fa-solid fa-plus"></i> New Inspector</button></div><div class="cert-entity-grid" style="padding:0 16px 16px;">';
   inspectors.forEach(ins=>{
     const certs=DATA.certificates.filter(c=>c.inspectorId===ins.id);
     html+=`<div class="cert-entity-card">
@@ -1911,6 +1975,42 @@ function renderCertInspectorsView(){
 }
 
 /* ── Entity view: Jobs (Work Orders) ── */
+function openNewJobModal() {
+  const clientOpts = DATA.accounts.filter(a=>a.status==='active').map(a=>`<option value="${a.id}">${h(a.name)}</option>`).join('');
+  const flOpts = DATA.functionalLocations.filter(f=>f.status==='active').map(f=>`<option value="${f.id}">${h(f.name)}</option>`).join('');
+  const inspOpts = DATA.inspectors.filter(i=>i.status==='active').map(i=>`<option value="${i.id}">${h(i.name)}</option>`).join('');
+  openModal('New Work Order', `<div class="modal-body">
+    <div class="form-group"><label>Job Title *</label>
+      <input id="job-title" class="form-input" placeholder="e.g. Q4 Rig Alpha Inspection"></div>
+    <div class="form-group"><label>Description</label>
+      <textarea id="job-desc" class="form-input" rows="2" placeholder="Job description"></textarea></div>
+    <div class="form-row"><div class="form-group">
+      <label>Client</label>
+      <select id="job-client" class="form-input"><option value="">None</option>${clientOpts}</select></div>
+    <div class="form-group">
+      <label>Functional Location</label>
+      <select id="job-fl" class="form-input"><option value="">None</option>${flOpts}</select></div></div>
+    <div class="form-group"><label>Assign Inspectors</label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0;">${DATA.inspectors.filter(i=>i.status==='active').map(i=>`<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;"><input type="checkbox" class="job-insp-chk" value="${i.id}"><span style="width:8px;height:8px;border-radius:50%;background:${i.color||'#6a6d70'};display:inline-block;"></span>${h(i.name)}</label>`).join('')}</div></div>
+  </div>`, `<button class="btn btn-primary" onclick="submitNewJob()">Create Job</button>
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`);
+}
+async function submitNewJob() {
+  const title = document.getElementById('job-title')?.value?.trim();
+  if(!title){showToast('Job title required','error');return;}
+  const id='JOB-'+String(DATA.jobs.length+1).padStart(3,'0');
+  const checked = [...document.querySelectorAll('.job-insp-chk:checked')].map(cb=>cb.value);
+  const job={id,title,clientId:document.getElementById('job-client')?.value||null,flId:document.getElementById('job-fl')?.value||null,status:'open',createdAt:new Date().toISOString().split('T')[0],completedAt:null,closedAt:null,description:document.getElementById('job-desc')?.value?.trim()||''};
+  DATA.jobs.push(job);
+  checked.forEach(inspectorId=>{
+    const jaId='JA-'+String(DATA.jobAssignments.length+1).padStart(3,'0');
+    DATA.jobAssignments.push({id:jaId,jobId:id,inspectorId,assignedAt:new Date().toISOString().split('T')[0]});
+  });
+  closeModal();
+  showToast('Work order created','success');
+  rerenderSection();
+}
+
 function getJobsForCurrentUser(){
   if(state.currentInspectorId){
     const assignedJobIds=DATA.jobAssignments.filter(ja=>ja.inspectorId===state.currentInspectorId).map(ja=>ja.jobId);
@@ -1922,7 +2022,7 @@ function getJobsForCurrentUser(){
 function renderCertJobsView(){
   const jobs=getJobsForCurrentUser();
   const statusColors={open:'#0070f2',in_progress:'#e76500',completed:'#188918',closed:'#6a6d70'};
-  let html='<div class="cert-entity-grid" style="padding:16px;">';
+  let html='<div style="padding:16px;display:flex;justify-content:flex-end;"><button class="btn btn-primary btn-sm" onclick="openNewJobModal()"><i class="fa-solid fa-plus"></i> New Work Order</button></div><div class="cert-entity-grid" style="padding:0 16px 16px;">';
   jobs.forEach(job=>{
     const client=DATA.accounts.find(a=>a.id===job.clientId);
     const fl=DATA.functionalLocations.find(f=>f.id===job.flId);
@@ -8189,3 +8289,12 @@ window.submitNewWarehouse = submitNewWarehouse;
 window.openNewCostCenterModal = openNewCostCenterModal;
 window.submitNewCostCenter = submitNewCostCenter;
 window.openNewPaymentListModal = openNewPaymentListModal;
+
+// Certificates entity exports
+window.openNewCertClientModal = openNewCertClientModal;
+window.openNewFLModal = openNewFLModal;
+window.submitNewFL = submitNewFL;
+window.openNewInspectorModal = openNewInspectorModal;
+window.submitNewInspector = submitNewInspector;
+window.openNewJobModal = openNewJobModal;
+window.submitNewJob = submitNewJob;

@@ -105,6 +105,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
   border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0;height:100%;}
 [dir="rtl"] .mod-sidebar{order:1;border-right:none;border-left:1px solid var(--border);}
 .mod-content{flex:1;padding:16px;overflow-y:auto;height:100%;}
+.mod-sidebar.hidden{display:none;}
 
 .sidebar-group{padding:12px 12px 4px;font-size:10px;font-weight:700;text-transform:uppercase;
   letter-spacing:.8px;color:var(--text-sec);margin-top:4px;}
@@ -589,6 +590,40 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 }
 .cert-toolbar .sap-search-box input::placeholder { color:var(--text-sec); }
 .cert-toolbar__count { font-size:12px;font-weight:700;color:var(--text-sec);white-space:nowrap;flex-shrink:0; }
+
+/* Cert sub-nav tabs (Rigways style) */
+.cert-sub-nav {
+  display:flex;gap:2px;padding:10px 16px 0;overflow-x:auto;
+  background:var(--white);border-bottom:2px solid var(--border);
+}
+.cert-sub-nav .sap-tab {
+  flex-shrink:0;height:34px;padding:0 16px;
+  border:none;border-radius:6px 6px 0 0;
+  background:transparent;color:var(--text-sec);
+  font-size:12px;font-weight:700;cursor:pointer;
+  border-bottom:2px solid transparent;transition:all .15s;
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+}
+.cert-sub-nav .sap-tab:hover{background:var(--bg);color:var(--text);}
+.cert-sub-nav .sap-tab.active{color:var(--blue);border-bottom-color:var(--blue);background:#fff;}
+.sap-tab__badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:18px;height:18px;padding:0 5px;
+  border-radius:9px;font-size:10px;font-weight:700;
+}
+.sap-tab__badge--default{background:var(--bg);color:var(--text-sec);}
+.sap-tab__badge--warning{background:#fff3e0;color:#e76500;}
+.sap-tab__badge--error{background:#fce4e4;color:#bb0000;}
+.sap-tab__badge--info{background:#e8f3ff;color:#0070f2;}
+.sap-tab__badge--success{background:#f0faf0;color:#188918;}
+
+/* Cert filter select */
+.cert-filter-select{
+  height:28px;padding:0 8px;border:1px solid var(--border);
+  border-radius:4px;background:var(--white);font-size:12px;
+  color:var(--text);cursor:pointer;flex-shrink:0;max-width:130px;
+}
+.cert-filter-select:focus{outline:none;border-color:var(--blue);}
 
 /* Column selector */
 .col-selector-wrap { position:relative;flex-shrink:0; }

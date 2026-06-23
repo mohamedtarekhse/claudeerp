@@ -1371,6 +1371,9 @@ let certSortDir=1;
 let certCurrentPage=1;
 let certPageSize=Number(localStorage.getItem('cert_page_size')||25);
 let certSavedView='all';
+let certClientFilter='all';
+let certLocFilter='all';
+let certTypeFilter='all';
 let certMultipleStatuses=null;
 
 function h(s){if(s===null||s===undefined)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;');}
@@ -1417,11 +1420,13 @@ function renderCertificates(filterFn){
   let data=filterFn?DATA.certificates.filter(filterFn):[...DATA.certificates];
   const search=(state.filters.search||'').toLowerCase();
 
-  // Apply saved view filter (only when no explicit filterFn from section routing)
+  // Apply saved view / sub-nav tab filter
   if(!filterFn){
-    if(certSavedView==='expired')data=data.filter(c=>getCertStatus(c)==='expired');
+    if(certSavedView==='valid')data=data.filter(c=>getCertStatus(c)==='valid');
+    else if(certSavedView==='expired')data=data.filter(c=>getCertStatus(c)==='expired');
     else if(certSavedView==='expiring')data=data.filter(c=>getCertStatus(c)==='expiring');
     else if(certSavedView==='pending')data=data.filter(c=>c.approvalStatus==='pending');
+    else if(certSavedView==='rejected')data=data.filter(c=>c.approvalStatus==='rejected');
     else if(certSavedView==='noFile')data=data.filter(c=>!c.fileName&&!c.pdfUrl);
     else if(certSavedView==='newUploads'){
       const n=new Date();
@@ -1440,7 +1445,12 @@ function renderCertificates(filterFn){
     (c.issuer||'').toLowerCase().includes(search)
   );
 
-  // Filters
+  // Dropdown filters
+  if(certClientFilter!=='all')data=data.filter(c=>c.clientId===certClientFilter);
+  if(certLocFilter!=='all')data=data.filter(c=>c.flId===certLocFilter);
+  if(certTypeFilter!=='all')data=data.filter(c=>c.certCategory===certTypeFilter);
+
+  // Legacy state filters
   if(state.filters.certCategory&&state.filters.certCategory!=='all')data=data.filter(c=>c.certCategory===state.filters.certCategory);
   if(state.filters.status==='valid')data=data.filter(c=>getCertStatus(c)==='valid');
   else if(state.filters.status==='expiring')data=data.filter(c=>getCertStatus(c)==='expiring');
@@ -1475,22 +1485,40 @@ function renderCertificates(filterFn){
   html+=renderCertKPIs();
   html+=`<div class="sap-card" style="background:var(--white);border:1px solid var(--border);border-radius:8px;overflow:hidden;">`;
 
-  // Saved views
-  const views=[
-    {id:'all',label:'All',dot:'#0070f2'},
-    {id:'expiring',label:'Expiring',dot:'#e76500'},
-    {id:'expired',label:'Expired',dot:'#bb0000'},
-    {id:'pending',label:'Pending',dot:'#f57f17'},
-    {id:'noFile',label:'No File',dot:'#6a6d70'},
-    {id:'newUploads',label:'New Uploads',dot:'#188918'},
+  // Sub-nav tabs (Rigways style)
+  const allCerts=DATA.certificates;
+  const tabCounts={
+    all:allCerts.length,
+    valid:allCerts.filter(c=>getCertStatus(c)==='valid').length,
+    expiring:allCerts.filter(c=>getCertStatus(c)==='expiring').length,
+    expired:allCerts.filter(c=>getCertStatus(c)==='expired').length,
+    pending:allCerts.filter(c=>c.approvalStatus==='pending').length,
+    rejected:allCerts.filter(c=>c.approvalStatus==='rejected').length,
+    noFile:allCerts.filter(c=>!c.fileName&&!c.pdfUrl).length,
+    newUploads:allCerts.filter(c=>{const u=c.uploadTime?new Date(c.uploadTime):null;return u&&(new Date()-u)<=86400000;}).length,
+  };
+  const badgeCls=(id,i)=>{
+    if(i===0||id==='all')return'default';
+    if(id==='expiring'||id==='pending'||id==='newUploads')return'warning';
+    if(id==='expired'||id==='rejected')return'error';
+    return'default';
+  };
+  const tabs=[
+    {id:'all',label:'All'},{id:'valid',label:'Valid'},{id:'expiring',label:'Expiring'},
+    {id:'expired',label:'Expired'},{id:'pending',label:'Pending'},{id:'rejected',label:'Rejected'},
+    {id:'noFile',label:'No File'},{id:'newUploads',label:'New Uploads'},
   ];
-  html+=`<div class="saved-view-strip">`;
-  views.forEach(v=>{
-    html+=`<button class="saved-view-btn ${certSavedView===v.id?'active':''}" onclick="setCertSavedView('${v.id}')"><span class="saved-view-btn__dot" style="background:${v.dot}"></span>${v.label}</button>`;
+  html+=`<div class="cert-sub-nav">`;
+  tabs.forEach((t,i)=>{
+    const cnt=tabCounts[t.id];
+    html+=`<button class="sap-tab ${certSavedView===t.id?'active':''}" onclick="certSetTab('${t.id}')"><span>${t.label}</span><span class="sap-tab__badge sap-tab__badge--${badgeCls(t.id,i)}">${cnt}</span></button>`;
   });
   html+=`</div>`;
 
-  // Toolbar
+  // Toolbar with filter dropdowns
+  const clientOpts=DATA.accounts.filter(a=>a.status==='active').map(a=>`<option value="${a.id}" ${certClientFilter===a.id?'selected':''}>${h(a.name)}</option>`).join('');
+  const locOpts=DATA.functionalLocations.filter(f=>f.status==='active').map(f=>`<option value="${f.id}" ${certLocFilter===f.id?'selected':''}>${h(f.name)}</option>`).join('');
+  const typeOpts=[...new Set(DATA.certificates.map(c=>c.certCategory).filter(Boolean))].map(t=>`<option value="${t}" ${certTypeFilter===t?'selected':''}>${t}</option>`).join('');
   html+=`<div class="cert-toolbar">
     <input type="checkbox" class="sap-checkbox" aria-label="Select all" onchange="certToggleSelectAll(this)" style="margin-right:2px;">
     <div class="sap-search-box">
@@ -1499,6 +1527,9 @@ function renderCertificates(filterFn){
     </div>
     <span class="cert-toolbar__count">${total}</span>
     <div style="width:1px;height:20px;background:var(--border);flex-shrink:0;"></div>
+    <select class="cert-filter-select" onchange="certClientFilter=this.value;rerenderSection()"><option value="all">All Clients</option>${clientOpts}</select>
+    <select class="cert-filter-select" onchange="certLocFilter=this.value;rerenderSection()"><option value="all">All Locations</option>${locOpts}</select>
+    <select class="cert-filter-select" onchange="certTypeFilter=this.value;rerenderSection()"><option value="all">All Types</option>${typeOpts}</select>
     <div class="col-selector-wrap">
       <button class="col-selector-btn" onclick="certToggleColDropdown()">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -1686,6 +1717,13 @@ function certGoPage(p){
 function certSetPageSize(s){
   certPageSize=Number(s);
   localStorage.setItem('cert_page_size',String(certPageSize));
+  certCurrentPage=1;
+  rerenderSection();
+}
+
+function certSetTab(tab){
+  certSavedView=tab;
+  state.filters.search='';
   certCurrentPage=1;
   rerenderSection();
 }
@@ -3516,6 +3554,11 @@ async function submitNewPO(){
    RENDER ENGINE
 ═══════════════════════════════════════════════ */
 function renderSidebar(){
+  const hideSidebar = state.module === 'certificates';
+  const sb = document.getElementById('modSidebar');
+  if(sb) sb.classList.toggle('hidden', hideSidebar);
+  if(hideSidebar) return;
+
   let html='';
   if(state.module==='hr') html=renderHRSidebar();
   else if(state.module==='crm') html=renderCRMSidebar();

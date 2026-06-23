@@ -3506,6 +3506,48 @@ window.receivePO = async function(id) {
 /* ═══════════════════════════════════════════════
    SC — SUPPLIERS LIST
 ═══════════════════════════════════════════════ */
+/* ── SC: SUPPLIERS ── */
+function openNewSupplierModal() {
+  openModal('New Supplier', `<div class="modal-body">
+    <div class="form-row"><div class="form-group">
+      <label>Supplier Name *</label>
+      <input id="sup-name" class="form-input" placeholder="e.g. DrillTech Supplies"></div>
+    <div class="form-group">
+      <label>Category *</label>
+      <select id="sup-cat" class="form-input">
+        <option value="Equipment">Equipment</option><option value="Chemicals">Chemicals</option>
+        <option value="Safety">Safety</option><option value="Services">Services</option>
+        <option value="Logistics">Logistics</option><option value="Other">Other</option>
+      </select></div></div>
+    <div class="form-row"><div class="form-group">
+      <label>Contact Person</label>
+      <input id="sup-contact" class="form-input" placeholder="Name"></div>
+    <div class="form-group">
+      <label>Email</label>
+      <input id="sup-email" class="form-input" type="email" placeholder="email@example.com"></div></div>
+    <div class="form-row"><div class="form-group">
+      <label>Phone</label>
+      <input id="sup-phone" class="form-input" placeholder="+968 XXXX XXXX"></div>
+    <div class="form-group">
+      <label>Country</label>
+      <input id="sup-country" class="form-input" value="Oman"></div></div>
+    <div class="form-group"><label>Notes</label>
+      <textarea id="sup-notes" class="form-input" rows="2" placeholder="Optional notes"></textarea></div>
+  </div>`, `<button class="btn btn-primary" onclick="submitNewSupplier()">Save</button>
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`);
+}
+async function submitNewSupplier() {
+  const name = document.getElementById('sup-name')?.value?.trim();
+  if(!name){showToast('Supplier name required','error');return;}
+  const id='SUP-'+String(DATA.suppliers.length+1).padStart(3,'0');
+  const rec={id,name,category:document.getElementById('sup-cat')?.value||'Other',contact_person:document.getElementById('sup-contact')?.value?.trim()||'',email:document.getElementById('sup-email')?.value?.trim()||'',phone:document.getElementById('sup-phone')?.value?.trim()||'',country:document.getElementById('sup-country')?.value?.trim()||'Oman',rating:0,status:'active'};
+  DATA.suppliers.push(rec);
+  if(supabase) await supabase.from('suppliers').insert(rec).catch(supabaseCatch);
+  closeModal();
+  showToast('Supplier added','success');
+  rerenderSection();
+}
+
 function renderAllSuppliers(){
   const f=state.filters;
   let items=[...DATA.suppliers];
@@ -3524,6 +3566,7 @@ function renderAllSuppliers(){
       <select class="filter-select" onchange="state.filters.category=this.value;rerenderSection()">
         <option value="all">All Categories</option>${cats.map(c=>`<option value="${c}" ${f.category===c?'selected':''}>${c}</option>`).join('')}
       </select>
+      <button class="btn btn-primary btn-sm" onclick="openNewSupplierModal()"><i class="fa-solid fa-plus"></i> New Supplier</button>
     </div>
     <div style="padding:6px 14px 4px;font-size:11px;color:var(--text-sec);background:#fafafa;border-bottom:1px solid var(--border);">${items.length} suppliers</div>
     <div class="list-container">`;
@@ -3619,8 +3662,44 @@ function renderSCSettings() {
   </div>`;
 }
 
+/* ── SC: WAREHOUSE ── */
+function openNewWarehouseModal() {
+  const mgrOpts = DATA.employees.map(e=>`<option value="${e.id}">${e.name}</option>`).join('');
+  openModal('New Warehouse', `<div class="modal-body">
+    <div class="form-group"><label>Warehouse Name *</label>
+      <input id="wh-name" class="form-input" placeholder="e.g. Central Hub"></div>
+    <div class="form-row"><div class="form-group">
+      <label>Location</label>
+      <input id="wh-loc" class="form-input" placeholder="e.g. Muscat"></div>
+    <div class="form-group">
+      <label>Manager</label>
+      <select id="wh-mgr" class="form-input"><option value="">None</option>${mgrOpts}</select></div></div>
+    <div class="form-row"><div class="form-group">
+      <label>Total Capacity</label>
+      <input id="wh-cap" class="form-input" type="number" value="1000" min="0"></div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="wh-status" class="form-input">
+        <option value="Active">Active</option><option value="Inactive">Inactive</option>
+      </select></div></div>
+  </div>`, `<button class="btn btn-primary" onclick="submitNewWarehouse()">Save</button>
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`);
+}
+async function submitNewWarehouse() {
+  const name = document.getElementById('wh-name')?.value?.trim();
+  if(!name){showToast('Warehouse name required','error');return;}
+  const id='WH-'+String(DATA.warehouses.length+1).padStart(3,'0');
+  const rec={id,name,location:document.getElementById('wh-loc')?.value?.trim()||'',manager_id:document.getElementById('wh-mgr')?.value||'',capacity_used:0,capacity_total:parseInt(document.getElementById('wh-cap')?.value)||1000,status:document.getElementById('wh-status')?.value||'Active'};
+  DATA.warehouses.push(rec);
+  if(supabase) await supabase.from('warehouses').insert(rec).catch(supabaseCatch);
+  closeModal();
+  showToast('Warehouse added','success');
+  rerenderSection();
+}
+
 function renderWarehouseCapacity() {
-  let html = `<div class="fade-in"><div class="filter-bar"><h2>Warehouse Capacity</h2></div>
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between"><h2>Warehouse Capacity</h2>
+    <button class="btn btn-primary btn-sm" onclick="openNewWarehouseModal()"><i class="fa-solid fa-plus"></i> New Warehouse</button></div>
   <table class="table">
     <thead><tr><th>ID</th><th>Warehouse</th><th>Location</th><th>Manager</th><th>Capacity Used</th><th>Status</th></tr></thead>
     <tbody>`;
@@ -6723,6 +6802,38 @@ async function hrCheckOut() {
 }
 
 /* ── HR EXPENSES ── */
+/* ── HR: ABSENCE RECORDING ── */
+function openNewAbsenceModal() {
+  const empOpts = DATA.employees.filter(e=>e.status==='active').map(e=>`<option value="${e.id}">${e.name}</option>`).join('');
+  openModal('Record Absence', `<div class="modal-body">
+    <div class="form-group"><label>Employee *</label>
+      <select id="abs-emp" class="form-input">${empOpts}</select></div>
+    <div class="form-row"><div class="form-group">
+      <label>Date *</label>
+      <input id="abs-date" class="form-input" type="date" value="${new Date().toISOString().split('T')[0]}">
+    </div></div>
+    <div class="form-group"><label>Type</label>
+      <select id="abs-type" class="form-input">
+        <option value="Absent">Unexcused Absence</option>
+        <option value="Late">Late Arrival</option>
+        <option value="Early Departure">Early Departure</option>
+      </select></div>
+  </div>`, `<button class="btn btn-primary" onclick="submitNewAbsence()">Save</button>
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`);
+}
+async function submitNewAbsence() {
+  const empId = document.getElementById('abs-emp')?.value;
+  const date = document.getElementById('abs-date')?.value;
+  if(!empId||!date){showToast('Employee and date required','error');return;}
+  const id='ABS-'+Date.now();
+  const rec={id,employee_id:empId,date,status:document.getElementById('abs-type')?.value||'Absent',check_in_time:null,check_out_time:null};
+  DATA.attendance.push(rec);
+  if(supabase) await supabase.from('hr_attendance').insert(rec).catch(supabaseCatch);
+  closeModal();
+  showToast('Absence recorded','success');
+  rerenderSection();
+}
+
 function renderHRAbsenceCalendar() {
   const allLeaves = DATA.leaveRequests.map(l => ({
     id: l.id, employee: l.employeeName, type: l.type, startDate: l.startDate, endDate: l.endDate, status: l.status, source: 'Leave'
@@ -6734,7 +6845,8 @@ function renderHRAbsenceCalendar() {
 
   const combined = [...allLeaves, ...absences].sort((a,b) => new Date(b.startDate) - new Date(a.startDate));
 
-  let html = `<div class="fade-in"><div class="filter-bar"><h2>Absence & Leave Calendar</h2></div>
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between"><h2>Absence & Leave Calendar</h2>
+    <button class="btn btn-primary btn-sm" onclick="openNewAbsenceModal()"><i class="fa-solid fa-plus"></i> Record Absence</button></div>
   <table class="table">
     <thead><tr><th>Type</th><th>Employee</th><th>Start Date</th><th>End Date</th><th>Status</th><th>Source</th></tr></thead>
     <tbody>`;
@@ -6846,8 +6958,43 @@ async function submitNewReview() {
   closeModal(); showToast('Review saved','success'); rerenderSection();
 }
 
+/* ── HR: HSE TRAINING ── */
+function openNewTrainingModal() {
+  const empOpts = DATA.employees.map(e=>`<option value="${e.name}">${e.name}</option>`).join('');
+  openModal('Add Training Record', `<div class="modal-body">
+    <div class="form-group"><label>Employee *</label>
+      <select id="tr-emp" class="form-input">${empOpts}</select></div>
+    <div class="form-group"><label>Course Name *</label>
+      <input id="tr-course" class="form-input" placeholder="e.g. H2S Awareness"></div>
+    <div class="form-row"><div class="form-group">
+      <label>Date</label>
+      <input id="tr-date" class="form-input" type="date" value="${new Date().toISOString().split('T')[0]}">
+    </div><div class="form-group">
+      <label>Status</label>
+      <select id="tr-status" class="form-input">
+        <option value="Scheduled">Scheduled</option>
+        <option value="Passed">Passed</option>
+        <option value="Failed">Failed</option>
+      </select></div></div>
+  </div>`, `<button class="btn btn-primary" onclick="submitNewTraining()">Save</button>
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`);
+}
+async function submitNewTraining() {
+  const name = document.getElementById('tr-emp')?.value;
+  const course = document.getElementById('tr-course')?.value?.trim();
+  if(!name||!course){showToast('Employee and course required','error');return;}
+  const id='TR-'+String(DATA.hseTraining.length+1).padStart(3,'0');
+  const rec={id,employee_name:name,course,date:document.getElementById('tr-date')?.value||new Date().toISOString().split('T')[0],status:document.getElementById('tr-status')?.value||'Scheduled'};
+  DATA.hseTraining.push(rec);
+  if(supabase) await supabase.from('hr_hse_training').insert(rec).catch(supabaseCatch);
+  closeModal();
+  showToast('Training record added','success');
+  rerenderSection();
+}
+
 function renderHRTraining() {
-  let html = `<div class="fade-in"><div class="filter-bar"><h2>HSE & Training</h2></div>
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between"><h2>HSE & Training</h2>
+    <button class="btn btn-primary btn-sm" onclick="openNewTrainingModal()"><i class="fa-solid fa-plus"></i> Add Training</button></div>
   <table class="table">
     <thead><tr><th>ID</th><th>Employee</th><th>Course</th><th>Date</th><th>Status</th></tr></thead>
     <tbody>`;
@@ -6859,8 +7006,36 @@ function renderHRTraining() {
   return html;
 }
 
+/* ── HR: ORG UNITS ── */
+function openNewOrgUnitModal() {
+  const mgrOpts = DATA.employees.map(e=>`<option value="${e.id}">${e.name}</option>`).join('');
+  openModal('New Organizational Unit', `<div class="modal-body">
+    <div class="form-group"><label>Department Name *</label>
+      <input id="ou-name" class="form-input" placeholder="e.g. Drilling"></div>
+    <div class="form-row"><div class="form-group">
+      <label>Head Count</label>
+      <input id="ou-hc" class="form-input" type="number" value="0" min="0"></div>
+    <div class="form-group">
+      <label>Manager</label>
+      <select id="ou-mgr" class="form-input"><option value="">None</option>${mgrOpts}</select></div></div>
+  </div>`, `<button class="btn btn-primary" onclick="submitNewOrgUnit()">Save</button>
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`);
+}
+async function submitNewOrgUnit() {
+  const name = document.getElementById('ou-name')?.value?.trim();
+  if(!name){showToast('Department name required','error');return;}
+  const id='OU-'+String(DATA.orgUnits.length+1).padStart(3,'0');
+  const rec={id,name,head_count:parseInt(document.getElementById('ou-hc')?.value)||0,manager:document.getElementById('ou-mgr')?.value||''};
+  DATA.orgUnits.push(rec);
+  if(supabase) await supabase.from('hr_org_units').insert(rec).catch(supabaseCatch);
+  closeModal();
+  showToast('Org unit added','success');
+  rerenderSection();
+}
+
 function renderHROrgUnits() {
-  let html = `<div class="fade-in"><div class="filter-bar"><h2>Organizational Units</h2></div>
+  let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between"><h2>Organizational Units</h2>
+    <button class="btn btn-primary btn-sm" onclick="openNewOrgUnitModal()"><i class="fa-solid fa-plus"></i> New Org Unit</button></div>
   <table class="table">
     <thead><tr><th>ID</th><th>Department Name</th><th>Head Count</th><th>Manager</th></tr></thead>
     <tbody>`;
@@ -7461,8 +7636,34 @@ function renderFinBS() {
 }
 
 /* ── Cost Centers ── */
+/* ── FIN: COST CENTERS ── */
+function openNewCostCenterModal() {
+  openModal('New Cost Center', `<div class="modal-body">
+    <div class="form-group"><label>Cost Center Name *</label>
+      <input id="cc-name" class="form-input" placeholder="e.g. Drilling Operations"></div>
+    <div class="form-group"><label>Department</label>
+      <input id="cc-dept" class="form-input" placeholder="e.g. Drilling"></div>
+    <div class="form-group"><label>Budget</label>
+      <input id="cc-budget" class="form-input" type="number" value="0" min="0"></div>
+  </div>`, `<button class="btn btn-primary" onclick="submitNewCostCenter()">Save</button>
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`);
+}
+async function submitNewCostCenter() {
+  const name = document.getElementById('cc-name')?.value?.trim();
+  if(!name){showToast('Cost center name required','error');return;}
+  const id='CC-'+name.toUpperCase().replace(/[^A-Z]/g,'').slice(0,3)+'-'+String(DATA.costCenters.length+1).padStart(3,'0');
+  const rec={id,name,description:document.getElementById('cc-dept')?.value?.trim()||'',manager:'',budget:parseFloat(document.getElementById('cc-budget')?.value)||0};
+  const dataRec={id,name,dept:rec.description};
+  DATA.costCenters.push(dataRec);
+  if(supabase) await supabase.from('fin_cost_centers').insert(rec).catch(supabaseCatch);
+  closeModal();
+  showToast('Cost center added','success');
+  rerenderSection();
+}
+
 function renderFinCostCenters() {
-  let html = `<div class="fade-in"><h2>Cost Centers</h2>
+  let html = `<div class="fade-in" style="position:relative"><h2>Cost Centers</h2>
+    <button class="btn btn-primary btn-sm" onclick="openNewCostCenterModal()" style="position:absolute;top:0;right:0;margin:4px"><i class="fa-solid fa-plus"></i> New Cost Center</button>
   <table class="table"><thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Total Invoiced (Sales)</th><th>Total Purchases</th></tr></thead><tbody>`;
   DATA.costCenters.forEach(cc => {
     const salesTotal = DATA.invoices.filter(i => i.type === 'Sales' && i.cost_center_id === cc.id).reduce((s, i) => s + parseFloat(i.total_amount), 0);
@@ -7747,6 +7948,7 @@ async function submitNewFixedAsset(editId) {
 function renderFinPayments() {
   let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
     <h2>Payments Ledger</h2>
+    <button class="btn btn-primary btn-sm" onclick="openNewPaymentListModal()"><i class="fa-solid fa-plus"></i> Record Payment</button>
   </div>
   <table class="table">
     <thead><tr><th>ID</th><th>Invoice / Ref</th><th>Date</th><th>Amount</th><th>Method</th><th>Source</th></tr></thead>
@@ -7765,6 +7967,24 @@ function renderFinPayments() {
   if(DATA.payments.length===0) html+=`<tr><td colspan="6" style="text-align:center">No payments recorded.</td></tr>`;
   html+=`</tbody></table></div>`;
   return html;
+}
+
+/* ── FIN: PAYMENTS LIST-LEVEL ── */
+function openNewPaymentListModal() {
+  const unpaidInvs = DATA.invoices.filter(i => {
+    const paid = DATA.payments.filter(p=>p.invoice_id===i.id).reduce((s,p)=>s+parseFloat(p.amount),0);
+    return paid < parseFloat(i.total_amount);
+  });
+  if(unpaidInvs.length===0){showToast('No unpaid invoices available','info');return;}
+  const opts = unpaidInvs.map(i => {
+    const bal = parseFloat(i.total_amount) - DATA.payments.filter(p=>p.invoice_id===i.id).reduce((s,p)=>s+parseFloat(p.amount),0);
+    return `<option value="${i.id}">${i.id} — ${i.party_name} ($${bal.toLocaleString()} due)</option>`;
+  }).join('');
+  openModal('Select Invoice', `<div class="modal-body">
+    <div class="form-group"><label>Invoice *</label>
+      <select id="pay-inv-select" class="form-input">${opts}</select></div>
+  </div>`, `<button class="btn btn-primary" onclick="openNewPaymentModal(document.getElementById('pay-inv-select').value);closeModal()">Continue</button>
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`);
 }
 
 function openNewPaymentModal(invoiceId) {
@@ -7950,3 +8170,22 @@ window.openNewCommModal = openNewCommModal;
 window.submitComm = submitComm;
 window.openNewPartnerModal = openNewPartnerModal;
 window.submitNewPartner = submitNewPartner;
+
+// HR new entity exports
+window.openNewAbsenceModal = openNewAbsenceModal;
+window.submitNewAbsence = submitNewAbsence;
+window.openNewTrainingModal = openNewTrainingModal;
+window.submitNewTraining = submitNewTraining;
+window.openNewOrgUnitModal = openNewOrgUnitModal;
+window.submitNewOrgUnit = submitNewOrgUnit;
+
+// Supply new entity exports
+window.openNewSupplierModal = openNewSupplierModal;
+window.submitNewSupplier = submitNewSupplier;
+window.openNewWarehouseModal = openNewWarehouseModal;
+window.submitNewWarehouse = submitNewWarehouse;
+
+// Finance new entity exports
+window.openNewCostCenterModal = openNewCostCenterModal;
+window.submitNewCostCenter = submitNewCostCenter;
+window.openNewPaymentListModal = openNewPaymentListModal;

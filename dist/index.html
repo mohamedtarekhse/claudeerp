@@ -7,10 +7,11 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-DsS6pMSx.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-DFbsy0iq.css">
+  <script type="module" crossorigin src="/assets/index-C0KabUlk.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-BuOAdjyr.css">
 </head>
 <body>
+<a href="#modContent" class="skip-link">Skip to content</a>
 
 <!-- Loading Overlay -->
 <div id="loadingOverlay" class="loading-overlay hidden">
@@ -60,25 +61,25 @@
 <header class="shell" id="shell">
   <div class="shell-brand">
     <button class="shell-btn" id="menuBtn" type="button" style="display:none; margin-right:4px;" aria-label="Open navigation menu">
-      <i class="fa-solid fa-bars"></i>
+      <i class="fa-solid fa-bars" aria-hidden="true"></i>
     </button>
     <div class="shell-logo">AM</div>
     <span class="shell-name">AMICI</span>
   </div>
   <div class="shell-divider"></div>
   <div class="shell-search-wrap">
-    <i class="fa-solid fa-magnifying-glass"></i>
+    <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
     <input class="shell-search" id="shellSearch" placeholder="Search..." type="text">
   </div>
   <div class="shell-right">
     <button class="lang-btn" id="langBtn" type="button" aria-label="Toggle language">عر</button>
-    <button class="shell-btn ai-btn" id="aiBtn" type="button" title="AMICI AI Assistant" aria-label="Open AI assistant">✦</button>
+    <button class="shell-btn ai-btn" id="aiBtn" type="button" title="AMICI AI Assistant" aria-label="Open AI assistant"><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--warning);font-size:16px"></i></button>
     <button class="shell-btn" id="notifBtn" type="button" title="Notifications" aria-label="Open notifications" style="position:relative;">
-      <i class="fa-regular fa-bell"></i>
+      <i class="fa-regular fa-bell" aria-hidden="true"></i>
       <span class="notif-badge" id="notifBadge">3</span>
     </button>
     <button class="shell-btn" id="logoutBtn" type="button" title="Log Out" aria-label="Log out">
-      <i class="fa-solid fa-right-from-bracket"></i>
+      <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
     </button>
     <button class="shell-avatar" id="userBtn" type="button" title="User profile" aria-label="Open user menu">KA</button>
   </div>
@@ -86,7 +87,7 @@
 
 <div class="ai-panel" id="aiPanel">
   <div class="ai-panel-head">
-    <div style="width:32px;height:32px;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">✦</div>
+    <div style="width:32px;height:32px;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;"><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--warning);font-size:16px"></i></div>
     <div style="flex:1;">
       <div class="ai-panel-title">AMICI AI Assistant</div>
       <div class="ai-panel-sub">Pick a free model below · OpenRouter</div>
@@ -118,13 +119,13 @@
 <div class="cert-subnav-bar" id="certSubNav" style="display:none;"></div>
 
 <div class="app-body">
-  <aside class="mod-sidebar" id="modSidebar"></aside>
-  <main class="mod-content" id="modContent"></main>
+  <aside class="mod-sidebar" id="modSidebar" role="navigation" aria-label="Module navigation"></aside>
+  <main class="mod-content" id="modContent" role="main" tabindex="-1"></main>
 </div>
 
-<div class="toast-container" id="toastContainer"></div>
+<div class="toast-container" id="toastContainer" role="alert" aria-live="polite"></div>
 
-<div class="modal-overlay" id="modalOverlay">
+<div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true">
   <div class="modal" id="modalBox"></div>
 </div>
 

@@ -275,7 +275,7 @@ Always include confirm_message so the user knows what action will be taken befor
       }
       case 'flag_cert': {
         const cert = DATA.certificates.find(x=>x.id===p.cert_id);
-        if(cert){ cert.remarks=(cert.remarks||'')+'\n⚠ AI Flag: '+p.note; showToast(`${p.cert_id} flagged`,'warning'); }
+        if(cert){ cert.remarks=(cert.remarks||'')+'\n<i class="fa-solid fa-triangle-exclamation" style="color:var(--warning)"></i> AI Flag: '+p.note; showToast(`${p.cert_id} flagged`,'warning'); }
         else showToast('Certificate not found','error');
         break;
       }
@@ -370,7 +370,7 @@ function renderAIMessages(){
 
   if(AI.history.length === 0){
     el.innerHTML = `<div class="ai-empty">
-      <div class="ai-empty-icon">✦</div>
+      <div class="ai-empty-icon"><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--warning);font-size:28px"></i></div>
       <h3>AMICI AI Assistant</h3>
       <p>Ask me about employees, certificates, purchase orders, inventory, or CRM accounts. I can also take actions.</p>
     </div>`;

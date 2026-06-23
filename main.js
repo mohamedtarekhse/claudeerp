@@ -338,6 +338,7 @@ let DATA = {
 ═══════════════════════════════════════════════ */
 function $(s){ return document.querySelector(s); }
 function $$(s){ return document.querySelectorAll(s); }
+function debounce(fn,ms=200){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);}}
 const fmt=n=>n?parseFloat(n).toLocaleString():'0';
 const fmtDate=d=>{if(!d)return'';const dt=new Date(d);return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});};
 const stockCol=s=>s==='low'?'var(--warning)':s==='critical'||s==='out'?'var(--error)':'var(--text-sec)';
@@ -453,10 +454,13 @@ const MODULES = [
 
 function renderTabBar(){
   const isInspector=state.currentUserRole==='Inspector';
-  $('#tabBar').innerHTML = MODULES.filter(m=>!isInspector||m.id==='certificates').map(m=>`
-    <div class="tab-item ${state.module===m.id?'active':''}" onclick="switchModule('${m.id}')">
-      <i class="fa-solid ${m.icon}"></i> ${t(m.labelKey)}
-    </div>`).join('');
+  const mods=MODULES.filter(m=>!isInspector||m.id==='certificates');
+  $('#tabBar').innerHTML = `<div class="tab-list" role="tablist">${
+    mods.map((m,i)=>`
+      <div class="tab-item ${state.module===m.id?'active':''}" role="tab" aria-selected="${state.module===m.id}" tabindex="${state.module===m.id?0:-1}" onclick="switchModule('${m.id}')" onKeyDown="if(event.key==='Enter'||event.key===' ')switchModule('${m.id}')">
+        <i class="fa-solid ${m.icon}" aria-hidden="true"></i> ${t(m.labelKey)}
+      </div>`).join('')
+  }</div>`;
 }
 
 function switchModule(mod){
@@ -646,7 +650,7 @@ function renderEmployeeDetail(e){
   if(state.detailTab==='info'){
     html+=`<div class="sec-card"><div class="sec-card-head">Employment Details <button class="btn btn-ghost btn-sm" onclick="showToast('Editing ${e.name}','info')"><i class="fa-solid fa-pen"></i> ${t('edit')}</button></div>
     <div class="sec-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;">
-      ${[['Email',e.email],['Phone',e.phone],['Employment Type',e.empType],['Salary Band',e.salaryBand],['Cost Center',e.costCenter],['Manager',e.manager?DATA.employees.find(x=>x.id===e.manager)?.name||e.manager:'—'],['H2S Level',e.h2sLevel],['Work Permit',e.workPermit],['Visa Expiry',e.visa],['Med. Fitness',e.medFit?'✔ Fit':'✘ Unfit'],['Med. Expiry',fmtDate(e.medExpiry)]].map(([k,v])=>`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">${k}</div><div style="font-size:13px;">${v}</div></div>`).join('')}
+      ${[['Email',e.email],['Phone',e.phone],['Employment Type',e.empType],['Salary Band',e.salaryBand],['Cost Center',e.costCenter],['Manager',e.manager?DATA.employees.find(x=>x.id===e.manager)?.name||e.manager:'—'],['H2S Level',e.h2sLevel],['Work Permit',e.workPermit],['Visa Expiry',e.visa],['Med. Fitness',e.medFit?'<i class="fa-solid fa-check" style="color:var(--success)"></i> Fit':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i> Unfit'],['Med. Expiry',fmtDate(e.medExpiry)]].map(([k,v])=>`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">${k}</div><div style="font-size:13px;">${v}</div></div>`).join('')}
     </div></div>`;
   }
   else if(state.detailTab==='leave'){
@@ -1159,7 +1163,7 @@ function renderAllAccounts(filterFn){
   if(f.rating&&f.rating!=='all') items=items.filter(a=>a.rating===f.rating);
   if(state.sortCol){const col=state.sortCol,dir=state.sortDir==='asc'?1:-1;items.sort((a,b)=>{let va=a[col],vb=b[col];if(typeof va==='string')return va.localeCompare(vb)*dir;return (va-vb)*dir;});}
   const types=[...new Set(DATA.accounts.map(a=>a.type))];
-  const ratingPill=r=>r==='Hot'?'<span style="color:#b71c1c;font-weight:700">🔴 Hot</span>':r==='Warm'?'<span style="color:#b35d00;font-weight:700">🟡 Warm</span>':'<span style="color:#6a6d70;font-weight:700">🔵 Cold</span>';
+  const ratingPill=r=>r==='Hot'?'<span style="color:#b71c1c;font-weight:700"><i class="fa-solid fa-fire" style="color:#b71c1c"></i> Hot</span>':r==='Warm'?'<span style="color:#b35d00;font-weight:700"><i class="fa-solid fa-temperature-quarter" style="color:#e76500"></i> Warm</span>':'<span style="color:#6a6d70;font-weight:700"><i class="fa-solid fa-snowflake" style="color:#0070f2"></i> Cold</span>';
 
   let html=`<div class="fade-in">`;
   html+=renderCRMKPIs();
@@ -1219,7 +1223,7 @@ function renderAccountDetail(a){
     <div class="obj-header-top">
       <div class="avatar" style="width:52px;height:52px;font-size:18px;background:${avatarColor(a.name)}">${initials(a.name)}</div>
       <div style="flex:1;"><h2>${a.name}</h2><div class="obj-sub">${a.type} · ${a.country} · Block: ${a.blockRef}</div></div>
-      <span style="font-weight:700;color:${ratingColors[a.rating]};font-size:13px;">● ${a.rating}</span>
+      <span style="font-weight:700;color:${ratingColors[a.rating]};font-size:13px;"><i class="fa-solid fa-circle" style="font-size:8px;vertical-align:middle;margin-right:3px;color:${ratingColors[a.rating]}"></i> ${a.rating}</span>
     </div>
     <div class="obj-kv">
       <div class="obj-kv-item"><span class="obj-kv-label">Account ID</span><span class="obj-kv-value">${a.id}</span></div>
@@ -1469,10 +1473,10 @@ function renderCertSubNav(){
     {id:'noFile',label:'No File'},{id:'newUploads',label:'New Uploads'},
   ];
   let html='';
-  html+=`<div class="cert-sub-nav">`;
+  html+=`<div class="cert-sub-nav" role="tablist">`;
   tabs.forEach((t,i)=>{
     const cnt=tabCounts[t.id];
-    html+=`<button class="sap-tab ${certSavedView===t.id?'active':''}" onclick="certSetTab('${t.id}')"><span>${t.label}</span><span class="sap-tab__badge sap-tab__badge--${badgeCls(t.id,i)}">${cnt}</span></button>`;
+    html+=`<button class="sap-tab ${certSavedView===t.id?'active':''}" role="tab" aria-selected="${certSavedView===t.id}" tabindex="${certSavedView===t.id?0:-1}" onclick="certSetTab('${t.id}')" onKeyDown="if(event.key==='Enter'||event.key===' ')certSetTab('${t.id}')"><span>${t.label}</span><span class="sap-tab__badge sap-tab__badge--${badgeCls(t.id,i)}">${cnt}</span></button>`;
   });
   html+=`</div>`;
 
@@ -1493,11 +1497,11 @@ function renderCertSubNav(){
         {id:'inspectors',label:'Inspectors'},
         {id:'jobs',label:'Jobs'},
       ];
-  html+=`<div class="cert-sub-nav">`;
+  html+=`<div class="cert-sub-nav" role="tablist">`;
   entityTabs.forEach(t=>{
     const isJobTab=t.id==='jobs';
     const jobCounts=isJobTab?getJobsForCurrentUser().length:0;
-    html+=`<button class="sap-tab ${certEntityView===t.id?'active':''}" onclick="certSetEntityView('${t.id}')"><span>${t.label}</span>${isJobTab?`<span class="sap-tab__badge sap-tab__badge--${jobCounts?'warning':'default'}">${jobCounts}</span>`:''}</button>`;
+    html+=`<button class="sap-tab ${certEntityView===t.id?'active':''}" role="tab" aria-selected="${certEntityView===t.id}" tabindex="${certEntityView===t.id?0:-1}" onclick="certSetEntityView('${t.id}')" onKeyDown="if(event.key==='Enter'||event.key===' ')certSetEntityView('${t.id}')"><span>${t.label}</span>${isJobTab?`<span class="sap-tab__badge sap-tab__badge--${jobCounts?'warning':'default'}">${jobCounts}</span>`:''}</button>`;
   });
   html+=`</div>`;
 
@@ -1642,7 +1646,7 @@ function renderCertificates(filterFn){
       const job=DATA.jobs.find(j=>j.id===certJobFilter);
       if(job){
         const client=DATA.accounts.find(a=>a.id===job.clientId);
-        html+=`<div class="filter-chip-bar"><span class="filter-chip"><span class="filter-chip__label">Job:</span> ${h(job.title)}${client?' · '+h(client.name):''}<button class="filter-chip__clear" onclick="certJobFilter='all';rerenderSection()">✕</button></span></div>`;
+        html+=`<div class="filter-chip-bar"><span class="filter-chip"><span class="filter-chip__label">Job:</span> ${h(job.title)}${client?' · '+h(client.name):''}<button class="filter-chip__clear" onclick="certJobFilter='all';rerenderSection()"><i class="fa-solid fa-xmark"></i></button></span></div>`;
       }
     }
 
@@ -2337,11 +2341,11 @@ function renderCertNotifications(){
     <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <span>Service Worker</span>
-        <span style="color:${pushSupported?'var(--success)':'var(--error)'};">${pushSupported?'✅ Available':'❌ Not available'}</span>
+        <span style="color:${pushSupported?'var(--success)':'var(--error)'};">${pushSupported?'<i class="fa-solid fa-check-circle" style="color:var(--success)"></i> Available':'<i class="fa-solid fa-circle-xmark" style="color:var(--error)"></i> Not available'}</span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <span>Push API</span>
-        <span style="color:${pushSupported?'var(--success)':'var(--error)'};">${pushSupported?'✅ Supported':'❌ Not supported'}</span>
+        <span style="color:${pushSupported?'var(--success)':'var(--error)'};">${pushSupported?'<i class="fa-solid fa-check" style="color:var(--success)"></i> Supported':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i> Not supported'}</span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <span>Notification Permission</span>
@@ -2434,18 +2438,18 @@ function togglePushNotif(enabled){
 }
 
 function checkPushHealth(){
-  let info = `Service Worker: ${'serviceWorker' in navigator?'✅':'❌'}\n`;
-  info += `Push API: ${'PushManager' in window?'✅':'❌'}\n`;
+  let info = `Service Worker: ${'serviceWorker' in navigator?'<i class="fa-solid fa-check" style="color:var(--success)"></i>':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i>'}\n`;
+  info += `Push API: ${'PushManager' in window?'<i class="fa-solid fa-check" style="color:var(--success)"></i>':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i>'}\n`;
   info += `Notification: ${'Notification' in window?Notification.permission:'N/A'}\n`;
-  info += `Subscribed: ${state.pushSubscribed?'✅':'❌'}\n`;
+  info += `Subscribed: ${state.pushSubscribed?'<i class="fa-solid fa-check" style="color:var(--success)"></i>':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i>'}\n`;
   if(state._swReg){
     state._swReg.pushManager.getSubscription().then(sub=>{
       if(sub){
         info += `\n--- Subscription Details ---\n`;
         info += `Endpoint: ${sub.endpoint.slice(0,50)}...\n`;
         const keyJson = sub.toJSON();
-        info += `p256dh: ${keyJson.keys?.p256dh?'✅ Set':'❌ Missing'}\n`;
-        info += `auth: ${keyJson.keys?.auth?'✅ Set':'❌ Missing'}\n`;
+        info += `p256dh: ${keyJson.keys?.p256dh?'<i class="fa-solid fa-check" style="color:var(--success)"></i> Set':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i> Missing'}\n`;
+        info += `auth: ${keyJson.keys?.auth?'<i class="fa-solid fa-check" style="color:var(--success)"></i> Set':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i> Missing'}\n`;
       }
       showToast(info.replace(/\n/g,'<br>'),'info');
     });
@@ -3030,7 +3034,7 @@ function renderSCDashboard(){
 
   const stockBadge=s=>s==='out'?'<span class="pill pill-expired">Out of Stock</span>':s==='critical'?'<span class="pill pill-expiring">Critical</span>':s==='low'?'<span class="pill pill-leave">Low</span>':'<span class="pill pill-valid">Normal</span>';
   const poBadge=s=>s==='approved'?'<span class="pill pill-valid">Approved</span>':s==='ordered'?'<span class="pill pill-blue">Ordered</span>':s==='received'?'<span class="pill pill-active">Received</span>':s==='cancelled'?'<span class="pill pill-inactive">Cancelled</span>':'<span class="pill pill-draft">Draft</span>';
-  const priorityBadge=p=>p==='Critical'?'<span style="color:var(--error);font-weight:700;font-size:11px;">● Critical</span>':p==='High'?'<span style="color:var(--warning);font-weight:700;font-size:11px;">● High</span>':'<span style="color:var(--text-sec);font-size:11px;">● Normal</span>';
+  const priorityBadge=p=>p==='Critical'?'<span style="color:var(--error);font-weight:700;font-size:11px;"><i class="fa-solid fa-circle" style="font-size:8px;color:var(--error);vertical-align:middle;margin-right:3px"></i>Critical</span>':p==='High'?'<span style="color:var(--warning);font-weight:700;font-size:11px;"><i class="fa-solid fa-circle" style="font-size:8px;color:var(--warning);vertical-align:middle;margin-right:3px"></i>High</span>':'<span style="color:var(--text-sec);font-size:11px;"><i class="fa-solid fa-circle" style="font-size:8px;color:var(--text-sec);vertical-align:middle;margin-right:3px"></i>Normal</span>';
 
   let html=`<div class="fade-in">`;
   html+=renderSCKPIs();
@@ -3092,7 +3096,7 @@ function renderSCDashboard(){
 function renderAllPOs(filterFn){
   const f=state.filters;
   const poBadge=s=>s==='approved'?'<span class="pill pill-valid">Approved</span>':s==='ordered'?'<span class="pill pill-blue">Ordered</span>':s==='received'?'<span class="pill pill-active">Received</span>':s==='cancelled'?'<span class="pill pill-inactive">Cancelled</span>':'<span class="pill pill-draft">Draft</span>';
-  const priorityBadge=p=>p==='Critical'?'<span style="color:var(--error);font-weight:700;font-size:11px;">●</span>':p==='High'?'<span style="color:var(--warning);font-weight:700;font-size:11px;">●</span>':'<span style="color:var(--text-sec);font-size:11px;">●</span>';
+  const priorityBadge=p=>p==='Critical'?'<i class="fa-solid fa-circle" style="font-size:8px;color:var(--error);vertical-align:middle"></i>':p==='High'?'<i class="fa-solid fa-circle" style="font-size:8px;color:var(--warning);vertical-align:middle"></i>':'<i class="fa-solid fa-circle" style="font-size:8px;color:var(--text-sec);vertical-align:middle"></i>';
 
   let items=DATA.purchaseOrders.filter(filterFn||(_=>true));
   if(f.search){const s=f.search.toLowerCase();items=items.filter(p=>p.id.toLowerCase().includes(s)||p.supplier.toLowerCase().includes(s)||p.description.toLowerCase().includes(s));}
@@ -3157,7 +3161,7 @@ function renderPODetail(p){
     <div class="obj-header-top">
       <div style="width:52px;height:52px;border-radius:8px;background:var(--blue-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fa-solid fa-file-invoice" style="font-size:22px;color:var(--blue);"></i></div>
       <div style="flex:1;"><h2>${p.id}</h2><div class="obj-sub">${p.supplier} · ${p.category}</div></div>
-      <span style="font-weight:700;font-size:13px;color:${priorityColors[p.priority]}">● ${p.priority}</span>
+      <span style="font-weight:700;font-size:13px;color:${priorityColors[p.priority]}"><i class="fa-solid fa-circle" style="font-size:8px;vertical-align:middle;margin-right:3px;color:${priorityColors[p.priority]}"></i> ${p.priority}</span>
     </div>
     <div class="obj-kv">
       <div class="obj-kv-item"><span class="obj-kv-label">Amount</span><span class="obj-kv-value" style="font-size:18px;font-weight:700;color:var(--blue)">${fmt(p.amount)} ${p.currency}</span></div>
@@ -3197,7 +3201,7 @@ function renderPODetail(p){
   }
   else if(state.detailTab==='supplier'){
     if(sup){
-      const stars='★'.repeat(Math.round(sup.rating))+'☆'.repeat(5-Math.round(sup.rating));
+      const stars='<i class="fa-solid fa-star" style="color:#f59e0b"></i>'.repeat(Math.round(sup.rating))+'<i class="fa-regular fa-star" style="color:#d1d5db"></i>'.repeat(5-Math.round(sup.rating));
       html+=`<div class="sec-card"><div class="sec-card-head">Supplier Profile</div><div class="sec-card-body">
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #f0f0f0;">
           <div class="avatar" style="width:48px;height:48px;background:${avatarColor(sup.name)};font-size:16px;">${initials(sup.name)}</div>
@@ -3263,7 +3267,7 @@ function renderAllSuppliers(){
   if(f.search){const s=f.search.toLowerCase();items=items.filter(x=>x.name.toLowerCase().includes(s)||x.country.toLowerCase().includes(s)||x.category.toLowerCase().includes(s));}
   if(f.category&&f.category!=='all') items=items.filter(x=>x.category===f.category);
   const cats=[...new Set(DATA.suppliers.map(s=>s.category))].sort();
-  const ratingBar=r=>`<div style="display:flex;align-items:center;gap:4px;"><span style="color:#f5a623;font-size:12px;">${'★'.repeat(Math.round(r))}</span><span style="font-size:11px;color:var(--text-sec)">${r}</span></div>`;
+  const ratingBar=r=>`<div style="display:flex;align-items:center;gap:4px;"><span style="color:#f5a623;font-size:12px;">${'<i class="fa-solid fa-star" style="color:#f5a623;font-size:12px"></i>'.repeat(Math.round(r))}</span><span style="font-size:11px;color:var(--text-sec)">${r}</span></div>`;
 
   let html=`<div class="fade-in">`;
   html+=renderSCKPIs();
@@ -3304,7 +3308,7 @@ function renderAllSuppliers(){
 function selectSupplierItem(id){ state.selectedId=id; state.detailTab='info'; rerenderSection(); }
 
 function renderSupplierDetail(s){
-  const stars='★'.repeat(Math.round(s.rating))+'☆'.repeat(5-Math.round(s.rating));
+  const stars='<i class="fa-solid fa-star" style="color:#f59e0b"></i>'.repeat(Math.round(s.rating))+'<i class="fa-regular fa-star" style="color:#d1d5db"></i>'.repeat(5-Math.round(s.rating));
   const supPOs=DATA.purchaseOrders.filter(p=>p.supplierId===s.id);
   const tabs=[{id:'info',label:'Profile'},{id:'orders',label:`Orders (${supPOs.length})`},{id:'performance',label:'Performance'}];
 
@@ -4052,7 +4056,7 @@ function renderAllMRs(filterFn){
   if(state.sortCol){const col=state.sortCol,dir=state.sortDir==='asc'?1:-1;items.sort((a,b)=>{let va=a[col],vb=b[col];if(typeof va==='string')return va.localeCompare(vb)*dir;return(va-vb)*dir;});}
 
   const statusBadge=s=>s==='approved'?'<span class="pill pill-valid">Approved</span>':s==='rejected'?'<span class="pill pill-inactive">Rejected</span>':s==='pending'?'<span class="pill pill-leave">Pending</span>':'<span class="pill pill-draft">Draft</span>';
-  const priorityBadge=p=>p==='Critical'?'<span style="color:var(--error);font-weight:700;font-size:11px;">● Critical</span>':p==='High'?'<span style="color:var(--warning);font-weight:700;font-size:11px;">● High</span>':'<span style="color:var(--text-sec);font-size:11px;">● Normal</span>';
+  const priorityBadge=p=>p==='Critical'?'<span style="color:var(--error);font-weight:700;font-size:11px;"><i class="fa-solid fa-circle" style="font-size:8px;color:var(--error);vertical-align:middle;margin-right:3px"></i>Critical</span>':p==='High'?'<span style="color:var(--warning);font-weight:700;font-size:11px;"><i class="fa-solid fa-circle" style="font-size:8px;color:var(--warning);vertical-align:middle;margin-right:3px"></i>High</span>':'<span style="color:var(--text-sec);font-size:11px;"><i class="fa-solid fa-circle" style="font-size:8px;color:var(--text-sec);vertical-align:middle;margin-right:3px"></i>Normal</span>';
 
   let html=`<div class="fade-in">`;
   html+=`<div class="md-layout" style="min-height:calc(100vh - var(--shell-h) - var(--tab-h) - 48px);">`;
@@ -4627,7 +4631,7 @@ Always include confirm_message so the user knows what action will be taken befor
       }
       case 'flag_cert': {
         const cert = DATA.certificates.find(x=>x.id===p.cert_id);
-        if(cert){ cert.remarks=(cert.remarks||'')+'\n⚠ AI Flag: '+p.note; showToast(`${p.cert_id} flagged`,'warning'); }
+        if(cert){ cert.remarks=(cert.remarks||'')+'\n<i class="fa-solid fa-triangle-exclamation" style="color:var(--warning)"></i> AI Flag: '+p.note; showToast(`${p.cert_id} flagged`,'warning'); }
         else showToast('Certificate not found','error');
         break;
       }
@@ -4768,7 +4772,7 @@ function renderAIMessages(){
 
   if(AI.history.length === 0){
     el.innerHTML = `<div class="ai-empty">
-      <div class="ai-empty-icon">✦</div>
+      <div class="ai-empty-icon"><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--warning);font-size:28px"></i></div>
       <h3>AMICI AI Assistant</h3>
       <p>Ask me about employees, certificates, purchase orders, inventory, or CRM accounts. I can also take actions.</p>
     </div>`;
@@ -6268,7 +6272,7 @@ function renderCRMWinLoss() {
             <td style="font-weight:600">${d.title}</td>
             <td style="font-size:12px;color:var(--text-sec)">${acctName}</td>
             <td>${fmt(d.value)}</td>
-            <td><span style="color:${d.stage === 'Closed Won' ? 'var(--success)' : 'var(--error)'};font-weight:600">${d.stage === 'Closed Won' ? '✓ Won' : '✗ Lost'}</span></td>
+            <td><span style="color:${d.stage === 'Closed Won' ? 'var(--success)' : 'var(--error)'};font-weight:600">${d.stage === 'Closed Won' ? '<i class="fa-solid fa-trophy"></i> Won' : '<i class="fa-solid fa-ban"></i> Lost'}</span></td>
             <td style="font-size:12px">${d.sales_person || '—'}</td>
             <td style="font-size:12px;color:var(--text-sec);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.notes || d.lost_reason || '—'}</td>
           </tr>`;
@@ -7276,7 +7280,7 @@ function openNewJournalEntryModal() {
       </div>
     </div>
     <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px">
-      <span id="nje-balance" style="font-weight:700;color:var(--success)">Balanced ✓ (Dr $0 = Cr $0)</span>
+      <span id="nje-balance" style="font-weight:700;color:var(--success)">Balanced <i class="fa-solid fa-check" style="color:var(--success)"></i> (Dr $0 = Cr $0)</span>
     </div>
   </div>`;
   const footer = `<button class="btn btn-primary" onclick="submitNewJournalEntry()">Post Entry</button>`;
@@ -7306,8 +7310,8 @@ function calcJETotal() {
   const el = document.getElementById('nje-balance');
   if (el) {
     const diff = Math.abs(totalDr - totalCr);
-    if (diff < 0.01) el.innerHTML = `<span style="color:var(--success)">Balanced ✓ (Dr $${totalDr.toLocaleString()} = Cr $${totalCr.toLocaleString()})</span>`;
-    else el.innerHTML = `<span style="color:var(--error)">Out of balance ✗ (Dr $${totalDr.toLocaleString()} ≠ Cr $${totalCr.toLocaleString()}, Diff $${diff.toFixed(2)})</span>`;
+    if (diff < 0.01) el.innerHTML = `<span style="color:var(--success)">Balanced <i class="fa-solid fa-check" style="color:var(--success)"></i> (Dr $${totalDr.toLocaleString()} = Cr $${totalCr.toLocaleString()})</span>`;
+    else el.innerHTML = `<span style="color:var(--error)">Out of balance <i class="fa-solid fa-xmark" style="color:var(--error)"></i> (Dr $${totalDr.toLocaleString()} ≠ Cr $${totalCr.toLocaleString()}, Diff $${diff.toFixed(2)})</span>`;
   }
 }
 

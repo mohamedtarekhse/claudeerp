@@ -2086,15 +2086,16 @@ function certResetColumns(){
 }
 
 function certLoadColState(){
+  const allCols=['jobNumber','certId','assetTag','category','certType','issuedBy','issueDate','expiry','approval','client','qr','fileLink'];
   const saved=localStorage.getItem('cert_col_state');
-  if(!saved)return;
-  try{
-    const st=JSON.parse(saved);
-    Object.entries(st).forEach(([k,v])=>{
-      const el=document.getElementById('certCol_'+k);
-      if(el)el.checked=v;
-    });
-  }catch(e){}
+  let st={};
+  if(saved){
+    try{st=JSON.parse(saved);}catch(e){}
+  }
+  allCols.forEach(k=>{
+    const el=document.getElementById('certCol_'+k);
+    if(el)el.checked=st[k]!==false;
+  });
 }
 
 function certShowRowActions(row){const b=row.querySelector('.row-actions');if(b)b.style.display='flex';}
@@ -2168,7 +2169,58 @@ function certExportCSV(){
 }
 
 function certExportPDF(){
-  showToast('PDF export coming soon','info');
+  if(typeof window.jspdf==='undefined'){
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload=()=>{
+      const t=document.createElement('script');
+      t.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js';
+      t.onload=()=>certExportPDF();
+      document.head.appendChild(t);
+    };
+    document.head.appendChild(s);
+    showToast('Loading PDF library…','info');
+    return;
+  }
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+  const colMap={jobNumber:'Job No.',certId:'Cert ID',assetTag:'Asset Tag',name:'Certificate Name',category:'Category',certType:'Type',issuedBy:'Issued By',expiry:'Expiry',issueDate:'Issue Date',approval:'Approval',client:'Client',qr:'QR',fileLink:'File'};
+  const visible=document.querySelectorAll('#certTableBody tr:first-child td[data-col]');
+  const cols=[];
+  const headers=[];
+  if(visible.length){
+    visible.forEach(td=>{const k=td.getAttribute('data-col');cols.push(k);headers.push(colMap[k]||k);});
+  } else {
+    const fallback=['jobNumber','certId','assetTag','name','category','certType','issuedBy','expiry','issueDate','approval','client','fileLink'];
+    fallback.forEach(k=>{cols.push(k);headers.push(colMap[k]||k);});
+  }
+  const body=DATA.certificates.map(c=>cols.map(k=>{
+    const m={jobNumber:c.jobNumber,certId:c.id,assetTag:c.assetTag,name:c.equipName,category:c.category,certType:c.certCategory||c.certType,issuedBy:c.issuer||'—',expiry:c.expiryDate||'—',issueDate:c.issueDate||'—',approval:c.approvalStatus||'—',client:c.client||'—',qr:'',fileLink:c.fileName||'—'};
+    return m[k]||'';
+  }));
+  doc.setFontSize(16);
+  doc.setTextColor(30,30,30);
+  doc.text('Certificate Report',14,16);
+  doc.setFontSize(9);
+  doc.setTextColor(120,120,120);
+  doc.text(`Generated: ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}`,14,22);
+  doc.autoTable({
+    head:[headers],
+    body,
+    startY:26,
+    styles:{fontSize:8,cellPadding:{top:2,bottom:2,left:2,right:2},overflow:'ellipsize',halign:'left'},
+    headStyles:{fillColor:[60,70,80],textColor:255,fontSize:8,fontStyle:'bold',halign:'left'},
+    alternateRowStyles:{fillColor:[245,247,250]},
+    margin:{top:26,right:10,bottom:15,left:10},
+    pageBreak:'auto',
+    didDrawPage:(data)=>{
+      doc.setFontSize(7);
+      doc.setTextColor(150,150,150);
+      doc.text(`AMICI ERP — Page ${doc.internal.getNumberOfPages()}`,doc.internal.pageSize.width-10,doc.internal.pageSize.height-5,{align:'right'});
+    }
+  });
+  doc.save('certificates_export.pdf');
+  showToast('PDF exported','success');
 }
 
 function deleteCert(id){

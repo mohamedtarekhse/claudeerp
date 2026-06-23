@@ -2767,123 +2767,313 @@ async function submitNewCert(){
 }
 
 /* ═══════════════════════════════════════════════
-   BULK CERTIFICATE CREATION (Rigways style)
+   BULK CERTIFICATE IMPORT WIZARD (Rigways style)
 ═══════════════════════════════════════════════ */
 let BULK_CERTS = [];
+let BULK_STEP = 1;
+let BULK_DEFAULTS = { certCategory:'CAT III', validityMonths:12, inspectorId:'', inspectorName:'', clientId:'', clientName:'', flId:'', site:'', equipCategory:'Rotating', issuer:'' };
+
+const BULK_EQUIP_CATS = ['Rotating','Static','Lifting','Electrical','Pressure','Fire & Safety','Instrumentation','Vehicles'];
+const BULK_CERT_TYPES = ['CAT III','CAT IV','LIFTING','LOAD TEST','NDT','TUBULAR','ORIGINAL COC'];
+const BULK_LIFT_SUBTYPES = ['LIFTING GEAR','LIFTING PERSONNEL','LIFTING EQUIPMENT'];
 
 function openBulkCertModal(){
-  BULK_CERTS = [];
-  const html=`<div style="margin-bottom:12px;">
-    <button class="btn btn-secondary btn-sm" onclick="addBulkRow()"><i class="fa-solid fa-plus"></i> Add Row</button>
-    <button class="btn btn-primary btn-sm" onclick="batchSetDefaults()" style="margin-left:8px;"><i class="fa-solid fa-pen"></i> Set Defaults</button>
-  </div>
-  <div id="bulkRows" style="max-height:400px;overflow-y:auto;"></div>
-  <div id="bulkSummary" style="margin-top:10px;font-size:12px;color:var(--text-sec);"></div>`;
-  const footer=`<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitBulkCerts()"><i class="fa-solid fa-check"></i> Create All</button>`;
-  openModal('Bulk Create Certificates',html,footer);
-  addBulkRow();
+  BULK_CERTS = []; BULK_STEP = 1;
+  BULK_DEFAULTS = { certCategory:'CAT III', validityMonths:12, inspectorId:'', inspectorName:'', clientId:'', clientName:'', flId:'', site:'', equipCategory:'Rotating', issuer:'' };
+  renderBulkWizard();
 }
 
-function addBulkRow(){
+function renderBulkWizard(){
+  const steps = ['1. Source & Defaults','2. Review Data','3. QR & Confirm'];
+  const $s=(s,i)=>`<div class="bulk-step ${i+1===BULK_STEP?'active':i+1<BULK_STEP?'done':''}" onclick="BULK_STEP=${i+1};renderBulkWizard()" role="tab" tabindex="0" aria-selected="${i+1===BULK_STEP}" onkeydown="if(event.key==='Enter'){BULK_STEP=${i+1};renderBulkWizard()}">${i+1<BULK_STEP?'<i class="fa-solid fa-check-circle"></i>':`<span class="bulk-step-num">${i+1}</span>`} ${s}</div>`;
+  const content = BULK_STEP===1 ? renderBulkStep1() : BULK_STEP===2 ? renderBulkStep2() : renderBulkStep3();
+  const prev = BULK_STEP>1 ? `<button class="btn btn-ghost btn-sm" onclick="BULK_STEP--;renderBulkWizard()"><i class="fa-solid fa-arrow-left"></i> Back</button>` : '';
+  const next = BULK_STEP<3 ? `<button class="btn btn-primary btn-sm" onclick="bulkWizardNext()">Next <i class="fa-solid fa-arrow-right"></i></button>` : '';
+  const submit = BULK_STEP===3 ? `<button class="btn btn-primary" onclick="submitBulkWizard()"><i class="fa-solid fa-check"></i> Import ${BULK_CERTS.length} Certificates</button>` : '';
+  const html = `
+    <div class="bulk-wizard">
+      <div class="bulk-steps" role="tablist">${steps.map($s).join('<div class="bulk-step-connector"></div>')}</div>
+      <div class="bulk-step-body">${content}</div>
+      <div class="bulk-nav">${prev}<div style="flex:1"></div>${next}${submit}</div>
+    </div>`;
+  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>`;
+  openModal('Mass Import Certificates', html, footer);
+  document.querySelector('.modal')?.classList.add('modal--wide');
+  if(BULK_STEP===2) setTimeout(()=>document.querySelector('.bulk-step-body')?.scrollTo(0,0),10);
+}
+
+function bulkWizardNext(){
+  if(BULK_STEP===1){
+    if(BULK_CERTS.length===0){ showToast('Add at least one certificate row before proceeding','error'); return; }
+    const missing = BULK_CERTS.filter(r=>!r.equipName||!r.expiryDate);
+    if(missing.length>0){ showToast(`${missing.length} row(s) missing equipment name or expiry — fix first`,'error'); return; }
+  }
+  if(BULK_STEP<3){ BULK_STEP++; renderBulkWizard(); }
+}
+
+/* ── Step 1: Source & Defaults ── */
+function renderBulkStep1(){
+  const clientOpts = `<option value="">— Select —</option>${DATA.accounts.filter(a=>a.status==='active').map(a=>`<option value="${a.id}" ${BULK_DEFAULTS.clientId===a.id?'selected':''}>${h(a.name)}</option>`).join('')}`;
+  const flOpts = `<option value="">— Select —</option>${DATA.functionalLocations.filter(f=>f.status==='active').map(f=>`<option value="${f.id}" ${BULK_DEFAULTS.flId===f.id?'selected':''}>${h(f.name)} (${f.flId})</option>`).join('')}`;
+  const inspOpts = `<option value="">— Select —</option>${DATA.inspectors.filter(i=>i.status==='active').map(i=>`<option value="${i.id}" ${BULK_DEFAULTS.inspectorId===i.id?'selected':''}>${h(i.name)} – ${h(i.title)}</option>`).join('')}`;
+  return `
+    <div style="margin-bottom:16px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;"><i class="fa-solid fa-file-import"></i> Import Source</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="bulkDownloadTemplate()"><i class="fa-solid fa-download"></i> Download CSV Template</button>
+        <label class="btn btn-primary btn-sm" style="cursor:pointer;"><i class="fa-solid fa-upload"></i> Upload CSV<input type="file" accept=".csv" style="display:none" onchange="bulkHandleCSV(this)"></label>
+        <button class="btn btn-ghost btn-sm" onclick="bulkAddRowManual()"><i class="fa-solid fa-pen"></i> Enter Manually</button>
+      </div>
+      ${BULK_CERTS.length>0?`<div style="margin-top:8px;font-size:12px;color:var(--text-sec);"><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> ${BULK_CERTS.length} row(s) loaded</div>`:''}
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px;"><i class="fa-solid fa-sliders"></i> Default Values (applied to all rows)</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Client</label><select class="form-select" id="bd-client" onchange="BULK_DEFAULTS.clientId=this.value;BULK_DEFAULTS.clientName=this.options[this.selectedIndex].text;bulkApplyDefaults()">${clientOpts}</select></div>
+      <div class="form-group"><label class="form-label">Functional Location</label><select class="form-select" id="bd-fl" onchange="BULK_DEFAULTS.flId=this.value;bulkFillSite()">${flOpts}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Site</label><input class="form-input" id="bd-site" value="${h(BULK_DEFAULTS.site)}" onchange="BULK_DEFAULTS.site=this.value"></div>
+      <div class="form-group"><label class="form-label">Inspector</label><select class="form-select" id="bd-inspector" onchange="BULK_DEFAULTS.inspectorId=this.value;BULK_DEFAULTS.inspectorName=this.options[this.selectedIndex].text.split(' – ')[0]">${inspOpts}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Cert Category</label><select class="form-select" id="bd-certCat" onchange="BULK_DEFAULTS.certCategory=this.value;document.getElementById('bd-liftWrap').style.display=this.value==='LIFTING'?'':'none'">${BULK_CERT_TYPES.map(t=>`<option value="${t}" ${BULK_DEFAULTS.certCategory===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">Equipment Category</label><select class="form-select" id="bd-equipCat" onchange="BULK_DEFAULTS.equipCategory=this.value">${BULK_EQUIP_CATS.map(c=>`<option value="${c}" ${BULK_DEFAULTS.equipCategory===c?'selected':''}>${c}</option>`).join('')}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Issuing Authority</label><input class="form-input" id="bd-issuer" value="${h(BULK_DEFAULTS.issuer)}" placeholder="e.g. Bureau Veritas" onchange="BULK_DEFAULTS.issuer=this.value"></div>
+      <div class="form-group"><label class="form-label">Validity (months)</label><input class="form-input" id="bd-validity" type="number" value="${BULK_DEFAULTS.validityMonths}" min="1" max="60" onchange="BULK_DEFAULTS.validityMonths=parseInt(this.value)||12"></div>
+    </div>`;
+}
+
+function bulkFillSite(){
+  const fl = DATA.functionalLocations.find(f=>f.id===document.getElementById('bd-fl')?.value);
+  if(fl){ document.getElementById('bd-site').value = fl.name; BULK_DEFAULTS.site = fl.name; }
+}
+
+function bulkApplyDefaults(){
+  // Auto-fill site from FL if possible
+  bulkFillSite();
+  // Issue dates get defaults when rows are added; updating defaults doesn't retro-change rows here
+}
+
+function bulkDownloadTemplate(){
+  const headers = ['assetTag','equipName','category','certCategory','liftingSubtype','client','site','jobNumber','inspector','issuer','certType','issueDate','expiryDate','remarks'];
+  const row = ['AST-0001','Example Equipment','Rotating','CAT III','','Client Name','Site Name','JOB-001','Inspector Name','Bureau Veritas','API 510','2026-01-15','2027-01-15','Inspector notes here'];
+  const csv = [headers.join(','), row.join(',')].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'cert_import_template.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('Template downloaded','success');
+}
+
+function bulkHandleCSV(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try {
+      const text = e.target.result;
+      const lines = text.split('\n').map(l=>l.trim()).filter(l=>l);
+      if(lines.length<2){ showToast('CSV must have a header row and at least one data row','error'); return; }
+      const headers = lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,''));
+      const colMap = {};
+      headers.forEach((h,i)=>colMap[h.toLowerCase()]=i);
+      const needed = ['assetTag','equipname','issuedate','expirydate'];
+      const missing = needed.filter(n=>!colMap[n]&&n!=='expirydate');
+      if(missing.length){ showToast('CSV missing required columns: '+missing.join(', '),'error'); return; }
+      const rows = [];
+      for(let i=1; i<lines.length; i++){
+        const vals = lines[i].split(',').map(v=>v.trim().replace(/^"|"$/g,''));
+        if(vals.length<2) continue;
+        const g = (k)=>{ const idx=colMap[k]; return idx!==undefined?vals[idx]||'':''; };
+        rows.push({
+          assetTag: g('assetTag') || `AST-${String(i).padStart(4,'0')}`,
+          equipName: g('equipname') || g('name') || '',
+          category: g('category') || g('equipcategory') || BULK_DEFAULTS.equipCategory,
+          certCategory: g('certcategory') || BULK_DEFAULTS.certCategory,
+          liftingSubtype: g('liftingsubtype') || '',
+          client: g('client') || BULK_DEFAULTS.clientName,
+          clientId: BULK_DEFAULTS.clientId,
+          site: g('site') || BULK_DEFAULTS.site,
+          jobNumber: g('jobnumber') || '',
+          inspector: g('inspector') || BULK_DEFAULTS.inspectorName,
+          inspectorId: BULK_DEFAULTS.inspectorId,
+          issuer: g('issuer') || BULK_DEFAULTS.issuer,
+          certType: g('certtype') || g('type') || '',
+          issueDate: g('issuedate') || new Date().toISOString().split('T')[0],
+          expiryDate: g('expirydate') || '',
+          remarks: g('remarks') || ''
+        });
+      }
+      if(!rows.length){ showToast('No valid data rows found in CSV','error'); return; }
+      BULK_CERTS = rows;
+      showToast(`${rows.length} row(s) loaded from CSV`,'success');
+      BULK_STEP = 2;
+      renderBulkWizard();
+    } catch(err) { showToast('Error parsing CSV: '+err.message,'error'); }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+function bulkAddRowManual(){
   const idx = BULK_CERTS.length;
-  BULK_CERTS.push({ assetId:`AST-${String(BULK_CERTS.length+1).padStart(4,'0')}`, name:'', type:'CAT III', date:new Date().toISOString().split('T')[0], expiryDate:'', liftingSubtype:'', inspector:'' });
-  renderBulkRows();
+  BULK_CERTS.push({
+    assetTag: `AST-${String(idx+1).padStart(4,'0')}`,
+    equipName: '', category: BULK_DEFAULTS.equipCategory, certCategory: BULK_DEFAULTS.certCategory,
+    liftingSubtype: '', client: BULK_DEFAULTS.clientName, clientId: BULK_DEFAULTS.clientId,
+    site: BULK_DEFAULTS.site, jobNumber: '',
+    inspector: BULK_DEFAULTS.inspectorName, inspectorId: BULK_DEFAULTS.inspectorId,
+    issuer: BULK_DEFAULTS.issuer, certType: '',
+    issueDate: new Date().toISOString().split('T')[0], expiryDate: '',
+    remarks: ''
+  });
+  if(BULK_STEP===1){ BULK_STEP=2; renderBulkWizard(); }
+  else renderBulkStep2Content();
 }
 
-function removeBulkRow(idx){
-  BULK_CERTS.splice(idx,1);
-  renderBulkRows();
+/* ── Step 2: Review Data ── */
+function renderBulkStep2(){
+  return `<div style="margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <span style="font-size:12px;color:var(--text-sec);font-weight:600;">${BULK_CERTS.length} row(s)</span>
+    <button class="btn btn-secondary btn-sm" onclick="bulkAddRowManual()"><i class="fa-solid fa-plus"></i> Add Row</button>
+    <button class="btn btn-ghost btn-sm" onclick="bulkClearAllRows()" ${BULK_CERTS.length===0?'disabled':''}><i class="fa-solid fa-trash"></i> Clear All</button>
+    <span id="bulkStep2Summary" style="font-size:12px;margin-left:auto;"></span>
+  </div><div id="bulkStep2Body" style="max-height:360px;overflow-y:auto;"></div>`;
 }
 
-function updateBulkItem(idx,field,val){
-  if(BULK_CERTS[idx]) BULK_CERTS[idx][field]=val;
-  renderBulkSummary();
-}
-
-function renderBulkRows(){
-  const container = document.getElementById('bulkRows');
+function renderBulkStep2Content(){
+  const container = document.getElementById('bulkStep2Body');
   if(!container) return;
-  let html = '<table class="data-table" style="width:100%;font-size:12px;"><thead><tr><th>Asset</th><th>Name</th><th>Type</th><th>Lifting Sub</th><th>Inspector</th><th>Date</th><th>Expiry</th><th></th></tr></thead><tbody>';
-  BULK_CERTS.forEach((item,idx)=>{
-    html+=`<tr>
-      <td><input class="sap-input" style="width:70px;height:28px;font-size:11px;" value="${item.assetId}" onchange="updateBulkItem(${idx},'assetId',this.value)"/></td>
-      <td><input class="sap-input" style="width:120px;height:28px;font-size:11px;" value="${item.name}" placeholder="Cert name" onchange="updateBulkItem(${idx},'name',this.value)"/></td>
-      <td><select class="sap-input" style="width:80px;height:28px;font-size:11px;" onchange="updateBulkItem(${idx},'type',this.value)">
-        ${['CAT III','CAT IV','LIFTING','LOAD TEST','NDT','TUBULAR','ORIGINAL COC'].map(t=>`<option value="${t}" ${item.type===t?'selected':''}>${t}</option>`).join('')}
-      </select></td>
-      <td>
-        <select class="sap-input" style="width:90px;height:28px;font-size:11px;" onchange="updateBulkItem(${idx},'liftingSubtype',this.value)">
-          <option value="">—</option>
-          <option value="LIFTING GEAR" ${item.liftingSubtype==='LIFTING GEAR'?'selected':''}>LIFTING GEAR</option>
-          <option value="LIFTING PERSONNEL" ${item.liftingSubtype==='LIFTING PERSONNEL'?'selected':''}>LIFTING PERSONNEL</option>
-          <option value="LIFTING EQUIPMENT" ${item.liftingSubtype==='LIFTING EQUIPMENT'?'selected':''}>LIFTING EQUIPMENT</option>
-        </select>
-      </td>
-      <td><input class="sap-input" style="width:90px;height:28px;font-size:11px;" value="${item.inspector}" placeholder="Inspector" onchange="updateBulkItem(${idx},'inspector',this.value)"/></td>
-      <td><input type="date" class="sap-input" style="width:110px;height:28px;font-size:11px;" value="${item.date}" onchange="updateBulkItem(${idx},'date',this.value);calcBulkExpiry(${idx})"/></td>
-      <td><input type="date" class="sap-input" style="width:110px;height:28px;font-size:11px;" value="${item.expiryDate}" onchange="updateBulkItem(${idx},'expiryDate',this.value)"/></td>
-      <td><button class="btn btn-danger btn-sm" onclick="removeBulkRow(${idx})"><i class="fa-solid fa-trash"></i></button></td>
+  const certCatOpts = BULK_CERT_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('');
+  const equipCatOpts = BULK_EQUIP_CATS.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const liftOpts = `<option value="">—</option>${BULK_LIFT_SUBTYPES.map(s=>`<option value="${s}">${s}</option>`).join('')}`;
+  let html = `<div class="bulk-step2-table-wrap"><table class="data-table" style="font-size:11px;white-space:nowrap;"><thead><tr>
+    <th>#</th><th>Asset Tag</th><th>Equipment Name <span style="color:var(--error)">*</span></th><th>Equip Cat</th><th>Cert Cat</th><th>Lifting Sub</th>
+    <th>Client</th><th>Site</th><th>Issuer</th><th>Issue Date</th><th>Expiry Date <span style="color:var(--error)">*</span></th><th>Remarks</th><th></th>
+  </tr></thead><tbody>`;
+  BULK_CERTS.forEach((r,i)=>{
+    const showLift = r.certCategory==='LIFTING'?'':'style="display:none"';
+    html += `<tr>
+      <td style="color:var(--text-sec);">${i+1}</td>
+      <td><input class="sap-input" style="width:70px;height:26px;font-size:10px;" value="${h(r.assetTag)}" onchange="bulkUpd(${i},'assetTag',this.value)"></td>
+      <td><input class="sap-input" style="width:130px;height:26px;font-size:10px;" value="${h(r.equipName)}" placeholder="Required" onchange="bulkUpd(${i},'equipName',this.value)"></td>
+      <td><select class="sap-input" style="width:85px;height:26px;font-size:10px;" onchange="bulkUpd(${i},'category',this.value)">${equipCatOpts.replace(`value="${r.category}"`,`value="${r.category}" selected`)}</select></td>
+      <td><select class="sap-input" style="width:80px;height:26px;font-size:10px;" onchange="bulkUpd(${i},'certCategory',this.value);renderBulkStep2Content()">${certCatOpts.replace(`value="${r.certCategory}"`,`value="${r.certCategory}" selected`)}</select></td>
+      <td><select class="sap-input" style="width:90px;height:26px;font-size:10px;" ${showLift} onchange="bulkUpd(${i},'liftingSubtype',this.value)">${liftOpts.replace(`value="${r.liftingSubtype}"`,`value="${r.liftingSubtype}" selected`)}</select></td>
+      <td><input class="sap-input" style="width:90px;height:26px;font-size:10px;" value="${h(r.client)}" onchange="bulkUpd(${i},'client',this.value)"></td>
+      <td><input class="sap-input" style="width:100px;height:26px;font-size:10px;" value="${h(r.site)}" onchange="bulkUpd(${i},'site',this.value)"></td>
+      <td><input class="sap-input" style="width:80px;height:26px;font-size:10px;" value="${h(r.issuer)}" onchange="bulkUpd(${i},'issuer',this.value)"></td>
+      <td><input type="date" class="sap-input" style="width:105px;height:26px;font-size:10px;" value="${r.issueDate}" onchange="bulkUpd(${i},'issueDate',this.value);if(!BULK_CERTS[${i}].expiryDate)bulkCalcExpiry(${i})"></td>
+      <td><input type="date" class="sap-input" style="width:105px;height:26px;font-size:10px;" value="${r.expiryDate}" onchange="bulkUpd(${i},'expiryDate',this.value)"></td>
+      <td><input class="sap-input" style="width:90px;height:26px;font-size:10px;" value="${h(r.remarks)}" onchange="bulkUpd(${i},'remarks',this.value)"></td>
+      <td><button class="btn btn-danger btn-icon" onclick="bulkRemoveRow(${i})" title="Remove"><i class="fa-solid fa-trash" style="font-size:10px;"></i></button></td>
     </tr>`;
   });
-  html+=`</tbody></table>`;
+  html += `</tbody></table></div>`;
   container.innerHTML = html;
-  renderBulkSummary();
+  const valid = BULK_CERTS.filter(r=>r.equipName&&r.expiryDate);
+  const el = document.getElementById('bulkStep2Summary');
+  if(el) el.innerHTML = `${valid.length}/${BULK_CERTS.length} complete ${valid.length===BULK_CERTS.length&&BULK_CERTS.length>0?'<i class="fa-solid fa-check-circle" style="color:var(--success)"></i>':'<span style="color:var(--warning)">Fill required fields</span>'}`;
 }
 
-function renderBulkSummary(){
-  const el = document.getElementById('bulkSummary');
-  if(!el) return;
-  const valid = BULK_CERTS.filter(item=>item.name&&item.date&&item.expiryDate);
-  el.innerHTML = `${BULK_CERTS.length} rows · ${valid.length} complete · <span style="color:${valid.length===BULK_CERTS.length&&BULK_CERTS.length>0?'var(--success)':'var(--warning)'}">${valid.length===BULK_CERTS.length?'Ready to create':'Incomplete rows highlighted'}</span>`;
+function bulkUpd(idx, field, val){
+  if(BULK_CERTS[idx]) BULK_CERTS[idx][field] = val;
 }
 
-function calcBulkExpiry(idx){
-  const item = BULK_CERTS[idx];
-  if(!item||!item.date) return;
-  const d = new Date(item.date);
-  d.setMonth(d.getMonth() + 12);
-  item.expiryDate = d.toISOString().split('T')[0];
-  renderBulkRows();
+function bulkRemoveRow(idx){
+  BULK_CERTS.splice(idx,1);
+  renderBulkStep2Content();
 }
 
-function batchSetDefaults(){
-  const type = prompt('Default cert type (CAT III, LIFTING, NDT, etc.):','CAT III');
-  if(!type) return;
-  const inspector = prompt('Default inspector name:','');
-  const months = parseInt(prompt('Default validity period in months (e.g. 12):','12'),10);
-  BULK_CERTS.forEach(item=>{
-    item.type = type;
-    if(inspector) item.inspector = inspector;
-    if(months&&item.date){
-      const d = new Date(item.date);
-      d.setMonth(d.getMonth() + months);
-      item.expiryDate = d.toISOString().split('T')[0];
-    }
+function bulkClearAllRows(){
+  if(!BULK_CERTS.length) return;
+  if(!confirm('Remove all rows?')) return;
+  BULK_CERTS = [];
+  renderBulkStep2Content();
+}
+
+function bulkCalcExpiry(idx){
+  const r = BULK_CERTS[idx];
+  if(!r||!r.issueDate) return;
+  const d = new Date(r.issueDate);
+  d.setMonth(d.getMonth() + (BULK_DEFAULTS.validityMonths||12));
+  r.expiryDate = d.toISOString().split('T')[0];
+  renderBulkStep2Content();
+}
+
+/* ── Step 3: QR & Confirm ── */
+function renderBulkStep3(){
+  const startId = DATA.certificates.length + 1;
+  const certs = BULK_CERTS.map((r,i)=>{
+    const id = 'CERT-'+String(startId+i).padStart(3,'0');
+    const days = r.expiryDate ? Math.round((new Date(r.expiryDate)-new Date())/(1000*60*60*24)) : 0;
+    const st = days<0?'expired':days<=30?'expiring':days<=90?'renewal':'valid';
+    return { ...r, tempId: id, days, status: st };
   });
-  renderBulkRows();
+  const validC = certs.filter(c=>c.status!=='expired').length;
+  const expiredC = certs.filter(c=>c.status==='expired').length;
+  const origin = window.location.origin;
+  let html = `<div style="margin-bottom:14px;display:flex;gap:16px;flex-wrap:wrap;">
+    <div class="stat-chip"><i class="fa-solid fa-certificate"></i> Total: ${certs.length}</div>
+    <div class="stat-chip" style="background:#e8f5e9;color:#2e7d32;"><i class="fa-solid fa-check-circle"></i> Valid: ${validC}</div>
+    <div class="stat-chip" style="background:#ffebee;color:#c62828;"><i class="fa-solid fa-exclamation-triangle"></i> Expired: ${expiredC}</div>
+  </div>
+  <div style="font-size:11px;color:var(--text-sec);margin-bottom:10px;">Review each certificate below. QR codes encode a direct link to each certificate.</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">`;
+  certs.forEach(c=>{
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(origin+'/?cert='+c.tempId)}`;
+    const stColor = c.status==='expired'?'var(--error)':c.status==='expiring'?'var(--warning)':c.status==='renewal'?'var(--purple)':'var(--success)';
+    html += `<div class="cert-qr-card" style="border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--card);">
+      <div style="text-align:center;margin-bottom:6px;">
+        <img src="${qrUrl}" alt="QR" style="width:100px;height:100px;border:1px solid var(--border);border-radius:4px;" loading="lazy" onerror="this.outerHTML='<div style=\\'width:100px;height:100px;margin:auto;background:var(--bg);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-sec);\\'>QR</div>'">
+      </div>
+      <div style="font-size:11px;font-weight:700;text-align:center;margin-bottom:2px;">${h(c.tempId)}</div>
+      <div style="font-size:10px;color:var(--text-sec);text-align:center;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(c.equipName||'No name')}</div>
+      <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">
+        <span style="font-size:9px;padding:1px 6px;border-radius:3px;background:${stColor}15;color:${stColor};font-weight:600;">${c.status}</span>
+        <span style="font-size:9px;padding:1px 6px;border-radius:3px;background:var(--bg);color:var(--text-sec);">${h(c.certCategory)}</span>
+      </div>
+      ${c.expiryDate?`<div style="font-size:9px;color:var(--text-sec);text-align:center;margin-top:4px;">Exp: ${c.expiryDate}</div>`:''}
+    </div>`;
+  });
+  html += `</div>`;
+  return html;
 }
 
-function submitBulkCerts(){
-  const incomplete = BULK_CERTS.filter(item=>!item.name||!item.date||!item.expiryDate);
-  if(incomplete.length>0){ showToast(`${incomplete.length} row(s) incomplete — fill all fields first`,'error'); return; }
-  if(BULK_CERTS.length===0){ showToast('No rows to create','error'); return; }
-  const newCerts = BULK_CERTS.map((item,idx)=>{
-    const newId = 'CERT-'+String(DATA.certificates.length+1+idx).padStart(3,'0');
-    const days = Math.round((new Date(item.expiryDate)-new Date())/(1000*60*60*24));
+/* ── Submit Wizard ── */
+function submitBulkWizard(){
+  const incomplete = BULK_CERTS.filter(r=>!r.equipName||!r.expiryDate);
+  if(incomplete.length>0){ showToast(`${incomplete.length} row(s) incomplete — fill equipment name and expiry`,'error'); return; }
+  if(BULK_CERTS.length===0){ showToast('No rows to import','error'); return; }
+  const now = new Date().toISOString();
+  const newCerts = BULK_CERTS.map((r,i)=>{
+    const newId = 'CERT-'+String(DATA.certificates.length+1+i).padStart(3,'0');
+    const days = Math.round((new Date(r.expiryDate)-new Date())/(1000*60*60*24));
     const status = days<0?'expired':days<=30?'expiring':days<=90?'renewal':'valid';
     return {
-      id:newId, equipName:item.name, assetTag:item.assetId, category:item.type==='LIFTING'?'Lifting':'General',
-      certCategory:item.type, liftingSubtype:item.liftingSubtype||'',
-      client:'', jobNumber:'', site:'Block 15 – Rig Alpha',
-      certType:item.type, issuer:item.inspector||'In-house',
-      issueDate:item.date, expiryDate:item.expiryDate,
+      id:newId, equipName:r.equipName, assetTag:r.assetTag||'',
+      category:r.category||BULK_DEFAULTS.equipCategory,
+      certCategory:r.certCategory||BULK_DEFAULTS.certCategory,
+      liftingSubtype:r.liftingSubtype||'',
+      clientId:BULK_DEFAULTS.clientId, client:r.client||BULK_DEFAULTS.clientName,
+      flId:BULK_DEFAULTS.flId, site:r.site||BULK_DEFAULTS.site,
+      inspectorId:BULK_DEFAULTS.inspectorId, engineer:r.inspector||BULK_DEFAULTS.inspectorName,
+      jobNumber:r.jobNumber||'', issuer:r.issuer||BULK_DEFAULTS.issuer,
+      certType:r.certType||'',
+      issueDate:r.issueDate||now.split('T')[0], expiryDate:r.expiryDate,
       daysRemaining:days, status, approvalStatus:'pending',
-      engineer:item.inspector||'—', fileName:'', pdfUrl:'', remarks:'Created via bulk import'
+      fileName:'', pdfUrl:'', remarks:r.remarks||'Imported via mass import wizard',
+      uploadedAt:now, uploadedBy:state.currentInspectorId||null
     };
   });
   DATA.certificates.push(...newCerts);
   closeModal();
-  showToast(`${newCerts.length} certificates created via bulk import`,'success');
+  showToast(`${newCerts.length} certificates imported successfully with QR codes`,'success');
   state.section='pendingApproval';
   rerenderSection();
 }
@@ -7647,12 +7837,17 @@ window.certExportPDF = certExportPDF;
 window.certGetSelectedIds = certGetSelectedIds;
 window.deleteCert = deleteCert;
 window.openBulkCertModal = openBulkCertModal;
-window.addBulkRow = addBulkRow;
-window.removeBulkRow = removeBulkRow;
-window.updateBulkItem = updateBulkItem;
-window.batchSetDefaults = batchSetDefaults;
-window.calcBulkExpiry = calcBulkExpiry;
-window.submitBulkCerts = submitBulkCerts;
+window.bulkWizardNext = bulkWizardNext;
+window.bulkDownloadTemplate = bulkDownloadTemplate;
+window.bulkHandleCSV = bulkHandleCSV;
+window.bulkAddRowManual = bulkAddRowManual;
+window.bulkRemoveRow = bulkRemoveRow;
+window.bulkClearAllRows = bulkClearAllRows;
+window.bulkUpd = bulkUpd;
+window.bulkCalcExpiry = bulkCalcExpiry;
+window.bulkFillSite = bulkFillSite;
+window.renderBulkStep2Content = renderBulkStep2Content;
+window.submitBulkWizard = submitBulkWizard;
 window.togglePushNotif = togglePushNotif;
 window.checkPushHealth = checkPushHealth;
 window.requestNotifPermission = requestNotifPermission;

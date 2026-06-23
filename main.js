@@ -6,6 +6,7 @@ import { supabase } from './supabase.js';
 const state = {
   module:'hr', section:'allEmployees', selectedId:null, detailTab:'info',
   filters:{}, sortCol:null, sortDir:'asc', charts:[], currentUserRole:'Admin',
+  currentInspectorId:null,
   pushEnabled:false, pushSubscribed:false,
 };
 
@@ -451,7 +452,8 @@ const MODULES = [
 ];
 
 function renderTabBar(){
-  $('#tabBar').innerHTML = MODULES.map(m=>`
+  const isInspector=state.currentUserRole==='Inspector';
+  $('#tabBar').innerHTML = MODULES.filter(m=>!isInspector||m.id==='certificates').map(m=>`
     <div class="tab-item ${state.module===m.id?'active':''}" onclick="switchModule('${m.id}')">
       <i class="fa-solid ${m.icon}"></i> ${t(m.labelKey)}
     </div>`).join('');
@@ -1013,6 +1015,27 @@ DATA.inspectors = [
   {id:'INS-004',inspectorNumber:'INS-004',employeeId:'EMP-014',name:'Saud Al-Otaibi',title:'Instrument & Control Inspector',email:'s.alotaibi@amici.com',phone:'+968 9100 1014',status:'active',color:'#fb8c00'},
 ];
 
+/* ── Jobs (Work Orders) ── */
+DATA.jobs = [
+  {id:'JOB-001',title:'Q4 Rig Alpha Inspection',clientId:'ACC-001',flId:'FL-001',status:'open',createdAt:'2026-06-01',completedAt:null,closedAt:null,description:'Annual API inspection of rig equipment, BOPs, and lifting gear.'},
+  {id:'JOB-002',title:'H2S & Safety Audit – Gas Plant',clientId:'ACC-009',flId:'FL-010',status:'in_progress',createdAt:'2026-06-10',completedAt:null,closedAt:null,description:'H2S detection systems, SCBA sets, and fire suppression audit.'},
+  {id:'JOB-003',title:'Pressure Vessel Inspection – South',clientId:'ACC-001',flId:'FL-002',status:'completed',createdAt:'2026-05-15',completedAt:'2026-06-15',closedAt:null,description:'API 510 inspection of all pressure vessels at Onshore Processing.'},
+  {id:'JOB-004',title:'Lifting Equipment LOLER',clientId:'ACC-003',flId:'FL-006',status:'open',createdAt:'2026-06-18',completedAt:null,closedAt:null,description:'Thorough examination of all lifting equipment on Block 61 Rig.'},
+  {id:'JOB-005',title:'Electrical Switchgear Survey',clientId:'ACC-001',flId:'FL-002',status:'open',createdAt:'2026-06-20',completedAt:null,closedAt:null,description:'IEC 60079 Ex inspection of all switchgear panels.'},
+  {id:'JOB-006',title:'Pipeline Corrosion Survey',clientId:'ACC-004',flId:'FL-008',status:'closed',createdAt:'2026-04-01',completedAt:'2026-05-01',closedAt:'2026-06-01',description:'UT thickness survey of all pipelines at South Oman Facility.'},
+];
+DATA.jobAssignments = [
+  {id:'JA-001',jobId:'JOB-001',inspectorId:'INS-001',assignedAt:'2026-06-01'},
+  {id:'JA-002',jobId:'JOB-001',inspectorId:'INS-002',assignedAt:'2026-06-01'},
+  {id:'JA-003',jobId:'JOB-002',inspectorId:'INS-001',assignedAt:'2026-06-10'},
+  {id:'JA-004',jobId:'JOB-002',inspectorId:'INS-004',assignedAt:'2026-06-10'},
+  {id:'JA-005',jobId:'JOB-003',inspectorId:'INS-003',assignedAt:'2026-05-15'},
+  {id:'JA-006',jobId:'JOB-004',inspectorId:'INS-002',assignedAt:'2026-06-18'},
+  {id:'JA-007',jobId:'JOB-004',inspectorId:'INS-001',assignedAt:'2026-06-18'},
+  {id:'JA-008',jobId:'JOB-005',inspectorId:'INS-004',assignedAt:'2026-06-20'},
+  {id:'JA-009',jobId:'JOB-006',inspectorId:'INS-001',assignedAt:'2026-04-01'},
+];
+
 /* ═══════════════════════════════════════════════
    CRM i18n additions
 ═══════════════════════════════════════════════ */
@@ -1371,9 +1394,12 @@ let certSortDir=1;
 let certCurrentPage=1;
 let certPageSize=Number(localStorage.getItem('cert_page_size')||25);
 let certSavedView='all';
+let certEntityView='list';
 let certClientFilter='all';
 let certLocFilter='all';
 let certTypeFilter='all';
+let certInspectorFilter='all';
+let certJobFilter='all';
 let certMultipleStatuses=null;
 
 function h(s){if(s===null||s===undefined)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;');}
@@ -1449,6 +1475,8 @@ function renderCertificates(filterFn){
   if(certClientFilter!=='all')data=data.filter(c=>c.clientId===certClientFilter);
   if(certLocFilter!=='all')data=data.filter(c=>c.flId===certLocFilter);
   if(certTypeFilter!=='all')data=data.filter(c=>c.certCategory===certTypeFilter);
+  if(certInspectorFilter!=='all')data=data.filter(c=>c.inspectorId===certInspectorFilter);
+  if(certJobFilter!=='all')data=data.filter(c=>c.jobId===certJobFilter);
 
   // Legacy state filters
   if(state.filters.certCategory&&state.filters.certCategory!=='all')data=data.filter(c=>c.certCategory===state.filters.certCategory);
@@ -1515,21 +1543,49 @@ function renderCertificates(filterFn){
   });
   html+=`</div>`;
 
-  // Toolbar with filter dropdowns
-  const clientOpts=DATA.accounts.filter(a=>a.status==='active').map(a=>`<option value="${a.id}" ${certClientFilter===a.id?'selected':''}>${h(a.name)}</option>`).join('');
-  const locOpts=DATA.functionalLocations.filter(f=>f.status==='active').map(f=>`<option value="${f.id}" ${certLocFilter===f.id?'selected':''}>${h(f.name)}</option>`).join('');
-  const typeOpts=[...new Set(DATA.certificates.map(c=>c.certCategory).filter(Boolean))].map(t=>`<option value="${t}" ${certTypeFilter===t?'selected':''}>${t}</option>`).join('');
-  html+=`<div class="cert-toolbar">
-    <input type="checkbox" class="sap-checkbox" aria-label="Select all" onchange="certToggleSelectAll(this)" style="margin-right:2px;">
-    <div class="sap-search-box">
-      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" placeholder="Search certs..." value="${h(state.filters.search||'')}" oninput="state.filters.search=this.value;rerenderSection()">
+  // Entity sub-nav (second row)
+  // Inspector login/logout bar
+  if(state.currentInspectorId){
+    const ins=DATA.inspectors.find(i=>i.id===state.currentInspectorId);
+    html+=`<div class="inspector-bar"><span style="display:flex;align-items:center;gap:6px;"><span class="inspector-dot" style="background:${ins?.color||'#6a6d70'}"></span><strong>${ins?h(ins.name):'Inspector'}</strong><span class="badge badge--blue">Inspector Mode</span></span><button class="btn btn-ghost btn-sm" onclick="certLogoutInspector()">Logout</button></div>`;
+  } else {
+    const inspOpts=DATA.inspectors.filter(i=>i.status==='active').map(i=>`<option value="${i.id}">${h(i.name)} – ${h(i.title)}</option>`).join('');
+    html+=`<div class="inspector-bar"><span style="font-size:12px;color:var(--text-sec);cursor:pointer;" onclick="document.getElementById('insLoginDropdown').classList.toggle('open')">Login as Inspector ▾</span><select id="insLoginDropdown" class="col-dropdown" style="position:absolute;top:100%;right:0;display:none;width:240px;" onchange="certLoginInspector(this.value)"><option value="">Select inspector...</option>${inspOpts}</select><div style="flex:1;"></div><span style="font-size:11px;color:var(--text-sec);">Admin Mode</span></div>`;
+  }
+
+  const entityTabs=[
+    {id:'list',label:'Certificates'},
+    {id:'clients',label:'Clients'},
+    {id:'functionalLocations',label:'Functional Locations'},
+    {id:'inspectors',label:'Inspectors'},
+    {id:'jobs',label:'Jobs'},
+  ];
+  html+=`<div class="cert-sub-nav">`;
+  entityTabs.forEach(t=>{
+    const isJobTab=t.id==='jobs';
+    const jobCounts=isJobTab?getJobsForCurrentUser().length:0;
+    html+=`<button class="sap-tab ${certEntityView===t.id?'active':''}" onclick="certSetEntityView('${t.id}')"><span>${t.label}</span>${isJobTab?`<span class="sap-tab__badge sap-tab__badge--${jobCounts?'warning':'default'}">${jobCounts}</span>`:''}</button>`;
+  });
+  html+=`</div>`;
+
+  if(certEntityView==='list'){
+    html+=`<div class="sap-table-wrapper cert-table-view">`;
+
+    // Toolbar with filter dropdowns
+    const clientOpts=DATA.accounts.filter(a=>a.status==='active').map(a=>`<option value="${a.id}" ${certClientFilter===a.id?'selected':''}>${h(a.name)}</option>`).join('');
+    const locOpts=DATA.functionalLocations.filter(f=>f.status==='active').map(f=>`<option value="${f.id}" ${certLocFilter===f.id?'selected':''}>${h(f.name)}</option>`).join('');
+    const typeOpts=[...new Set(DATA.certificates.map(c=>c.certCategory).filter(Boolean))].map(t=>`<option value="${t}" ${certTypeFilter===t?'selected':''}>${t}</option>`).join('');
+    html+=`<div class="cert-toolbar">
+      <input type="checkbox" class="sap-checkbox" aria-label="Select all" onchange="certToggleSelectAll(this)" style="margin-right:2px;">
+      <div class="sap-search-box">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="Search certs..." value="${h(state.filters.search||'')}" oninput="state.filters.search=this.value;rerenderSection()">
     </div>
     <span class="cert-toolbar__count">${total}</span>
     <div style="width:1px;height:20px;background:var(--border);flex-shrink:0;"></div>
-    <select class="cert-filter-select" onchange="certClientFilter=this.value;rerenderSection()"><option value="all">All Clients</option>${clientOpts}</select>
-    <select class="cert-filter-select" onchange="certLocFilter=this.value;rerenderSection()"><option value="all">All Locations</option>${locOpts}</select>
-    <select class="cert-filter-select" onchange="certTypeFilter=this.value;rerenderSection()"><option value="all">All Types</option>${typeOpts}</select>
+    <select class="cert-filter-select" onchange="certSetFilter('client',this.value)"><option value="all">All Clients</option>${clientOpts}</select>
+    <select class="cert-filter-select" onchange="certSetFilter('loc',this.value)"><option value="all">All Locations</option>${locOpts}</select>
+    <select class="cert-filter-select" onchange="certSetFilter('type',this.value)"><option value="all">All Types</option>${typeOpts}</select>
     <div class="col-selector-wrap">
       <button class="col-selector-btn" onclick="certToggleColDropdown()">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -1553,145 +1609,326 @@ function renderCertificates(filterFn){
         <label class="col-dropdown__item" onclick="certExportPDF()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="14" height="14" style="color:#bb0000;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><span style="color:#bb0000;">PDF</span></label>
       </div>
     </div>
-    <button class="btn btn-primary btn-sm" onclick="openNewCertModal()"><i class="fa-solid fa-plus"></i> New</button>
+    <button class="btn btn-primary btn-sm" onclick="certJobFilter!=='all'?openNewCertModal(certJobFilter):openNewCertModal()"><i class="fa-solid fa-plus"></i> New</button>
   </div>`;
 
-  // Mass action bar
-  html+=`<div class="mass-action-bar" id="certMassBar">
-    <span class="mass-action-bar__count" id="certMassCount">0 selected</span>
-    <button class="btn btn-success btn-sm" id="certMassApproveBtn" style="display:none;" onclick="certMassApprove()"><i class="fa-solid fa-check"></i> Approve</button>
-    <div class="mass-action-bar__spacer"></div>
-    <button class="btn btn-danger btn-sm" id="certMassDeleteBtn" style="display:none;" onclick="certMassDelete()"><i class="fa-solid fa-trash"></i> Delete</button>
-    <button class="btn btn-ghost btn-sm" onclick="certClearSelection()"><i class="fa-solid fa-xmark"></i> Deselect</button>
-  </div>`;
+    // Active job filter chip
+    if(certJobFilter!=='all'){
+      const job=DATA.jobs.find(j=>j.id===certJobFilter);
+      if(job){
+        const client=DATA.accounts.find(a=>a.id===job.clientId);
+        html+=`<div class="filter-chip-bar"><span class="filter-chip"><span class="filter-chip__label">Job:</span> ${h(job.title)}${client?' · '+h(client.name):''}<button class="filter-chip__clear" onclick="certJobFilter='all';rerenderSection()">✕</button></span></div>`;
+      }
+    }
 
-  // Table
-  html+=`<div class="sap-table-wrapper cert-table-view">`;
-  html+=`<table class="sap-table">
-    <thead><tr>
-      <th class="cell-check"><input type="checkbox" class="sap-checkbox" onchange="certToggleSelectAll(this)"/></th>
-      <th data-col="jobNumber" onclick="certSortTable('jobNumber')">Job No. <span class="sort-icon">↕</span></th>
-      <th data-col="certId" onclick="certSortTable('id')">Cert ID <span class="sort-icon">↕</span></th>
-      <th data-col="assetTag" onclick="certSortTable('assetTag')">Asset Tag <span class="sort-icon">↕</span></th>
-      <th data-col="name" onclick="certSortTable('equipName')">Certificate Name <span class="sort-icon">↕</span></th>
-      <th data-col="category" onclick="certSortTable('category')">Category <span class="sort-icon">↕</span></th>
-      <th data-col="certType" onclick="certSortTable('certType')">Type <span class="sort-icon">↕</span></th>
-      <th data-col="issuedBy" onclick="certSortTable('issuer')">Issued By <span class="sort-icon">↕</span></th>
-      <th data-col="expiry" onclick="certSortTable('expiryDate')">Expiry <span class="sort-icon">↕</span></th>
-      <th data-col="issueDate" onclick="certSortTable('issueDate')">Issue Date <span class="sort-icon">↕</span></th>
-      <th data-col="approval" onclick="certSortTable('approvalStatus')">Approval <span class="sort-icon">↕</span></th>
-      <th data-col="client" onclick="certSortTable('client')">Client <span class="sort-icon">↕</span></th>
-      <th data-col="qr" style="text-align:center;">QR</th>
-      <th data-col="fileLink">File</th>
-    </tr></thead>
-    <tbody id="certTableBody">`;
+    // Mass action bar
+    html+=`<div class="mass-action-bar" id="certMassBar">
+      <span class="mass-action-bar__count" id="certMassCount">0 selected</span>
+      <button class="btn btn-success btn-sm" id="certMassApproveBtn" style="display:none;" onclick="certMassApprove()"><i class="fa-solid fa-check"></i> Approve</button>
+      <div class="mass-action-bar__spacer"></div>
+      <button class="btn btn-danger btn-sm" id="certMassDeleteBtn" style="display:none;" onclick="certMassDelete()"><i class="fa-solid fa-trash"></i> Delete</button>
+      <button class="btn btn-ghost btn-sm" onclick="certClearSelection()"><i class="fa-solid fa-xmark"></i> Deselect</button>
+    </div>`;
 
-  if(page.length===0){
-    html+=`</tbody></table>
-      <div class="sap-table__empty">
-        <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
-        <p>No certificates found.</p>
-      </div>`;
-  } else {
-    page.forEach(c=>{
-      const st=getCertStatus(c);
-      const tc2=tc[c.certCategory]||tc[c.certType]||{bg:'#f5f6f7',color:'#6a6d70'};
-      const d=getCertDays(c);
-      const expCls=d<0?'red':d<=30?'orange':d<=90?'var(--purple)':'green';
-      const expCol=d<0?'var(--error)':d<=30?'var(--warning)':d<=90?'var(--purple)':'var(--success)';
-      const canApprove=c.approvalStatus==='pending';
+    // Table
+    html+=`<table class="sap-table">
+      <thead><tr>
+        <th class="cell-check"><input type="checkbox" class="sap-checkbox" onchange="certToggleSelectAll(this)"/></th>
+        <th data-col="jobNumber" onclick="certSortTable('jobNumber')">Job No. <span class="sort-icon">↕</span></th>
+        <th data-col="certId" onclick="certSortTable('id')">Cert ID <span class="sort-icon">↕</span></th>
+        <th data-col="assetTag" onclick="certSortTable('assetTag')">Asset Tag <span class="sort-icon">↕</span></th>
+        <th data-col="name" onclick="certSortTable('equipName')">Certificate Name <span class="sort-icon">↕</span></th>
+        <th data-col="category" onclick="certSortTable('category')">Category <span class="sort-icon">↕</span></th>
+        <th data-col="certType" onclick="certSortTable('certType')">Type <span class="sort-icon">↕</span></th>
+        <th data-col="issuedBy" onclick="certSortTable('issuer')">Issued By <span class="sort-icon">↕</span></th>
+        <th data-col="expiry" onclick="certSortTable('expiryDate')">Expiry <span class="sort-icon">↕</span></th>
+        <th data-col="issueDate" onclick="certSortTable('issueDate')">Issue Date <span class="sort-icon">↕</span></th>
+        <th data-col="approval" onclick="certSortTable('approvalStatus')">Approval <span class="sort-icon">↕</span></th>
+        <th data-col="client" onclick="certSortTable('client')">Client <span class="sort-icon">↕</span></th>
+        <th data-col="qr" style="text-align:center;">QR</th>
+        <th data-col="fileLink">File</th>
+      </tr></thead>
+      <tbody id="certTableBody">`;
 
-      html+=`<tr class="cert-row" onmouseenter="certShowRowActions(this)" onmouseleave="certHideRowActions(this)">
-        <td class="cell-check"><input type="checkbox" class="sap-checkbox" data-id="${c.id}" onchange="certUpdateMassBar()"/></td>
-        <td data-col="jobNumber"><span style="font-family:monospace;font-size:11px;font-weight:700;color:var(--blue);background:var(--blue-light);border:1px solid #90caf9;border-radius:4px;padding:2px 6px;white-space:nowrap;">${h(c.jobNumber||'—')}</span></td>
-        <td data-col="certId"><span class="cert-id-chip">${h(c.id)}</span></td>
-        <td data-col="assetTag"><span class="asset-id-chip">${h(c.assetTag||'—')}</span></td>
-        <td data-col="name">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;">
-            <div style="min-width:0;">
-              <div style="font-weight:600;font-size:13px;cursor:pointer;color:var(--blue);" onclick="openCertDrawer('${c.id}')">${h(c.equipName)}</div>
+    if(page.length===0){
+      html+=`</tbody></table>
+        <div class="sap-table__empty">
+          <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+          <p>No certificates found.</p>
+        </div>`;
+    } else {
+      page.forEach(c=>{
+        const st=getCertStatus(c);
+        const tc2=tc[c.certCategory]||tc[c.certType]||{bg:'#f5f6f7',color:'#6a6d70'};
+        const d=getCertDays(c);
+        const expCls=d<0?'red':d<=30?'orange':d<=90?'var(--purple)':'green';
+        const expCol=d<0?'var(--error)':d<=30?'var(--warning)':d<=90?'var(--purple)':'var(--success)';
+        const canApprove=c.approvalStatus==='pending';
+
+        html+=`<tr class="cert-row" onmouseenter="certShowRowActions(this)" onmouseleave="certHideRowActions(this)">
+          <td class="cell-check"><input type="checkbox" class="sap-checkbox" data-id="${c.id}" onchange="certUpdateMassBar()"/></td>
+          <td data-col="jobNumber"><span style="font-family:monospace;font-size:11px;font-weight:700;color:var(--blue);background:var(--blue-light);border:1px solid #90caf9;border-radius:4px;padding:2px 6px;white-space:nowrap;">${h(c.jobNumber||'—')}</span></td>
+          <td data-col="certId"><span class="cert-id-chip">${h(c.id)}</span></td>
+          <td data-col="assetTag"><span class="asset-id-chip">${h(c.assetTag||'—')}</span></td>
+          <td data-col="name">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;">
+              <div style="min-width:0;">
+                <div style="font-weight:600;font-size:13px;cursor:pointer;color:var(--blue);" onclick="openCertDrawer('${c.id}')">${h(c.equipName)}</div>
+              </div>
+              <div class="row-actions" style="display:none;gap:3px;flex-shrink:0;align-items:center;">
+                <button class="btn btn-ghost btn-icon" onclick="openCertDrawer('${c.id}')" title="View"><i class="fa-solid fa-eye" style="font-size:11px;"></i></button>
+                ${(()=>{
+                  const isInspector=state.currentInspectorId!==null;
+                  const isOwnCert=c.uploadedBy===state.currentInspectorId;
+                  const inWindow=c.uploadedAt&&(Date.now()-new Date(c.uploadedAt).getTime()<=28800000);
+                  const canEdit=!isInspector||(isOwnCert&&inWindow);
+                  const canDelete=canEdit;
+                  const canApproveCert=!isInspector&&canApprove;
+                  let btns='';
+                  if(canEdit)btns+=`<button class="btn btn-secondary btn-icon" onclick="openEditCertModal('${c.id}')" title="Edit"><i class="fa-solid fa-pen" style="font-size:11px;"></i></button>`;
+                  if(canApproveCert)btns+=`<button class="btn btn-success btn-icon" onclick="approveCert('${c.id}')" title="Approve"><i class="fa-solid fa-check" style="font-size:11px;"></i></button>
+                <button class="btn btn-danger btn-icon" onclick="openCertRejectModal('${c.id}')" title="Reject"><i class="fa-solid fa-xmark" style="font-size:11px;"></i></button>`;
+                  if(canDelete)btns+=`<button class="btn btn-danger btn-icon" onclick="if(confirm('Delete ${c.id}?')){deleteCert('${c.id}')}" title="Delete"><i class="fa-solid fa-trash" style="font-size:11px;"></i></button>`;
+                  return btns;
+                })()}
+              </div>
             </div>
-            <div class="row-actions" style="display:none;gap:3px;flex-shrink:0;align-items:center;">
-              <button class="btn btn-ghost btn-icon" onclick="openCertDrawer('${c.id}')" title="View"><i class="fa-solid fa-eye" style="font-size:11px;"></i></button>
-              <button class="btn btn-secondary btn-icon" onclick="openEditCertModal('${c.id}')" title="Edit"><i class="fa-solid fa-pen" style="font-size:11px;"></i></button>
-              ${canApprove?`<button class="btn btn-success btn-icon" onclick="approveCert('${c.id}')" title="Approve"><i class="fa-solid fa-check" style="font-size:11px;"></i></button>
-              <button class="btn btn-danger btn-icon" onclick="openCertRejectModal('${c.id}')" title="Reject"><i class="fa-solid fa-xmark" style="font-size:11px;"></i></button>`:''}
-              <button class="btn btn-danger btn-icon" onclick="if(confirm('Delete ${c.id}?')){deleteCert('${c.id}')}" title="Delete"><i class="fa-solid fa-trash" style="font-size:11px;"></i></button>
-            </div>
+          </td>
+          <td data-col="category"><span style="font-size:11px;">${h(c.category||'—')}</span></td>
+          <td data-col="certType"><span class="cert-type-chip" style="background:${tc2.bg};color:${tc2.color};">${h(c.certCategory||c.certType)}</span></td>
+          <td data-col="issuedBy" style="font-size:12px;">${h(c.issuer||'—')}</td>
+          <td data-col="expiry">
+            ${getCertExpiryBar(c)}
+            <div style="font-size:11px;color:var(--text-sec);margin-top:2px;">${c.expiryDate}</div>
+          </td>
+          <td data-col="issueDate" style="font-size:12px;">${c.issueDate||'—'}</td>
+          <td data-col="approval">${getCertBadge(c.approvalStatus)}${c.rejectionReason?`<div style="font-size:10px;color:var(--error);margin-top:2px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${h(c.rejectionReason)}">${h(c.rejectionReason)}</div>`:''}</td>
+          <td data-col="client"><span style="font-size:12px;font-weight:600;">${h(c.client||'—')}</span></td>
+          <td data-col="qr" style="text-align:center;">
+            <button class="qr-icon-btn" onclick="openCertQRModal('${c.id}')" title="View QR">
+              <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            </button>
+          </td>
+          <td data-col="fileLink">
+            ${c.fileName||c.pdfUrl?`<button class="cert-file-link" onclick="showToast('Opening ${c.fileName||'certificate'}','info')">
+              <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              ${h(c.fileName||'View')}
+            </button>`:`<span style="color:var(--text-sec);font-size:11px;">—</span>`}
+          </td>
+        </tr>`;
+      });
+      html+=`</tbody></table>`;
+    }
+
+    // Mobile cards
+    html+=`<div class="cert-cards-view" id="certCardsContainer" style="padding:12px;">`;
+    if(page.length===0){
+      html+=`<div class="empty-state"><i class="fa-solid fa-certificate"></i><p>No certificates found</p></div>`;
+    } else {
+      page.forEach(c=>{
+        const tc2=tc[c.certCategory]||tc[c.certType]||{bg:'#f5f6f7',color:'#6a6d70'};
+        html+=`<div class="cert-card">
+          <div class="cert-card__header">
+            <span class="cert-card__title" onclick="openCertDrawer('${c.id}')">${h(c.equipName)}</span>
+            ${getCertBadge(c.approvalStatus)}
           </div>
-        </td>
-        <td data-col="category"><span style="font-size:11px;">${h(c.category||'—')}</span></td>
-        <td data-col="certType"><span class="cert-type-chip" style="background:${tc2.bg};color:${tc2.color};">${h(c.certCategory||c.certType)}</span></td>
-        <td data-col="issuedBy" style="font-size:12px;">${h(c.issuer||'—')}</td>
-        <td data-col="expiry">
-          ${getCertExpiryBar(c)}
-          <div style="font-size:11px;color:var(--text-sec);margin-top:2px;">${c.expiryDate}</div>
-        </td>
-        <td data-col="issueDate" style="font-size:12px;">${c.issueDate||'—'}</td>
-        <td data-col="approval">${getCertBadge(c.approvalStatus)}${c.rejectionReason?`<div style="font-size:10px;color:var(--error);margin-top:2px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${h(c.rejectionReason)}">${h(c.rejectionReason)}</div>`:''}</td>
-        <td data-col="client"><span style="font-size:12px;font-weight:600;">${h(c.client||'—')}</span></td>
-        <td data-col="qr" style="text-align:center;">
-          <button class="qr-icon-btn" onclick="openCertQRModal('${c.id}')" title="View QR">
-            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-          </button>
-        </td>
-        <td data-col="fileLink">
-          ${c.fileName||c.pdfUrl?`<button class="cert-file-link" onclick="showToast('Opening ${c.fileName||'certificate'}','info')">
-            <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            ${h(c.fileName||'View')}
-          </button>`:`<span style="color:var(--text-sec);font-size:11px;">—</span>`}
-        </td>
-      </tr>`;
-    });
-    html+=`</tbody></table>`;
+          <div style="font-size:11px;color:var(--text-sec);margin-bottom:4px;"><span class="cert-id-chip">${h(c.id)}</span></div>
+          <div class="cert-card__details">
+            <div><strong>Type:</strong> <span style="color:${tc2.color};">${h(c.certCategory||c.certType)}</span></div>
+            <div><strong>Expiry:</strong> ${getCertExpiryBar(c)}</div>
+            <div><strong>Asset:</strong> ${h(c.assetTag||'—')}</div>
+            <div><strong>Client:</strong> ${h(c.client||'—')}</div>
+          </div>
+          <div class="cert-card__footer">
+            ${c.approvalStatus==='pending'?`<button class="btn btn-success btn-sm" onclick="approveCert('${c.id}')">Approve</button><button class="btn btn-danger btn-sm" onclick="openCertRejectModal('${c.id}')">Reject</button>`:''}
+            <button class="btn btn-ghost btn-sm" onclick="openCertDrawer('${c.id}')">View</button>
+          </div>
+        </div>`;
+      });
+    }
+    html+=`</div>`;
+
+    // Pagination
+    html+=`<div class="sap-pagination">
+      <div class="sap-pagination__info">Showing ${start+1}-${end} of ${total}</div>
+      <div class="sap-pagination__controls">${certRenderPagination(total)}</div>
+      <div class="sap-pagination__size">
+        <span>Rows:</span>
+        <select onchange="certSetPageSize(this.value)">
+          <option value="25" ${certPageSize===25?'selected':''}>25</option>
+          <option value="50" ${certPageSize===50?'selected':''}>50</option>
+          <option value="100" ${certPageSize===100?'selected':''}>100</option>
+        </select>
+      </div>
+    </div>`;
+
+    html+=`</div>`;
+  } else if(certEntityView==='clients'){
+    html+=renderCertClientsView();
+  } else if(certEntityView==='functionalLocations'){
+    html+=renderCertFLView();
+  } else if(certEntityView==='inspectors'){
+    html+=renderCertInspectorsView();
+  } else if(certEntityView==='jobs'){
+    html+=renderCertJobsView();
   }
 
   html+=`</div>`;
-
-  // Mobile cards
-  html+=`<div class="cert-cards-view" id="certCardsContainer" style="padding:12px;">`;
-  if(page.length===0){
-    html+=`<div class="empty-state"><i class="fa-solid fa-certificate"></i><p>No certificates found</p></div>`;
-  } else {
-    page.forEach(c=>{
-      const tc2=tc[c.certCategory]||tc[c.certType]||{bg:'#f5f6f7',color:'#6a6d70'};
-      html+=`<div class="cert-card">
-        <div class="cert-card__header">
-          <span class="cert-card__title" onclick="openCertDrawer('${c.id}')">${h(c.equipName)}</span>
-          ${getCertBadge(c.approvalStatus)}
-        </div>
-        <div style="font-size:11px;color:var(--text-sec);margin-bottom:4px;"><span class="cert-id-chip">${h(c.id)}</span></div>
-        <div class="cert-card__details">
-          <div><strong>Type:</strong> <span style="color:${tc2.color};">${h(c.certCategory||c.certType)}</span></div>
-          <div><strong>Expiry:</strong> ${getCertExpiryBar(c)}</div>
-          <div><strong>Asset:</strong> ${h(c.assetTag||'—')}</div>
-          <div><strong>Client:</strong> ${h(c.client||'—')}</div>
-        </div>
-        <div class="cert-card__footer">
-          ${c.approvalStatus==='pending'?`<button class="btn btn-success btn-sm" onclick="approveCert('${c.id}')">Approve</button><button class="btn btn-danger btn-sm" onclick="openCertRejectModal('${c.id}')">Reject</button>`:''}
-          <button class="btn btn-ghost btn-sm" onclick="openCertDrawer('${c.id}')">View</button>
-        </div>
-      </div>`;
-    });
-  }
-  html+=`</div>`;
-
-  // Pagination
-  html+=`<div class="sap-pagination">
-    <div class="sap-pagination__info">Showing ${start+1}-${end} of ${total}</div>
-    <div class="sap-pagination__controls">${certRenderPagination(total)}</div>
-    <div class="sap-pagination__size">
-      <span>Rows:</span>
-      <select onchange="certSetPageSize(this.value)">
-        <option value="25" ${certPageSize===25?'selected':''}>25</option>
-        <option value="50" ${certPageSize===50?'selected':''}>50</option>
-        <option value="100" ${certPageSize===100?'selected':''}>100</option>
-      </select>
-    </div>
-  </div>`;
-
-  html+=`</div></div>`;
   return html;
+}
+
+/* ── Entity view: Clients ── */
+function renderCertClientsView(){
+  const now=new Date().toISOString().split('T')[0];
+  let activeClients=DATA.accounts.filter(a=>a.status==='active');
+  if(state.currentInspectorId){
+    const ja=DATA.jobAssignments.filter(a=>a.inspectorId===state.currentInspectorId);
+    const activeJobIds=ja.map(a=>a.jobId);
+    const openJobs=DATA.jobs.filter(j=>activeJobIds.includes(j.id)&&j.status!=='closed');
+    const allowedClientIds=[...new Set(openJobs.map(j=>j.clientId).filter(Boolean))];
+    activeClients=activeClients.filter(c=>allowedClientIds.includes(c.id));
+  }
+  let html='<div class="cert-entity-grid" style="padding:16px;">';
+  activeClients.forEach(cl=>{
+    const fls=DATA.functionalLocations.filter(f=>f.clientId===cl.id);
+    const certs=DATA.certificates.filter(c=>c.clientId===cl.id);
+    html+=`<div class="cert-entity-card">
+      <div class="cert-entity-card__header" onclick="certClientFilter='${cl.id}';certEntityView='list';rerenderSection()" style="cursor:pointer;">
+        <div class="cert-entity-card__title">${h(cl.name)}</div>
+        <div class="cert-entity-card__meta">${cl.type||''} · ${cl.country||''}</div>
+      </div>
+      <div class="cert-entity-card__stats">
+        <span class="cert-entity-stat"><strong>${certs.length}</strong> certs</span>
+        <span class="cert-entity-stat"><strong>${fls.length}</strong> locations</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>getCertStatus(c)==='expired').length}</strong> expired</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>getCertStatus(c)==='expiring').length}</strong> expiring</span>
+      </div>
+      ${fls.length?`<div class="cert-entity-sublist"><div style="font-size:11px;font-weight:700;color:var(--text-sec);margin-bottom:4px;">FUNCTIONAL LOCATIONS</div>
+        ${fls.map(fl=>{
+          const flCerts=DATA.certificates.filter(c=>c.flId===fl.id);
+          return`<div class="cert-entity-subitem" onclick="certLocFilter='${fl.id}';certEntityView='list';rerenderSection()">
+            <span>${h(fl.name)}</span>
+            <span class="cert-entity-stat">${flCerts.length} certs</span>
+          </div>`;
+        }).join('')}</div>`:''}
+    </div>`;
+  });
+  html+='</div>';
+  return html;
+}
+
+/* ── Entity view: Functional Locations ── */
+function renderCertFLView(){
+  let fls=DATA.functionalLocations.filter(f=>f.status==='active');
+  if(state.currentInspectorId){
+    const ja=DATA.jobAssignments.filter(a=>a.inspectorId===state.currentInspectorId);
+    const activeJobIds=ja.map(a=>a.jobId);
+    const openJobs=DATA.jobs.filter(j=>activeJobIds.includes(j.id)&&j.status!=='closed');
+    const allowedFlIds=[...new Set(openJobs.map(j=>j.flId).filter(Boolean))];
+    fls=fls.filter(f=>allowedFlIds.includes(f.id));
+  }
+  let html='<div class="cert-entity-grid" style="padding:16px;">';
+  fls.forEach(fl=>{
+    const client=DATA.accounts.find(a=>a.id===fl.clientId);
+    const certs=DATA.certificates.filter(c=>c.flId===fl.id);
+    html+=`<div class="cert-entity-card">
+      <div class="cert-entity-card__header" onclick="certLocFilter='${fl.id}';certEntityView='list';rerenderSection()" style="cursor:pointer;">
+        <div class="cert-entity-card__title">${h(fl.name)}</div>
+        <div class="cert-entity-card__meta">${fl.type||''}${client?' · '+h(client.name):''}</div>
+      </div>
+      <div class="cert-entity-card__stats">
+        <span class="cert-entity-stat"><strong>${certs.length}</strong> certs</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>getCertStatus(c)==='expired').length}</strong> expired</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>getCertStatus(c)==='expiring').length}</strong> expiring</span>
+      </div>
+      ${certs.length?`<div style="margin-top:8px;"><div style="font-size:11px;font-weight:700;color:var(--text-sec);margin-bottom:4px;">CERTIFICATES (${certs.length})</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">${certs.slice(0,10).map(c=>`<span class="cert-type-chip" style="font-size:10px;padding:2px 6px;cursor:pointer;" onclick="certSetTab('all');certSavedView='all';certLocFilter='${fl.id}';certEntityView='list';rerenderSection()">${h(c.equipName)}</span>`).join('')}${certs.length>10?`<span style="font-size:10px;color:var(--text-sec);">+${certs.length-10} more</span>`:''}</div></div>`:''}
+    </div>`;
+  });
+  html+='</div>';
+  return html;
+}
+
+/* ── Entity view: Inspectors ── */
+function renderCertInspectorsView(){
+  const inspectors=DATA.inspectors.filter(i=>i.status==='active');
+  let html='<div class="cert-entity-grid" style="padding:16px;">';
+  inspectors.forEach(ins=>{
+    const certs=DATA.certificates.filter(c=>c.inspectorId===ins.id);
+    html+=`<div class="cert-entity-card">
+      <div class="cert-entity-card__header" onclick="certInspectorFilter='${ins.id}';certEntityView='list';rerenderSection()" style="cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:10px;height:10px;border-radius:50%;background:${ins.color||'#6a6d70'};flex-shrink:0;"></span>
+          <div class="cert-entity-card__title">${h(ins.name)}</div>
+        </div>
+        <div class="cert-entity-card__meta">${ins.title||''}</div>
+      </div>
+      <div class="cert-entity-card__stats">
+        <span class="cert-entity-stat"><strong>${certs.length}</strong> certs</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>getCertStatus(c)==='expired').length}</strong> expired</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>getCertStatus(c)==='expiring').length}</strong> expiring</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>c.approvalStatus==='pending').length}</strong> pending</span>
+      </div>
+      ${ins.email?`<div style="font-size:12px;color:var(--text-sec);margin-top:4px;"><i class="fa-regular fa-envelope"></i> ${h(ins.email)}</div>`:''}
+      ${certs.length?`<div style="margin-top:8px;"><div style="font-size:11px;font-weight:700;color:var(--text-sec);margin-bottom:4px;">CERTIFICATES (${certs.length})</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">${certs.slice(0,8).map(c=>`<span class="cert-type-chip" style="font-size:10px;padding:2px 6px;cursor:pointer;" onclick="certInspectorFilter='${ins.id}';certEntityView='list';rerenderSection()">${h(c.equipName)}</span>`).join('')}${certs.length>8?`<span style="font-size:10px;color:var(--text-sec);">+${certs.length-8} more</span>`:''}</div></div>`:''}
+    </div>`;
+  });
+  html+='</div>';
+  return html;
+}
+
+/* ── Entity view: Jobs (Work Orders) ── */
+function getJobsForCurrentUser(){
+  if(state.currentInspectorId){
+    const assignedJobIds=DATA.jobAssignments.filter(ja=>ja.inspectorId===state.currentInspectorId).map(ja=>ja.jobId);
+    return DATA.jobs.filter(j=>assignedJobIds.includes(j.id));
+  }
+  return DATA.jobs;
+}
+
+function renderCertJobsView(){
+  const jobs=getJobsForCurrentUser();
+  const statusColors={open:'#0070f2',in_progress:'#e76500',completed:'#188918',closed:'#6a6d70'};
+  let html='<div class="cert-entity-grid" style="padding:16px;">';
+  jobs.forEach(job=>{
+    const client=DATA.accounts.find(a=>a.id===job.clientId);
+    const fl=DATA.functionalLocations.find(f=>f.id===job.flId);
+    const inspectors=DATA.jobAssignments.filter(ja=>ja.jobId===job.id).map(ja=>DATA.inspectors.find(i=>i.id===ja.inspectorId)).filter(Boolean);
+    const certs=DATA.certificates.filter(c=>c.jobId===job.id);
+    const isClosed=job.status==='closed';
+    html+=`<div class="cert-entity-card" style="${isClosed?'opacity:.5;':''}">
+      <div class="cert-entity-card__header" onclick="${isClosed?'':`certJobFilter='${job.id}';certEntityView='list';rerenderSection()`}" style="cursor:${isClosed?'default':'pointer'};">
+        <div class="cert-entity-card__title">${h(job.title)}</div>
+        <div class="cert-entity-card__meta">${client?h(client.name):'—'}${fl?' · '+h(fl.name):''}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+        <span class="job-status-badge" style="background:${(statusColors[job.status]||'#6a6d70')}22;color:${statusColors[job.status]||'#6a6d70'};border:1px solid ${(statusColors[job.status]||'#6a6d70')}44;">${job.status.replace('_',' ')}</span>
+        <span class="cert-entity-stat"><strong>${certs.length}</strong> certs</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>getCertStatus(c)==='expired').length}</strong> expired</span>
+        ${state.currentUserRole!=='Inspector'&&!isClosed?`<button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:10px;padding:2px 6px;" onclick="event.stopPropagation();cycleJobStatus('${job.id}')">Cycle ▾</button>`:''}
+      </div>
+      ${inspectors.length?`<div style="font-size:11px;color:var(--text-sec);margin-bottom:4px;">Assigned: ${inspectors.map(i=>`<span class="inspector-dot" style="background:${i.color||'#6a6d70'};display:inline-block;width:8px;height:8px;border-radius:50%;"></span> ${h(i.name)}`).join(', ')}</div>`:''}
+      ${job.description?`<div style="font-size:12px;color:var(--text-sec);margin-top:4px;">${h(job.description)}</div>`:''}
+      ${isClosed?`<div style="font-size:11px;color:var(--text-sec);margin-top:4px;">Closed: ${job.closedAt||'—'}</div>`:''}
+      ${!isClosed&&certs.length?`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);"><div style="display:flex;flex-wrap:wrap;gap:4px;">${certs.slice(0,6).map(c=>`<span class="cert-type-chip" style="font-size:10px;padding:2px 6px;cursor:pointer;" onclick="certJobFilter='${job.id}';certEntityView='list';rerenderSection()">${h(c.equipName)}</span>`).join('')}${certs.length>6?`<span style="font-size:10px;color:var(--text-sec);">+${certs.length-6} more</span>`:''}</div></div>`:''}
+    </div>`;
+  });
+  html+=`${jobs.length===0?'<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-sec);font-size:14px;">No jobs assigned.</div>':''}`;
+  html+='</div>';
+  return html;
+}
+
+function cycleJobStatus(jobId){
+  const job=DATA.jobs.find(j=>j.id===jobId);
+  if(!job)return;
+  const order=['open','in_progress','completed','closed'];
+  const idx=order.indexOf(job.status);
+  const next=order[(idx+1)%order.length];
+  job.status=next;
+  if(next==='completed')job.completedAt=new Date().toISOString().split('T')[0];
+  if(next==='closed')job.closedAt=new Date().toISOString().split('T')[0];
+  rerenderSection();
 }
 
 /* ── Certificate list helpers ── */
@@ -1723,7 +1960,60 @@ function certSetPageSize(s){
 
 function certSetTab(tab){
   certSavedView=tab;
+  certEntityView='list';
+  certClientFilter='all';
+  certLocFilter='all';
+  certTypeFilter='all';
+  certInspectorFilter='all';
+  certJobFilter='all';
   state.filters.search='';
+  certCurrentPage=1;
+  rerenderSection();
+}
+
+function certSetEntityView(view){
+  certEntityView=view;
+  if(view!=='list'){
+    certClientFilter='all';
+    certLocFilter='all';
+    certTypeFilter='all';
+    certInspectorFilter='all';
+    certJobFilter='all';
+  }
+  state.filters.search='';
+  certCurrentPage=1;
+  rerenderSection();
+}
+
+function certSetFilter(type, value){
+  if(type==='client') certClientFilter=value;
+  else if(type==='loc') certLocFilter=value;
+  else if(type==='type') certTypeFilter=value;
+  else if(type==='inspector') certInspectorFilter=value;
+  else if(type==='job') certJobFilter=value;
+  rerenderSection();
+}
+
+function certLoginInspector(inspectorId){
+  state.currentInspectorId=inspectorId;
+  state.currentUserRole='Inspector';
+  state.module='certificates';
+  state.section='allCerts';
+  certJobFilter='all';
+  certEntityView='list';
+  certSavedView='all';
+  certCurrentPage=1;
+  rerenderSection();
+}
+
+function certLogoutInspector(){
+  state.currentInspectorId=null;
+  state.currentUserRole='Admin';
+  state.module='certificates';
+  state.section='allCerts';
+  certJobFilter='all';
+  certEntityView='list';
+  certSavedView='all';
   certCurrentPage=1;
   rerenderSection();
 }
@@ -2262,20 +2552,29 @@ function certFillSite(){
   siteInp.value=opt&&opt.text?opt.text.split(' (')[0]:'';
 }
 
-function openNewCertModal(){
-  const clientOpts=DATA.accounts.filter(a=>a.status==='active').map(a=>`<option value="${a.id}">${h(a.name)}</option>`).join('');
-  const flOpts=DATA.functionalLocations.filter(f=>f.status==='active').map(f=>`<option value="${f.id}" data-client="${f.clientId||''}">${h(f.name)} (${f.flId})</option>`).join('');
-  const inspOpts=DATA.inspectors.filter(i=>i.status==='active').map(i=>`<option value="${i.id}">${h(i.name)} – ${h(i.title)}</option>`).join('');
+function openNewCertModal(jobId){
+  const job=jobId?DATA.jobs.find(j=>j.id===jobId):null;
+  const preClientId=job?job.clientId:'';
+  const preFlId=job?job.flId:'';
+  const preInspectorId=job?(()=>{
+    const ja=DATA.jobAssignments.find(a=>a.jobId===jobId);
+    return ja?ja.inspectorId:'';
+  })():'';
+  const preSite=job?(()=>{const fl=DATA.functionalLocations.find(f=>f.id===job.flId);return fl?fl.name:'';})():'';
+  const clientOpts=DATA.accounts.filter(a=>a.status==='active').map(a=>`<option value="${a.id}" ${preClientId===a.id?'selected':''}>${h(a.name)}</option>`).join('');
+  const flOpts=DATA.functionalLocations.filter(f=>f.status==='active').map(f=>`<option value="${f.id}" data-client="${f.clientId||''}" ${preFlId===f.id?'selected':''}>${h(f.name)} (${f.flId})</option>`).join('');
+  const inspOpts=DATA.inspectors.filter(i=>i.status==='active').map(i=>`<option value="${i.id}" ${preInspectorId===i.id?'selected':''}>${h(i.name)} – ${h(i.title)}</option>`).join('');
+  const disabled=job?'disabled':'';
   const body=`
     <div class="form-row">
       <div class="form-group"><label class="form-label">Client <span style="color:var(--error)">*</span></label>
-        <select class="form-select" id="nc-client" onchange="certFilterFL(this.value)" style="font-weight:600;">
+        <select class="form-select" id="nc-client" onchange="certFilterFL(this.value)" style="font-weight:600;" ${disabled}>
           <option value="">— Select Client —</option>
           ${clientOpts}
         </select>
       </div>
       <div class="form-group"><label class="form-label">Functional Location</label>
-        <select class="form-select" id="nc-fl" onchange="certFillSite()">
+        <select class="form-select" id="nc-fl" onchange="certFillSite()" ${disabled}>
           <option value="">— Select Location —</option>
           ${flOpts}
         </select>
@@ -2283,13 +2582,14 @@ function openNewCertModal(){
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Inspector</label>
-        <select class="form-select" id="nc-inspector">
+        <select class="form-select" id="nc-inspector" ${disabled}>
           <option value="">— Select Inspector —</option>
           ${inspOpts}
         </select>
       </div>
-      <div class="form-group"><label class="form-label">Site / Location (text)</label><input class="form-input" id="nc-site" placeholder="Auto-filled from FL, or type manually"></div>
+      <div class="form-group"><label class="form-label">Site / Location (text)</label><input class="form-input" id="nc-site" placeholder="Auto-filled from FL, or type manually" value="${h(preSite)}"></div>
     </div>
+    ${job?`<input type="hidden" id="nc-jobId" value="${job.id}">`:''}
     <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
     <div class="form-row">
       <div class="form-group"><label class="form-label">Equipment Name</label><input class="form-input" id="nc-name" placeholder="e.g. HP Centrifugal Pump – P-201"></div>
@@ -2319,7 +2619,7 @@ function openNewCertModal(){
       <div class="form-group"><label class="form-label">Issuing Authority</label><input class="form-input" id="nc-issuer" placeholder="e.g. Bureau Veritas, DNV, SGS"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Job Number</label><input class="form-input" id="nc-job" placeholder="e.g. JOB-2025-001"></div>
+      <div class="form-group"><label class="form-label">Job Number</label><input class="form-input" id="nc-job" placeholder="e.g. JOB-2025-001" value="${job?h(job.title):''}"></div>
       <div class="form-group"><label class="form-label">Certificate Type</label><input class="form-input" id="nc-type" placeholder="e.g. API 510, LOLER, IEC 60079"></div>
     </div>
     <div class="form-row">
@@ -2363,10 +2663,13 @@ async function submitNewCert(){
   const inspObj=inspectorId?DATA.inspectors.find(i=>i.id===inspectorId):null;
   const site=$('#nc-site').value||(flObj?flObj.name:'');
 
+  const jobId=$('#nc-jobId')?.value||null;
+  const nowISO=new Date().toISOString();
   const cert={
     id:newId,equipName:name,assetTag:$('#nc-tag').value,category:$('#nc-cat').value,
     certCategory,liftingSubtype,
-    clientId,flId,inspectorId,
+    clientId,flId,inspectorId, jobId,
+    uploadedAt:nowISO, uploadedBy:state.currentInspectorId||inspectorId,
     client:clientObj?clientObj.name:'',site,certType:$('#nc-type').value,
     issuer:$('#nc-issuer').value,issueDate:$('#nc-issue').value,
     expiryDate:expiry,daysRemaining:days,status,
@@ -2375,7 +2678,7 @@ async function submitNewCert(){
     jobNumber:$('#nc-job').value,remarks:$('#nc-remarks').value
   };
   if(supabase){
-    const{error}=await supabase.from('certificates').insert({id:newId,employee_id:null,cert_type:cert.certType,expiry_date:expiry,status,client_id:clientId,fl_id:flId,inspector_id:inspectorId});
+    const{error}=await supabase.from('certificates').insert({id:newId,employee_id:null,cert_type:cert.certType,expiry_date:expiry,status,client_id:clientId,fl_id:flId,inspector_id:inspectorId,job_id:jobId});
     if(error){showToast('Error saving certificate','error');return;}
   }
   DATA.certificates.push(cert);
@@ -4114,13 +4417,16 @@ $('#notifBtn').addEventListener('click',e=>{
 $('#userBtn').addEventListener('click',e=>{
   e.stopPropagation();
   if(activeDropdown===$('#userBtn')){ closeDropdown(); return; }
-  const roles=['System Admin','HR Manager','HSE / Inspection Engineer','Procurement Officer','Executive / C-Level'];
+  const roles=['System Admin','HR Manager','Procurement Officer','Executive / C-Level'];
+  const inspOpts=DATA.inspectors.filter(i=>i.status==='active').map(i=>`<option value="${i.id}">${h(i.name)} – ${h(i.title)}</option>`).join('');
   let html=`<div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
     <div class="avatar" style="width:40px;height:40px;font-size:14px;background:var(--blue)">KA</div>
     <div><div style="font-size:14px;font-weight:600;">Khalid Al-Rashidi</div><div style="font-size:12px;color:var(--text-sec);">k.alrashidi@amici.com</div></div>
   </div>
   <div class="dropdown-header" style="font-size:11px;padding:8px 14px 4px;">Switch Role (Demo)</div>
   ${roles.map(r=>`<button type="button" class="dropdown-item" data-action="select-role" data-role="${r}" style="width:100%;border:none;background:transparent;"><i class="fa-solid fa-user-tag"></i>${r}</button>`).join('')}
+  <div class="dropdown-header" style="font-size:11px;padding:4px 14px 4px;border-top:1px solid var(--border);margin-top:4px;">Inspector Mode</div>
+  <div style="padding:4px 10px 8px;display:flex;gap:4px;"><select id="inspectorLoginSelect" style="flex:1;height:28px;border:1px solid var(--border);border-radius:4px;font-size:12px;padding:0 6px;"><option value="">Select inspector...</option>${inspOpts}</select><button class="btn btn-primary btn-sm" onclick="certLoginInspector(document.getElementById('inspectorLoginSelect').value);closeDropdown();">Login</button></div>
   <div style="border-top:1px solid var(--border);"><button type="button" class="dropdown-item" style="color:var(--error);width:100%;border:none;background:transparent;" data-action="sign-out"><i class="fa-solid fa-right-from-bracket" style="color:var(--error);"></i>Sign Out</button></div>`;
   openDropdown($('#userBtn'),html);
 });
@@ -7220,6 +7526,13 @@ window.closeCertDrawer = closeCertDrawer;
 window.openCertQRModal = openCertQRModal;
 window.closeCertQRModal = closeCertQRModal;
 window.openEditCertModal = openEditCertModal;
+window.certSetTab = certSetTab;
+window.certSetEntityView = certSetEntityView;
+window.certSetFilter = certSetFilter;
+window.certLoginInspector = certLoginInspector;
+window.certLogoutInspector = certLogoutInspector;
+window.cycleJobStatus = cycleJobStatus;
+window.rerenderSection = rerenderSection;
 window.setCertSavedView = setCertSavedView;
 window.certSortTable = certSortTable;
 window.certToggleColDropdown = certToggleColDropdown;

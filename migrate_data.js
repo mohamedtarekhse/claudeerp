@@ -201,17 +201,56 @@ async function runMigration() {
     }
   }
 
-  // 6. Certificates
+  // 6. Functional Locations
+  if (DATA.functionalLocations) {
+    console.log(`Migrating ${DATA.functionalLocations.length} functional locations...`);
+    for (const fl of DATA.functionalLocations) {
+      const { error } = await supabase.from('functional_locations').upsert({
+        id: fl.id,
+        fl_id: fl.flId,
+        name: fl.name,
+        type: fl.type,
+        client_id: fl.clientId,
+        status: fl.status
+      });
+      if (error) console.error(`Failed to insert FL ${fl.id}:`, error);
+    }
+  }
+
+  // 7. Inspectors
+  if (DATA.inspectors) {
+    console.log(`Migrating ${DATA.inspectors.length} inspectors...`);
+    for (const insp of DATA.inspectors) {
+      const { error } = await supabase.from('inspectors').upsert({
+        id: insp.id,
+        inspector_number: insp.inspectorNumber,
+        employee_id: insp.employeeId,
+        name: insp.name,
+        title: insp.title,
+        email: insp.email,
+        phone: insp.phone,
+        status: insp.status,
+        color: insp.color
+      });
+      if (error) console.error(`Failed to insert inspector ${insp.id}:`, error);
+    }
+  }
+
+  // 8. Certificates (with FK columns)
   if (DATA.certificates) {
-    console.log(`Migrating ${DATA.certificates.length} standalone certificates...`);
+    console.log(`Migrating ${DATA.certificates.length} certificates...`);
     for (const cert of DATA.certificates) {
       const { error } = await supabase.from('certificates').insert({
-        employee_id: cert.empId,
-        cert_type: cert.type,
-        expiry_date: cert.expiry,
-        status: cert.status
+        id: cert.id,
+        employee_id: cert.empId || null,
+        cert_type: cert.certType || cert.type,
+        expiry_date: cert.expiryDate || cert.expiry,
+        status: cert.status,
+        client_id: cert.clientId,
+        fl_id: cert.flId,
+        inspector_id: cert.inspectorId
       });
-      if (error) console.error(`Failed to insert Certificate:`, error);
+      if (error) console.error(`Failed to insert Certificate ${cert.id}:`, error);
     }
   }
 

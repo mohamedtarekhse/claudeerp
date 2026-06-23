@@ -982,8 +982,36 @@ DATA.allOpps = DATA.accounts.flatMap(a=>a.opps||[]).map(o=>{
     c.approvalStatus  = c.approvalStatus  || 'approved';
     c.client          = c.client          || {'Block 15 – Rig Alpha':'ADNOC','Block 7 – Offshore Platform':'ADNOC','Onshore Processing Facility – South':'ADNOC','Gas Treatment Plant – North':'OCC','Head Office – Muscat':'AMICI','Block 3 – Exploration Camp':'OCC'}[c.site]||'ADNOC';
     c.fileName        = c.fileName        || c.pdfUrl || '';
+    /* ── FK relationship fields (null for legacy seed data) ── */
+    c.clientId = null;
+    c.flId = null;
+    c.inspectorId = null;
   });
 })();
+
+/* ── Functional Locations (client-scoped, Rigways style) ── */
+DATA.functionalLocations = [
+  {id:'FL-001',flId:'FL-OQ-RG01',name:'Rig Alpha',type:'Rig',clientId:'ACC-001',status:'active'},
+  {id:'FL-002',flId:'FL-OQ-PF01',name:'Onshore Processing Facility – South',type:'Workshop',clientId:'ACC-001',status:'active'},
+  {id:'FL-003',flId:'FL-OQ-WH01',name:'Warehouse A – South',type:'Warehouse',clientId:'ACC-001',status:'active'},
+  {id:'FL-004',flId:'FL-TE-EC01',name:'Exploration Camp Block 6',type:'Yard',clientId:'ACC-002',status:'active'},
+  {id:'FL-005',flId:'FL-TE-WS01',name:'Workshop – Block 6',type:'Workshop',clientId:'ACC-002',status:'active'},
+  {id:'FL-006',flId:'FL-BP-RG01',name:'Block 61 Rig',type:'Rig',clientId:'ACC-003',status:'active'},
+  {id:'FL-007',flId:'FL-BP-YD01',name:'Block 61 Yard',type:'Yard',clientId:'ACC-003',status:'active'},
+  {id:'FL-008',flId:'FL-PDO-FC01',name:'South Oman Facility',type:'Workshop',clientId:'ACC-004',status:'active'},
+  {id:'FL-009',flId:'FL-SH-LF01',name:'Block 10 Platform',type:'Rig',clientId:'ACC-005',status:'active'},
+  {id:'FL-010',flId:'FL-CNO-OC01',name:'Block 7 Platform',type:'Rig',clientId:'ACC-009',status:'active'},
+  {id:'FL-011',flId:'FL-HO-001',name:'Head Office – Muscat',type:'Other',clientId:null,status:'active'},
+  {id:'FL-012',flId:'FL-CW-001',name:'Central Warehouse – Muscat',type:'Warehouse',clientId:null,status:'active'},
+];
+
+/* ── Inspectors (Rigways-style, separate entity linked to employees) ── */
+DATA.inspectors = [
+  {id:'INS-001',inspectorNumber:'INS-001',employeeId:'EMP-003',name:'Ahmed Hassan',title:'Senior HSE Inspector',email:'a.hassan@amici.com',phone:'+968 9100 1003',status:'active',color:'#e53935'},
+  {id:'INS-002',inspectorNumber:'INS-002',employeeId:'EMP-007',name:'Tariq Mubarak',title:'Mechanical Inspector',email:'t.mubarak@amici.com',phone:'+968 9100 1007',status:'active',color:'#1e88e5'},
+  {id:'INS-003',inspectorNumber:'INS-003',employeeId:'EMP-012',name:'Ibrahim Qasim',title:'Senior Maintenance Inspector',email:'i.qasim@amici.com',phone:'+968 9100 1012',status:'active',color:'#43a047'},
+  {id:'INS-004',inspectorNumber:'INS-004',employeeId:'EMP-014',name:'Saud Al-Otaibi',title:'Instrument & Control Inspector',email:'s.alotaibi@amici.com',phone:'+968 9100 1014',status:'active',color:'#fb8c00'},
+];
 
 /* ═══════════════════════════════════════════════
    CRM i18n additions
@@ -1279,8 +1307,8 @@ async function submitNewAccount(){
 ═══════════════════════════════════════════════ */
 function renderCertSidebar(){
   const certs=DATA.certificates;
-  const expired=certs.filter(c=>c.status==='expired').length;
-  const expiring=certs.filter(c=>c.status==='expiring').length;
+  const expired=certs.filter(c=>getCertStatus(c)==='expired').length;
+  const expiring=certs.filter(c=>getCertStatus(c)==='expiring').length;
   const pending=certs.filter(c=>c.approvalStatus==='pending').length;
   const cats=['Rotating','Static','Lifting','Electrical','Pressure','Fire & Safety','Instrumentation','Vehicles'];
   const catIcons={'Rotating':'fa-rotate','Static':'fa-industry','Lifting':'fa-weight-hanging','Electrical':'fa-bolt','Pressure':'fa-gauge-high','Fire & Safety':'fa-fire-extinguisher','Instrumentation':'fa-sliders','Vehicles':'fa-truck'};
@@ -1320,11 +1348,11 @@ function renderCertSidebar(){
 function renderCertKPIs(){
   const certs=DATA.certificates;
   const total=certs.length;
-  const valid=certs.filter(c=>c.status==='valid').length;
-  const expiring=certs.filter(c=>c.status==='expiring').length;
-  const expired=certs.filter(c=>c.status==='expired').length;
+  const valid=certs.filter(c=>getCertStatus(c)==='valid').length;
+  const expiring=certs.filter(c=>getCertStatus(c)==='expiring').length;
+  const expired=certs.filter(c=>getCertStatus(c)==='expired').length;
   const pending=certs.filter(c=>c.approvalStatus==='pending').length;
-  const compliance=Math.round((valid+certs.filter(c=>c.status==='renewal').length)/total*100);
+  const compliance=Math.round(valid/total*100);
   return `<div class="kpi-grid">
     <div class="kpi-card"><span class="kpi-label">${t('totalCerts')}</span><span class="kpi-value">${total}</span><span class="kpi-change" style="color:var(--text-sec)"><i class="fa-solid fa-certificate"></i> Registered</span></div>
     <div class="kpi-card green"><span class="kpi-label">${t('validCerts')}</span><span class="kpi-value">${valid}</span><span class="kpi-change kpi-up"><i class="fa-solid fa-check-circle"></i> In compliance</span></div>
@@ -1670,9 +1698,8 @@ function setCertSavedView(view){
 }
 
 function certSortTable(col){
-  certSortCol=col===certSortCol?certSortCol:col;
-  certSortDir=col===certSortCol?certSortDir*-1:1;
-  certSortCol=col;
+  if(col===certSortCol){certSortDir*=-1;}
+  else{certSortCol=col;certSortDir=1;}
   rerenderSection();
 }
 
@@ -2009,11 +2036,11 @@ function renderCertNotifications(){
     <div class="sec-card-body">
       <div style="font-size:13px;color:var(--text-sec);margin-bottom:8px;">The following certificates require attention:</div>
       <div style="display:flex;flex-direction:column;gap:6px;">
-        ${DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring').map(c=>`
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:${c.status==='expired'?'#fbe9e7':'#fff8e1'};border-radius:4px;font-size:12px;">
+        ${DATA.certificates.filter(c=>{const s=getCertStatus(c);return s==='expired'||s==='expiring';}).map(c=>{const s=getCertStatus(c);const d=getCertDays(c);return`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:${s==='expired'?'#fbe9e7':'#fff8e1'};border-radius:4px;font-size:12px;">
             <span><strong>${c.equipName}</strong> — ${c.certType}</span>
-            <span style="color:${c.status==='expired'?'var(--error)':'var(--warning)'};font-weight:700;">${c.status==='expired'?'Expired '+Math.abs(c.daysRemaining)+'d ago':c.daysRemaining+'d left'}</span>
-          </div>`).join('')}
+            <span style="color:${s==='expired'?'var(--error)':'var(--warning)'};font-weight:700;">${s==='expired'?'Expired '+Math.abs(d)+'d ago':d+'d left'}</span>
+          </div>`;}).join('')}
       </div>
     </div></div>
   </div>`;
@@ -2135,8 +2162,9 @@ function renderCertGantt(){
       </div>`;
     for(let mi=0; mi<months.length; mi++){
       if(mi===expMonthIdx){
-        const barCol = c.status==='expired'?'var(--error)':c.status==='expiring'?'var(--warning)':c.status==='renewal'?'var(--purple)':'var(--success)';
-        const barW = c.status==='expired'?Math.max(20,Math.min(95,Math.abs(c.daysRemaining)/30*100)):90;
+        const gs=getCertStatus(c);const gd=getCertDays(c);
+        const barCol = gs==='expired'?'var(--error)':gs==='expiring'?'var(--warning)':'var(--success)';
+        const barW = gs==='expired'?Math.max(20,Math.min(95,Math.abs(gd)/30*100)):90;
         html+=`<div style="position:relative;height:20px;display:flex;align-items:center;justify-content:center;">
           <div style="width:${barW}%;height:14px;background:${barCol};border-radius:3px;opacity:0.85;" title="${tip}"></div>
         </div>`;
@@ -2174,8 +2202,57 @@ function renderCertGantt(){
 /* ═══════════════════════════════════════════════
    NEW CERTIFICATE MODAL
 ═══════════════════════════════════════════════ */
+function certFilterFL(clientId){
+  const flSel=document.getElementById('nc-fl');
+  const siteInp=document.getElementById('nc-site');
+  if(!flSel)return;
+  Array.from(flSel.options).forEach(o=>{
+    o.style.display=(!clientId||o.dataset.client===clientId||!o.value)?'':'none';
+  });
+  if(clientId && !flSel.value){
+    const first=Array.from(flSel.options).find(o=>o.value&&o.style.display!=='none');
+    if(first){flSel.value=first.value;flSel.dispatchEvent(new Event('change'));}
+  }
+  if(!clientId){flSel.value='';siteInp.value='';}
+}
+
+function certFillSite(){
+  const flSel=document.getElementById('nc-fl');
+  const siteInp=document.getElementById('nc-site');
+  if(!flSel||!siteInp)return;
+  const opt=flSel.options[flSel.selectedIndex];
+  siteInp.value=opt&&opt.text?opt.text.split(' (')[0]:'';
+}
+
 function openNewCertModal(){
+  const clientOpts=DATA.accounts.filter(a=>a.status==='active').map(a=>`<option value="${a.id}">${h(a.name)}</option>`).join('');
+  const flOpts=DATA.functionalLocations.filter(f=>f.status==='active').map(f=>`<option value="${f.id}" data-client="${f.clientId||''}">${h(f.name)} (${f.flId})</option>`).join('');
+  const inspOpts=DATA.inspectors.filter(i=>i.status==='active').map(i=>`<option value="${i.id}">${h(i.name)} – ${h(i.title)}</option>`).join('');
   const body=`
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Client <span style="color:var(--error)">*</span></label>
+        <select class="form-select" id="nc-client" onchange="certFilterFL(this.value)" style="font-weight:600;">
+          <option value="">— Select Client —</option>
+          ${clientOpts}
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Functional Location</label>
+        <select class="form-select" id="nc-fl" onchange="certFillSite()">
+          <option value="">— Select Location —</option>
+          ${flOpts}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Inspector</label>
+        <select class="form-select" id="nc-inspector">
+          <option value="">— Select Inspector —</option>
+          ${inspOpts}
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Site / Location (text)</label><input class="form-input" id="nc-site" placeholder="Auto-filled from FL, or type manually"></div>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
     <div class="form-row">
       <div class="form-group"><label class="form-label">Equipment Name</label><input class="form-input" id="nc-name" placeholder="e.g. HP Centrifugal Pump – P-201"></div>
       <div class="form-group"><label class="form-label">Asset Tag / No.</label><input class="form-input" id="nc-tag" placeholder="e.g. ROT-P201"></div>
@@ -2197,16 +2274,6 @@ function openNewCertModal(){
       </div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Site / Location</label>
-        <select class="form-select" id="nc-site"><option>Block 15 – Rig Alpha</option><option>Block 7 – Offshore Platform</option><option>Onshore Processing Facility – South</option><option>Gas Treatment Plant – North</option><option>Head Office – Muscat</option><option>Block 3 – Exploration Camp</option></select>
-      </div>
-      <div class="form-group"><label class="form-label">Client</label><input class="form-input" id="nc-client" placeholder="e.g. ADNOC, OCC"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Job Number</label><input class="form-input" id="nc-job" placeholder="e.g. JOB-2025-001"></div>
-      <div class="form-group"><label class="form-label">Certificate Type</label><input class="form-input" id="nc-type" placeholder="e.g. API 510, LOLER, IEC 60079"></div>
-    </div>
-    <div class="form-row">
       <div class="form-group" id="nc-liftSubtype" style="display:none;">
         <label class="form-label">Lifting Subtype</label>
         <select class="form-select" id="nc-liftType"><option>LIFTING GEAR</option><option>LIFTING PERSONNEL</option><option>LIFTING EQUIPMENT</option></select>
@@ -2214,15 +2281,16 @@ function openNewCertModal(){
       <div class="form-group"><label class="form-label">Issuing Authority</label><input class="form-input" id="nc-issuer" placeholder="e.g. Bureau Veritas, DNV, SGS"></div>
     </div>
     <div class="form-row">
+      <div class="form-group"><label class="form-label">Job Number</label><input class="form-input" id="nc-job" placeholder="e.g. JOB-2025-001"></div>
+      <div class="form-group"><label class="form-label">Certificate Type</label><input class="form-input" id="nc-type" placeholder="e.g. API 510, LOLER, IEC 60079"></div>
+    </div>
+    <div class="form-row">
       <div class="form-group"><label class="form-label">Issue Date</label><input class="form-input" id="nc-issue" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
       <div class="form-group"><label class="form-label">Expiry Date</label><input class="form-input" id="nc-expiry" type="date"></div>
-      <div class="form-group"><label class="form-label">Upload Certificate (PDF)</label>
+      <div class="form-group"><label class="form-label">Upload PDF</label>
       <input class="form-input" id="nc-file" type="file" accept=".pdf"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Responsible Engineer</label>
-        <select class="form-select" id="nc-eng">${DATA.employees.filter(e=>e.dept==='HSE'||e.dept==='Maintenance'||e.dept==='Instrumentation').map(e=>`<option>${e.name}</option>`).join('')}</select>
-      </div>
       <div class="form-group"><label class="form-label">Upload PDF (filename)</label><input class="form-input" id="nc-pdf" placeholder="cert_filename.pdf" type="text"></div>
     </div>
     <div class="form-group"><label class="form-label">Remarks</label><textarea class="form-textarea" id="nc-remarks" placeholder="Inspector notes, findings, next actions..."></textarea></div>`;
@@ -2248,9 +2316,28 @@ async function submitNewCert(){
     showToast('File securely uploaded to Supabase Storage Bucket', 'success');
   }
 
-  const cert={id:newId,equipName:name,assetTag:$('#nc-tag').value,category:$('#nc-cat').value,certCategory, liftingSubtype,client:$('#nc-client').value,jobNumber:$('#nc-job').value,site:$('#nc-site').value,certType:$('#nc-type').value,issuer:$('#nc-issuer').value,issueDate:$('#nc-issue').value,expiryDate:expiry,daysRemaining:days,status,approvalStatus:'pending',engineer:$('#nc-eng').value,fileName:uploadedPdfUrl,pdfUrl:uploadedPdfUrl,remarks:$('#nc-remarks').value};
+  // FK lookups
+  const clientId=$('#nc-client').value||null;
+  const flId=$('#nc-fl').value||null;
+  const inspectorId=$('#nc-inspector').value||null;
+  const clientObj=clientId?DATA.accounts.find(a=>a.id===clientId):null;
+  const flObj=flId?DATA.functionalLocations.find(f=>f.id===flId):null;
+  const inspObj=inspectorId?DATA.inspectors.find(i=>i.id===inspectorId):null;
+  const site=$('#nc-site').value||(flObj?flObj.name:'');
+
+  const cert={
+    id:newId,equipName:name,assetTag:$('#nc-tag').value,category:$('#nc-cat').value,
+    certCategory,liftingSubtype,
+    clientId,flId,inspectorId,
+    client:clientObj?clientObj.name:'',site,certType:$('#nc-type').value,
+    issuer:$('#nc-issuer').value,issueDate:$('#nc-issue').value,
+    expiryDate:expiry,daysRemaining:days,status,
+    approvalStatus:'pending',engineer:inspObj?inspObj.name:'',
+    fileName:uploadedPdfUrl,pdfUrl:uploadedPdfUrl,
+    jobNumber:$('#nc-job').value,remarks:$('#nc-remarks').value
+  };
   if(supabase){
-    const{error}=await supabase.from('certificates').insert({id:newId,employee_id:null,cert_type:cert.certType,expiry_date:expiry,status});
+    const{error}=await supabase.from('certificates').insert({id:newId,employee_id:null,cert_type:cert.certType,expiry_date:expiry,status,client_id:clientId,fl_id:flId,inspector_id:inspectorId});
     if(error){showToast('Error saving certificate','error');return;}
   }
   DATA.certificates.push(cert);
@@ -3895,8 +3982,8 @@ function renderContent(){
     if(state.section==='allCerts') html=renderCertificates();
     else if(state.section==='certGantt') html=renderCertGantt();
     else if(state.section==='certNotifications') html=renderCertNotifications();
-    else if(state.section==='expiredCerts') html=renderCertificates(c=>c.status==='expired');
-    else if(state.section==='expiringSoon') html=renderCertificates(c=>c.status==='expiring');
+    else if(state.section==='expiredCerts') html=renderCertificates(c=>getCertStatus(c)==='expired');
+    else if(state.section==='expiringSoon') html=renderCertificates(c=>getCertStatus(c)==='expiring');
     else if(state.section==='pendingApproval') html=renderCertificates(c=>c.approvalStatus==='pending');
     else if(state.section.startsWith('certType_')){
       const ctMap={'certType_CATIII':'CAT III','certType_CATIV':'CAT IV','certType_LIFTING':'LIFTING','certType_LOADTEST':'LOAD TEST','certType_NDT':'NDT','certType_TUBULAR':'TUBULAR','certType_ORIGINALCOC':'ORIGINAL COC'};
@@ -4054,8 +4141,8 @@ const AI = {
       `${m.id}|${m.title}|${m.status}|${m.priority}|items:${m.items.length}|site:${m.site}|dept:${m.department}|${m.requiredDate}`
     ).join('\n');
 
-    const expiredCerts = DATA.certificates.filter(c=>c.status==='expired').map(c=>c.equipName).join(', ');
-    const expiringCerts = DATA.certificates.filter(c=>c.status==='expiring').map(c=>`${c.equipName}(${c.daysRemaining}d)`).join(', ');
+    const expiredCerts = DATA.certificates.filter(c=>getCertStatus(c)==='expired').map(c=>c.equipName).join(', ');
+    const expiringCerts = DATA.certificates.filter(c=>getCertStatus(c)==='expiring').map(c=>`${c.equipName}(${getCertDays(c)}d)`).join(', ');
     const lowStock = DATA.inventory.filter(i=>i.status!=='normal').map(i=>`${i.name}(${i.qtyOnHand}${i.uom})`).join(', ');
     const pendingPOs = DATA.purchaseOrders.filter(p=>p.status==='draft').map(p=>p.id).join(', ');
 
@@ -4565,7 +4652,7 @@ async function initializeApp() {
   await loadData();
   renderAll();
   hideLoading();
-  const certAlerts = DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring');
+  const certAlerts = DATA.certificates.filter(c=>{const s=getCertStatus(c);return s==='expired'||s==='expiring';});
   const notifBadge = document.getElementById('notifBadge');
   if (notifBadge) notifBadge.textContent = certAlerts.length + DATA.leaveRequests.filter(l=>l.status==='Pending').length;
   

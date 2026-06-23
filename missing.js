@@ -27,8 +27,8 @@ function renderContent(){
     if(state.section==='allCerts') html=renderCertificates();
     else if(state.section==='certGantt') html=renderCertGantt();
     else if(state.section==='certNotifications') html=renderCertNotifications();
-    else if(state.section==='expiredCerts') html=renderCertificates(c=>c.status==='expired');
-    else if(state.section==='expiringSoon') html=renderCertificates(c=>c.status==='expiring');
+    else if(state.section==='expiredCerts') html=renderCertificates(c=>getCertStatus(c)==='expired');
+    else if(state.section==='expiringSoon') html=renderCertificates(c=>getCertStatus(c)==='expiring');
     else if(state.section==='pendingApproval') html=renderCertificates(c=>c.approvalStatus==='pending');
     else if(state.section.startsWith('certType_')){
       const ctMap={'certType_CATIII':'CAT III','certType_CATIV':'CAT IV','certType_LIFTING':'LIFTING','certType_LOADTEST':'LOAD TEST','certType_NDT':'NDT','certType_TUBULAR':'TUBULAR','certType_ORIGINALCOC':'ORIGINAL COC'};
@@ -165,8 +165,8 @@ const AI = {
       `${i.id}|${i.name}|${i.partNo}|onHand:${i.qtyOnHand}${i.uom}|reorder:${i.reorderPoint}|${i.status}`
     ).join('\n');
 
-    const expiredCerts = DATA.certificates.filter(c=>c.status==='expired').map(c=>c.equipName).join(', ');
-    const expiringCerts = DATA.certificates.filter(c=>c.status==='expiring').map(c=>`${c.equipName}(${c.daysRemaining}d)`).join(', ');
+    const expiredCerts = DATA.certificates.filter(c=>getCertStatus(c)==='expired').map(c=>c.equipName).join(', ');
+    const expiringCerts = DATA.certificates.filter(c=>getCertStatus(c)==='expiring').map(c=>`${c.equipName}(${getCertDays(c)}d)`).join(', ');
     const lowStock = DATA.inventory.filter(i=>i.status!=='normal').map(i=>`${i.name}(${i.qtyOnHand}${i.uom})`).join(', ');
     const pendingPOs = DATA.purchaseOrders.filter(p=>p.status==='draft').map(p=>p.id).join(', ');
 
@@ -529,7 +529,7 @@ document.addEventListener('click', e=>{
 });
 renderAll();
 // Update notification badge with live cert alert count
-const certAlerts = DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring').length;
+const certAlerts = DATA.certificates.filter(c=>{const s=getCertStatus(c);return s==='expired'||s==='expiring';}).length;
 document.getElementById('notifBadge').textContent = certAlerts + DATA.leaveRequests.filter(l=>l.status==='pending').length;
 setTimeout(()=> showToast('Welcome to AMICI ERP · All 4 modules live','success'), 700);
 </script>

@@ -27,6 +27,7 @@
 }
 @media(prefers-color-scheme:dark){
   :root{--shell-bg:#1a2332;--blue:#4a9eff;--blue-light:#1a3150;--bg:#0f1721;--white:#1a2332;--text:#e2e8f0;--text-sec:#94a3b8;--border:#2d3a4a;--hover:#253040;--selected:#1a3150;--success:#22c55e;--error:#ef4444;--warning:#f59e0b;--purple:#a78bfa;--teal:#2dd4bf;--danger:#ef4444;}
+  .tab-bar{box-shadow:0 1px 3px rgba(0,0,0,.2);}
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
@@ -103,14 +104,15 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 /* ── MODULE TAB BAR ── */
 .tab-bar{position:fixed;top:var(--shell-h);left:0;right:0;height:var(--tab-h);
   background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:stretch;
-  z-index:900;padding:0 16px;gap:0;overflow-x:auto;}
+  z-index:900;padding:0 4px;gap:0;overflow-x:auto;box-shadow:0 1px 3px rgba(0,0,0,.04);}
 .tab-bar::-webkit-scrollbar{height:0;}
-.tab-item{display:flex;align-items:center;gap:8px;padding:0 18px;font-size:13px;font-weight:500;
-  color:var(--text-sec);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;
-  transition:color var(--motion-fast) var(--ease-standard),border-color var(--motion-fast) var(--ease-standard);}
-.tab-item:hover{color:var(--text);}
-.tab-item.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600;}
-.tab-item i{font-size:14px;}
+.tab-list{display:flex;align-items:stretch;width:100%;gap:2px;padding:6px 12px;}
+.tab-item{display:flex;align-items:center;gap:7px;padding:0 16px;font-size:12.5px;font-weight:500;
+  color:var(--text-sec);cursor:pointer;border-radius:6px;white-space:nowrap;
+  transition:all var(--motion-fast) var(--ease-standard);position:relative;}
+.tab-item:hover{color:var(--text);background:var(--hover);}
+.tab-item.active{color:var(--blue);background:var(--blue-light);font-weight:600;}
+.tab-item i{font-size:14px;width:16px;text-align:center;}
 
 /* ── LAYOUT SHELL ── */
 .app-body{position:fixed;top:calc(var(--shell-h) + var(--tab-h));left:0;right:0;bottom:0;

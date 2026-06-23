@@ -6,6 +6,7 @@ import { supabase } from './supabase.js';
 const state = {
   module:'hr', section:'allEmployees', selectedId:null, detailTab:'info',
   filters:{}, sortCol:null, sortDir:'asc', charts:[], currentUserRole:'Admin',
+  currentInspectorId:null,
   pushEnabled:false, pushSubscribed:false,
 };
 
@@ -18,7 +19,7 @@ if('serviceWorker' in navigator && 'PushManager' in window){
       state.pushSubscribed = !!sub;
       state.pushEnabled = !!sub;
     });
-  }).catch(()=>{});
+  }).catch(supabaseCatch);
 }
 
 /* ═══════════════════════════════════════════════
@@ -337,6 +338,8 @@ let DATA = {
 ═══════════════════════════════════════════════ */
 function $(s){ return document.querySelector(s); }
 function $$(s){ return document.querySelectorAll(s); }
+function debounce(fn,ms=200){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);}}
+const supabaseCatch=e=>{if(e)console.warn('Supabase sync:',e.message);};
 const fmt=n=>n?parseFloat(n).toLocaleString():'0';
 const fmtDate=d=>{if(!d)return'';const dt=new Date(d);return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});};
 const stockCol=s=>s==='low'?'var(--warning)':s==='critical'||s==='out'?'var(--error)':'var(--text-sec)';
@@ -451,10 +454,14 @@ const MODULES = [
 ];
 
 function renderTabBar(){
-  $('#tabBar').innerHTML = MODULES.map(m=>`
-    <div class="tab-item ${state.module===m.id?'active':''}" onclick="switchModule('${m.id}')">
-      <i class="fa-solid ${m.icon}"></i> ${t(m.labelKey)}
-    </div>`).join('');
+  const isInspector=state.currentUserRole==='Inspector';
+  const mods=MODULES.filter(m=>!isInspector||m.id==='certificates');
+  $('#tabBar').innerHTML = `<div class="tab-list" role="tablist">${
+    mods.map((m,i)=>`
+      <div class="tab-item ${state.module===m.id?'active':''}" role="tab" aria-selected="${state.module===m.id}" tabindex="${state.module===m.id?0:-1}" onclick="switchModule('${m.id}')" onKeyDown="if(event.key==='Enter'||event.key===' ')switchModule('${m.id}')">
+        <i class="fa-solid ${m.icon}" aria-hidden="true"></i> ${t(m.labelKey)}
+      </div>`).join('')
+  }</div>`;
 }
 
 function switchModule(mod){
@@ -515,6 +522,13 @@ function switchSection(sec){
   state.filters={};
   state.sortCol=null;
   destroyCharts();
+  if(state.module==='certificates')renderCertSubNav();
+  else{
+    const subNav=$('#certSubNav');
+    if(subNav)subNav.style.display='none';
+    const body=document.querySelector('.app-body');
+    if(body)body.classList.remove('subnav-open');
+  }
   renderSidebar();
   renderContent();
 }
@@ -637,7 +651,7 @@ function renderEmployeeDetail(e){
   if(state.detailTab==='info'){
     html+=`<div class="sec-card"><div class="sec-card-head">Employment Details <button class="btn btn-ghost btn-sm" onclick="showToast('Editing ${e.name}','info')"><i class="fa-solid fa-pen"></i> ${t('edit')}</button></div>
     <div class="sec-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;">
-      ${[['Email',e.email],['Phone',e.phone],['Employment Type',e.empType],['Salary Band',e.salaryBand],['Cost Center',e.costCenter],['Manager',e.manager?DATA.employees.find(x=>x.id===e.manager)?.name||e.manager:'—'],['H2S Level',e.h2sLevel],['Work Permit',e.workPermit],['Visa Expiry',e.visa],['Med. Fitness',e.medFit?'✔ Fit':'✘ Unfit'],['Med. Expiry',fmtDate(e.medExpiry)]].map(([k,v])=>`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">${k}</div><div style="font-size:13px;">${v}</div></div>`).join('')}
+      ${[['Email',e.email],['Phone',e.phone],['Employment Type',e.empType],['Salary Band',e.salaryBand],['Cost Center',e.costCenter],['Manager',e.manager?DATA.employees.find(x=>x.id===e.manager)?.name||e.manager:'—'],['H2S Level',e.h2sLevel],['Work Permit',e.workPermit],['Visa Expiry',e.visa],['Med. Fitness',e.medFit?'<i class="fa-solid fa-check" style="color:var(--success)"></i> Fit':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i> Unfit'],['Med. Expiry',fmtDate(e.medExpiry)]].map(([k,v])=>`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">${k}</div><div style="font-size:13px;">${v}</div></div>`).join('')}
     </div></div>`;
   }
   else if(state.detailTab==='leave'){
@@ -766,9 +780,10 @@ async function submitNewEmployee(){
     
     // Also insert default leave
     for (const [type, bal] of Object.entries(newEmp.leave)) {
-      await supabase.from('employee_leave_balances').insert({
+      const { error: lbErr } = await supabase.from('employee_leave_balances').insert({
         employee_id: newEmp.id, leave_type: type, used: bal.used, total: bal.total
       });
+      if(lbErr) showToast('Leave balance sync issue: '+lbErr.message,'warning');
     }
   }
 
@@ -982,8 +997,57 @@ DATA.allOpps = DATA.accounts.flatMap(a=>a.opps||[]).map(o=>{
     c.approvalStatus  = c.approvalStatus  || 'approved';
     c.client          = c.client          || {'Block 15 – Rig Alpha':'ADNOC','Block 7 – Offshore Platform':'ADNOC','Onshore Processing Facility – South':'ADNOC','Gas Treatment Plant – North':'OCC','Head Office – Muscat':'AMICI','Block 3 – Exploration Camp':'OCC'}[c.site]||'ADNOC';
     c.fileName        = c.fileName        || c.pdfUrl || '';
+    /* ── FK relationship fields (null for legacy seed data) ── */
+    c.clientId = null;
+    c.flId = null;
+    c.inspectorId = null;
   });
 })();
+
+/* ── Functional Locations (client-scoped, Rigways style) ── */
+DATA.functionalLocations = [
+  {id:'FL-001',flId:'FL-OQ-RG01',name:'Rig Alpha',type:'Rig',clientId:'ACC-001',status:'active'},
+  {id:'FL-002',flId:'FL-OQ-PF01',name:'Onshore Processing Facility – South',type:'Workshop',clientId:'ACC-001',status:'active'},
+  {id:'FL-003',flId:'FL-OQ-WH01',name:'Warehouse A – South',type:'Warehouse',clientId:'ACC-001',status:'active'},
+  {id:'FL-004',flId:'FL-TE-EC01',name:'Exploration Camp Block 6',type:'Yard',clientId:'ACC-002',status:'active'},
+  {id:'FL-005',flId:'FL-TE-WS01',name:'Workshop – Block 6',type:'Workshop',clientId:'ACC-002',status:'active'},
+  {id:'FL-006',flId:'FL-BP-RG01',name:'Block 61 Rig',type:'Rig',clientId:'ACC-003',status:'active'},
+  {id:'FL-007',flId:'FL-BP-YD01',name:'Block 61 Yard',type:'Yard',clientId:'ACC-003',status:'active'},
+  {id:'FL-008',flId:'FL-PDO-FC01',name:'South Oman Facility',type:'Workshop',clientId:'ACC-004',status:'active'},
+  {id:'FL-009',flId:'FL-SH-LF01',name:'Block 10 Platform',type:'Rig',clientId:'ACC-005',status:'active'},
+  {id:'FL-010',flId:'FL-CNO-OC01',name:'Block 7 Platform',type:'Rig',clientId:'ACC-009',status:'active'},
+  {id:'FL-011',flId:'FL-HO-001',name:'Head Office – Muscat',type:'Other',clientId:null,status:'active'},
+  {id:'FL-012',flId:'FL-CW-001',name:'Central Warehouse – Muscat',type:'Warehouse',clientId:null,status:'active'},
+];
+
+/* ── Inspectors (Rigways-style, separate entity linked to employees) ── */
+DATA.inspectors = [
+  {id:'INS-001',inspectorNumber:'INS-001',employeeId:'EMP-003',name:'Ahmed Hassan',title:'Senior HSE Inspector',email:'a.hassan@amici.com',phone:'+968 9100 1003',status:'active',color:'#e53935'},
+  {id:'INS-002',inspectorNumber:'INS-002',employeeId:'EMP-007',name:'Tariq Mubarak',title:'Mechanical Inspector',email:'t.mubarak@amici.com',phone:'+968 9100 1007',status:'active',color:'#1e88e5'},
+  {id:'INS-003',inspectorNumber:'INS-003',employeeId:'EMP-012',name:'Ibrahim Qasim',title:'Senior Maintenance Inspector',email:'i.qasim@amici.com',phone:'+968 9100 1012',status:'active',color:'#43a047'},
+  {id:'INS-004',inspectorNumber:'INS-004',employeeId:'EMP-014',name:'Saud Al-Otaibi',title:'Instrument & Control Inspector',email:'s.alotaibi@amici.com',phone:'+968 9100 1014',status:'active',color:'#fb8c00'},
+];
+
+/* ── Jobs (Work Orders) ── */
+DATA.jobs = [
+  {id:'JOB-001',title:'Q4 Rig Alpha Inspection',clientId:'ACC-001',flId:'FL-001',status:'open',createdAt:'2026-06-01',completedAt:null,closedAt:null,description:'Annual API inspection of rig equipment, BOPs, and lifting gear.'},
+  {id:'JOB-002',title:'H2S & Safety Audit – Gas Plant',clientId:'ACC-009',flId:'FL-010',status:'in_progress',createdAt:'2026-06-10',completedAt:null,closedAt:null,description:'H2S detection systems, SCBA sets, and fire suppression audit.'},
+  {id:'JOB-003',title:'Pressure Vessel Inspection – South',clientId:'ACC-001',flId:'FL-002',status:'completed',createdAt:'2026-05-15',completedAt:'2026-06-15',closedAt:null,description:'API 510 inspection of all pressure vessels at Onshore Processing.'},
+  {id:'JOB-004',title:'Lifting Equipment LOLER',clientId:'ACC-003',flId:'FL-006',status:'open',createdAt:'2026-06-18',completedAt:null,closedAt:null,description:'Thorough examination of all lifting equipment on Block 61 Rig.'},
+  {id:'JOB-005',title:'Electrical Switchgear Survey',clientId:'ACC-001',flId:'FL-002',status:'open',createdAt:'2026-06-20',completedAt:null,closedAt:null,description:'IEC 60079 Ex inspection of all switchgear panels.'},
+  {id:'JOB-006',title:'Pipeline Corrosion Survey',clientId:'ACC-004',flId:'FL-008',status:'closed',createdAt:'2026-04-01',completedAt:'2026-05-01',closedAt:'2026-06-01',description:'UT thickness survey of all pipelines at South Oman Facility.'},
+];
+DATA.jobAssignments = [
+  {id:'JA-001',jobId:'JOB-001',inspectorId:'INS-001',assignedAt:'2026-06-01'},
+  {id:'JA-002',jobId:'JOB-001',inspectorId:'INS-002',assignedAt:'2026-06-01'},
+  {id:'JA-003',jobId:'JOB-002',inspectorId:'INS-001',assignedAt:'2026-06-10'},
+  {id:'JA-004',jobId:'JOB-002',inspectorId:'INS-004',assignedAt:'2026-06-10'},
+  {id:'JA-005',jobId:'JOB-003',inspectorId:'INS-003',assignedAt:'2026-05-15'},
+  {id:'JA-006',jobId:'JOB-004',inspectorId:'INS-002',assignedAt:'2026-06-18'},
+  {id:'JA-007',jobId:'JOB-004',inspectorId:'INS-001',assignedAt:'2026-06-18'},
+  {id:'JA-008',jobId:'JOB-005',inspectorId:'INS-004',assignedAt:'2026-06-20'},
+  {id:'JA-009',jobId:'JOB-006',inspectorId:'INS-001',assignedAt:'2026-04-01'},
+];
 
 /* ═══════════════════════════════════════════════
    CRM i18n additions
@@ -1101,7 +1165,7 @@ function renderAllAccounts(filterFn){
   if(f.rating&&f.rating!=='all') items=items.filter(a=>a.rating===f.rating);
   if(state.sortCol){const col=state.sortCol,dir=state.sortDir==='asc'?1:-1;items.sort((a,b)=>{let va=a[col],vb=b[col];if(typeof va==='string')return va.localeCompare(vb)*dir;return (va-vb)*dir;});}
   const types=[...new Set(DATA.accounts.map(a=>a.type))];
-  const ratingPill=r=>r==='Hot'?'<span style="color:#b71c1c;font-weight:700">🔴 Hot</span>':r==='Warm'?'<span style="color:#b35d00;font-weight:700">🟡 Warm</span>':'<span style="color:#6a6d70;font-weight:700">🔵 Cold</span>';
+  const ratingPill=r=>r==='Hot'?'<span style="color:#b71c1c;font-weight:700"><i class="fa-solid fa-fire" style="color:#b71c1c"></i> Hot</span>':r==='Warm'?'<span style="color:#b35d00;font-weight:700"><i class="fa-solid fa-temperature-quarter" style="color:#e76500"></i> Warm</span>':'<span style="color:#6a6d70;font-weight:700"><i class="fa-solid fa-snowflake" style="color:#0070f2"></i> Cold</span>';
 
   let html=`<div class="fade-in">`;
   html+=renderCRMKPIs();
@@ -1161,7 +1225,7 @@ function renderAccountDetail(a){
     <div class="obj-header-top">
       <div class="avatar" style="width:52px;height:52px;font-size:18px;background:${avatarColor(a.name)}">${initials(a.name)}</div>
       <div style="flex:1;"><h2>${a.name}</h2><div class="obj-sub">${a.type} · ${a.country} · Block: ${a.blockRef}</div></div>
-      <span style="font-weight:700;color:${ratingColors[a.rating]};font-size:13px;">● ${a.rating}</span>
+      <span style="font-weight:700;color:${ratingColors[a.rating]};font-size:13px;"><i class="fa-solid fa-circle" style="font-size:8px;vertical-align:middle;margin-right:3px;color:${ratingColors[a.rating]}"></i> ${a.rating}</span>
     </div>
     <div class="obj-kv">
       <div class="obj-kv-item"><span class="obj-kv-label">Account ID</span><span class="obj-kv-value">${a.id}</span></div>
@@ -1279,8 +1343,8 @@ async function submitNewAccount(){
 ═══════════════════════════════════════════════ */
 function renderCertSidebar(){
   const certs=DATA.certificates;
-  const expired=certs.filter(c=>c.status==='expired').length;
-  const expiring=certs.filter(c=>c.status==='expiring').length;
+  const expired=certs.filter(c=>getCertStatus(c)==='expired').length;
+  const expiring=certs.filter(c=>getCertStatus(c)==='expiring').length;
   const pending=certs.filter(c=>c.approvalStatus==='pending').length;
   const cats=['Rotating','Static','Lifting','Electrical','Pressure','Fire & Safety','Instrumentation','Vehicles'];
   const catIcons={'Rotating':'fa-rotate','Static':'fa-industry','Lifting':'fa-weight-hanging','Electrical':'fa-bolt','Pressure':'fa-gauge-high','Fire & Safety':'fa-fire-extinguisher','Instrumentation':'fa-sliders','Vehicles':'fa-truck'};
@@ -1320,11 +1384,11 @@ function renderCertSidebar(){
 function renderCertKPIs(){
   const certs=DATA.certificates;
   const total=certs.length;
-  const valid=certs.filter(c=>c.status==='valid').length;
-  const expiring=certs.filter(c=>c.status==='expiring').length;
-  const expired=certs.filter(c=>c.status==='expired').length;
+  const valid=certs.filter(c=>getCertStatus(c)==='valid').length;
+  const expiring=certs.filter(c=>getCertStatus(c)==='expiring').length;
+  const expired=certs.filter(c=>getCertStatus(c)==='expired').length;
   const pending=certs.filter(c=>c.approvalStatus==='pending').length;
-  const compliance=Math.round((valid+certs.filter(c=>c.status==='renewal').length)/total*100);
+  const compliance=Math.round(valid/total*100);
   return `<div class="kpi-grid">
     <div class="kpi-card"><span class="kpi-label">${t('totalCerts')}</span><span class="kpi-value">${total}</span><span class="kpi-change" style="color:var(--text-sec)"><i class="fa-solid fa-certificate"></i> Registered</span></div>
     <div class="kpi-card green"><span class="kpi-label">${t('validCerts')}</span><span class="kpi-value">${valid}</span><span class="kpi-change kpi-up"><i class="fa-solid fa-check-circle"></i> In compliance</span></div>
@@ -1343,6 +1407,12 @@ let certSortDir=1;
 let certCurrentPage=1;
 let certPageSize=Number(localStorage.getItem('cert_page_size')||25);
 let certSavedView='all';
+let certEntityView='list';
+let certClientFilter='all';
+let certLocFilter='all';
+let certTypeFilter='all';
+let certInspectorFilter='all';
+let certJobFilter='all';
 let certMultipleStatuses=null;
 
 function h(s){if(s===null||s===undefined)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;');}
@@ -1380,6 +1450,72 @@ function getCertExpiryBar(c){
   return`<span style="font-size:12px;font-weight:700;color:${cls};">${lbl}</span>`;
 }
 
+/* ── Certificate sub-nav bar (status tabs + inspector bar + entity tabs) ── */
+function renderCertSubNav(){
+  const allCerts=DATA.certificates;
+  const tabCounts={
+    all:allCerts.length,
+    valid:allCerts.filter(c=>getCertStatus(c)==='valid').length,
+    expiring:allCerts.filter(c=>getCertStatus(c)==='expiring').length,
+    expired:allCerts.filter(c=>getCertStatus(c)==='expired').length,
+    pending:allCerts.filter(c=>c.approvalStatus==='pending').length,
+    rejected:allCerts.filter(c=>c.approvalStatus==='rejected').length,
+    noFile:allCerts.filter(c=>!c.fileName&&!c.pdfUrl).length,
+    newUploads:allCerts.filter(c=>{const u=c.uploadTime?new Date(c.uploadTime):null;return u&&(new Date()-u)<=86400000;}).length,
+  };
+  const badgeCls=(id,i)=>{
+    if(i===0||id==='all')return'default';
+    if(id==='expiring'||id==='pending'||id==='newUploads')return'warning';
+    if(id==='expired'||id==='rejected')return'error';
+    return'default';
+  };
+  const tabs=[
+    {id:'all',label:'All'},{id:'valid',label:'Valid'},{id:'expiring',label:'Expiring'},
+    {id:'expired',label:'Expired'},{id:'pending',label:'Pending'},{id:'rejected',label:'Rejected'},
+    {id:'noFile',label:'No File'},{id:'newUploads',label:'New Uploads'},
+  ];
+  let html='';
+  html+=`<div class="cert-sub-nav" role="tablist">`;
+  tabs.forEach((t,i)=>{
+    const cnt=tabCounts[t.id];
+    html+=`<button class="sap-tab ${certSavedView===t.id?'active':''}" role="tab" aria-selected="${certSavedView===t.id}" tabindex="${certSavedView===t.id?0:-1}" onclick="certSetTab('${t.id}')" onKeyDown="if(event.key==='Enter'||event.key===' ')certSetTab('${t.id}')"><span>${t.label}</span><span class="sap-tab__badge sap-tab__badge--${badgeCls(t.id,i)}">${cnt}</span></button>`;
+  });
+  html+=`</div>`;
+
+  if(state.currentInspectorId){
+    const ins=DATA.inspectors.find(i=>i.id===state.currentInspectorId);
+    html+=`<div class="inspector-bar"><span style="display:flex;align-items:center;gap:6px;"><span class="inspector-dot" style="background:${ins?.color||'#6a6d70'}"></span><strong>${ins?h(ins.name):'Inspector'}</strong><span class="badge badge--blue">Inspector Mode</span></span><button class="btn btn-ghost btn-sm" onclick="certLogoutInspector()">Logout</button></div>`;
+  } else {
+    const inspOpts=DATA.inspectors.filter(i=>i.status==='active').map(i=>`<option value="${i.id}">${h(i.name)} – ${h(i.title)}</option>`).join('');
+    html+=`<div class="inspector-bar"><span style="font-size:12px;color:var(--text-sec);cursor:pointer;" onclick="document.getElementById('insLoginDropdown').classList.toggle('open')">Login as Inspector ▾</span><select id="insLoginDropdown" class="col-dropdown" style="position:absolute;top:100%;right:0;display:none;width:240px;" onchange="certLoginInspector(this.value)"><option value="">Select inspector...</option>${inspOpts}</select><div style="flex:1;"></div><span style="font-size:11px;color:var(--text-sec);">Admin Mode</span></div>`;
+  }
+
+  const entityTabs=state.currentInspectorId
+    ? [{id:'list',label:'Certificates'}]
+    : [
+        {id:'list',label:'Certificates'},
+        {id:'clients',label:'Clients'},
+        {id:'functionalLocations',label:'Functional Locations'},
+        {id:'inspectors',label:'Inspectors'},
+        {id:'jobs',label:'Jobs'},
+      ];
+  html+=`<div class="cert-sub-nav" role="tablist">`;
+  entityTabs.forEach(t=>{
+    const isJobTab=t.id==='jobs';
+    const jobCounts=isJobTab?getJobsForCurrentUser().length:0;
+    html+=`<button class="sap-tab ${certEntityView===t.id?'active':''}" role="tab" aria-selected="${certEntityView===t.id}" tabindex="${certEntityView===t.id?0:-1}" onclick="certSetEntityView('${t.id}')" onKeyDown="if(event.key==='Enter'||event.key===' ')certSetEntityView('${t.id}')"><span>${t.label}</span>${isJobTab?`<span class="sap-tab__badge sap-tab__badge--${jobCounts?'warning':'default'}">${jobCounts}</span>`:''}</button>`;
+  });
+  html+=`</div>`;
+
+  const el=$('#certSubNav');
+  if(el){
+    el.style.display='';
+    el.innerHTML=html;
+  }
+  const body=document.querySelector('.app-body');
+  if(body)body.classList.add('subnav-open');
+}
+
 function renderCertificates(filterFn){
   const isMobile=window.innerWidth<=768;
   if(![25,50,100].includes(certPageSize))certPageSize=25;
@@ -1387,13 +1523,22 @@ function renderCertificates(filterFn){
   if(filterFn)certCurrentPage=1;
 
   let data=filterFn?DATA.certificates.filter(filterFn):[...DATA.certificates];
+  // Inspector auto-filter: inspector sees only certs assigned to them or their active jobs
+  if(state.currentInspectorId){
+    const activeJobs=DATA.jobAssignments
+      .filter(ja=>ja.inspectorId===state.currentInspectorId&&ja.status!=='closed')
+      .map(ja=>ja.jobId);
+    data=data.filter(c=>c.inspectorId===state.currentInspectorId||(c.jobId&&activeJobs.includes(c.jobId)));
+  }
   const search=(state.filters.search||'').toLowerCase();
 
-  // Apply saved view filter (only when no explicit filterFn from section routing)
+  // Apply saved view / sub-nav tab filter
   if(!filterFn){
-    if(certSavedView==='expired')data=data.filter(c=>getCertStatus(c)==='expired');
+    if(certSavedView==='valid')data=data.filter(c=>getCertStatus(c)==='valid');
+    else if(certSavedView==='expired')data=data.filter(c=>getCertStatus(c)==='expired');
     else if(certSavedView==='expiring')data=data.filter(c=>getCertStatus(c)==='expiring');
     else if(certSavedView==='pending')data=data.filter(c=>c.approvalStatus==='pending');
+    else if(certSavedView==='rejected')data=data.filter(c=>c.approvalStatus==='rejected');
     else if(certSavedView==='noFile')data=data.filter(c=>!c.fileName&&!c.pdfUrl);
     else if(certSavedView==='newUploads'){
       const n=new Date();
@@ -1412,7 +1557,14 @@ function renderCertificates(filterFn){
     (c.issuer||'').toLowerCase().includes(search)
   );
 
-  // Filters
+  // Dropdown filters
+  if(certClientFilter!=='all')data=data.filter(c=>c.clientId===certClientFilter);
+  if(certLocFilter!=='all')data=data.filter(c=>c.flId===certLocFilter);
+  if(certTypeFilter!=='all')data=data.filter(c=>c.certCategory===certTypeFilter);
+  if(certInspectorFilter!=='all')data=data.filter(c=>c.inspectorId===certInspectorFilter);
+  if(certJobFilter!=='all')data=data.filter(c=>c.jobId===certJobFilter);
+
+  // Legacy state filters
   if(state.filters.certCategory&&state.filters.certCategory!=='all')data=data.filter(c=>c.certCategory===state.filters.certCategory);
   if(state.filters.status==='valid')data=data.filter(c=>getCertStatus(c)==='valid');
   else if(state.filters.status==='expiring')data=data.filter(c=>getCertStatus(c)==='expiring');
@@ -1447,30 +1599,24 @@ function renderCertificates(filterFn){
   html+=renderCertKPIs();
   html+=`<div class="sap-card" style="background:var(--white);border:1px solid var(--border);border-radius:8px;overflow:hidden;">`;
 
-  // Saved views
-  const views=[
-    {id:'all',label:'All',dot:'#0070f2'},
-    {id:'expiring',label:'Expiring',dot:'#e76500'},
-    {id:'expired',label:'Expired',dot:'#bb0000'},
-    {id:'pending',label:'Pending',dot:'#f57f17'},
-    {id:'noFile',label:'No File',dot:'#6a6d70'},
-    {id:'newUploads',label:'New Uploads',dot:'#188918'},
-  ];
-  html+=`<div class="saved-view-strip">`;
-  views.forEach(v=>{
-    html+=`<button class="saved-view-btn ${certSavedView===v.id?'active':''}" onclick="setCertSavedView('${v.id}')"><span class="saved-view-btn__dot" style="background:${v.dot}"></span>${v.label}</button>`;
-  });
-  html+=`</div>`;
+  if(certEntityView==='list'){
+    html+=`<div class="sap-table-wrapper cert-table-view">`;
 
-  // Toolbar
-  html+=`<div class="cert-toolbar">
-    <input type="checkbox" class="sap-checkbox" aria-label="Select all" onchange="certToggleSelectAll(this)" style="margin-right:2px;">
-    <div class="sap-search-box">
-      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" placeholder="Search certs..." value="${h(state.filters.search||'')}" oninput="state.filters.search=this.value;rerenderSection()">
+    // Toolbar with filter dropdowns
+    const clientOpts=DATA.accounts.filter(a=>a.status==='active').map(a=>`<option value="${a.id}" ${certClientFilter===a.id?'selected':''}>${h(a.name)}</option>`).join('');
+    const locOpts=DATA.functionalLocations.filter(f=>f.status==='active').map(f=>`<option value="${f.id}" ${certLocFilter===f.id?'selected':''}>${h(f.name)}</option>`).join('');
+    const typeOpts=[...new Set(DATA.certificates.map(c=>c.certCategory).filter(Boolean))].map(t=>`<option value="${t}" ${certTypeFilter===t?'selected':''}>${t}</option>`).join('');
+    html+=`<div class="cert-toolbar">
+      <input type="checkbox" class="sap-checkbox" aria-label="Select all" onchange="certToggleSelectAll(this)" style="margin-right:2px;">
+      <div class="sap-search-box">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="Search certs..." value="${h(state.filters.search||'')}" oninput="state.filters.search=this.value;rerenderSection()">
     </div>
     <span class="cert-toolbar__count">${total}</span>
     <div style="width:1px;height:20px;background:var(--border);flex-shrink:0;"></div>
+    <select class="cert-filter-select" onchange="certSetFilter('client',this.value)"><option value="all">All Clients</option>${clientOpts}</select>
+    <select class="cert-filter-select" onchange="certSetFilter('loc',this.value)"><option value="all">All Locations</option>${locOpts}</select>
+    <select class="cert-filter-select" onchange="certSetFilter('type',this.value)"><option value="all">All Types</option>${typeOpts}</select>
     <div class="col-selector-wrap">
       <button class="col-selector-btn" onclick="certToggleColDropdown()">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -1494,145 +1640,327 @@ function renderCertificates(filterFn){
         <label class="col-dropdown__item" onclick="certExportPDF()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="14" height="14" style="color:#bb0000;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><span style="color:#bb0000;">PDF</span></label>
       </div>
     </div>
-    <button class="btn btn-primary btn-sm" onclick="openNewCertModal()"><i class="fa-solid fa-plus"></i> New</button>
+    <button class="btn btn-secondary btn-sm" onclick="openBulkCertModal()" style="margin-right:4px;"><i class="fa-solid fa-layer-group"></i> Bulk</button>
+    <button class="btn btn-primary btn-sm" onclick="certJobFilter!=='all'?openNewCertModal(certJobFilter):openNewCertModal()"><i class="fa-solid fa-plus"></i> New</button>
   </div>`;
 
-  // Mass action bar
-  html+=`<div class="mass-action-bar" id="certMassBar">
-    <span class="mass-action-bar__count" id="certMassCount">0 selected</span>
-    <button class="btn btn-success btn-sm" id="certMassApproveBtn" style="display:none;" onclick="certMassApprove()"><i class="fa-solid fa-check"></i> Approve</button>
-    <div class="mass-action-bar__spacer"></div>
-    <button class="btn btn-danger btn-sm" id="certMassDeleteBtn" style="display:none;" onclick="certMassDelete()"><i class="fa-solid fa-trash"></i> Delete</button>
-    <button class="btn btn-ghost btn-sm" onclick="certClearSelection()"><i class="fa-solid fa-xmark"></i> Deselect</button>
-  </div>`;
+    // Active job filter chip
+    if(certJobFilter!=='all'){
+      const job=DATA.jobs.find(j=>j.id===certJobFilter);
+      if(job){
+        const client=DATA.accounts.find(a=>a.id===job.clientId);
+        html+=`<div class="filter-chip-bar"><span class="filter-chip"><span class="filter-chip__label">Job:</span> ${h(job.title)}${client?' · '+h(client.name):''}<button class="filter-chip__clear" onclick="certJobFilter='all';rerenderSection()"><i class="fa-solid fa-xmark"></i></button></span></div>`;
+      }
+    }
 
-  // Table
-  html+=`<div class="sap-table-wrapper cert-table-view">`;
-  html+=`<table class="sap-table">
-    <thead><tr>
-      <th class="cell-check"><input type="checkbox" class="sap-checkbox" onchange="certToggleSelectAll(this)"/></th>
-      <th data-col="jobNumber" onclick="certSortTable('jobNumber')">Job No. <span class="sort-icon">↕</span></th>
-      <th data-col="certId" onclick="certSortTable('id')">Cert ID <span class="sort-icon">↕</span></th>
-      <th data-col="assetTag" onclick="certSortTable('assetTag')">Asset Tag <span class="sort-icon">↕</span></th>
-      <th data-col="name" onclick="certSortTable('equipName')">Certificate Name <span class="sort-icon">↕</span></th>
-      <th data-col="category" onclick="certSortTable('category')">Category <span class="sort-icon">↕</span></th>
-      <th data-col="certType" onclick="certSortTable('certType')">Type <span class="sort-icon">↕</span></th>
-      <th data-col="issuedBy" onclick="certSortTable('issuer')">Issued By <span class="sort-icon">↕</span></th>
-      <th data-col="expiry" onclick="certSortTable('expiryDate')">Expiry <span class="sort-icon">↕</span></th>
-      <th data-col="issueDate" onclick="certSortTable('issueDate')">Issue Date <span class="sort-icon">↕</span></th>
-      <th data-col="approval" onclick="certSortTable('approvalStatus')">Approval <span class="sort-icon">↕</span></th>
-      <th data-col="client" onclick="certSortTable('client')">Client <span class="sort-icon">↕</span></th>
-      <th data-col="qr" style="text-align:center;">QR</th>
-      <th data-col="fileLink">File</th>
-    </tr></thead>
-    <tbody id="certTableBody">`;
+    // Mass action bar
+    html+=`<div class="mass-action-bar" id="certMassBar">
+      <span class="mass-action-bar__count" id="certMassCount">0 selected</span>
+      <button class="btn btn-success btn-sm" id="certMassApproveBtn" style="display:none;" onclick="certMassApprove()"><i class="fa-solid fa-check"></i> Approve</button>
+      <div class="mass-action-bar__spacer"></div>
+      <button class="btn btn-danger btn-sm" id="certMassDeleteBtn" style="display:none;" onclick="certMassDelete()"><i class="fa-solid fa-trash"></i> Delete</button>
+      <button class="btn btn-ghost btn-sm" onclick="certClearSelection()"><i class="fa-solid fa-xmark"></i> Deselect</button>
+    </div>`;
 
-  if(page.length===0){
-    html+=`</tbody></table>
-      <div class="sap-table__empty">
-        <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
-        <p>No certificates found.</p>
-      </div>`;
-  } else {
-    page.forEach(c=>{
-      const st=getCertStatus(c);
-      const tc2=tc[c.certCategory]||tc[c.certType]||{bg:'#f5f6f7',color:'#6a6d70'};
-      const d=getCertDays(c);
-      const expCls=d<0?'red':d<=30?'orange':d<=90?'var(--purple)':'green';
-      const expCol=d<0?'var(--error)':d<=30?'var(--warning)':d<=90?'var(--purple)':'var(--success)';
-      const canApprove=c.approvalStatus==='pending';
+    // Table
+    html+=`<table class="sap-table">
+      <thead><tr>
+        <th class="cell-check"><input type="checkbox" class="sap-checkbox" onchange="certToggleSelectAll(this)"/></th>
+        <th data-col="jobNumber" onclick="certSortTable('jobNumber')">Job No. <span class="sort-icon">↕</span></th>
+        <th data-col="certId" onclick="certSortTable('id')">Cert ID <span class="sort-icon">↕</span></th>
+        <th data-col="assetTag" onclick="certSortTable('assetTag')">Asset Tag <span class="sort-icon">↕</span></th>
+        <th data-col="name" onclick="certSortTable('equipName')">Certificate Name <span class="sort-icon">↕</span></th>
+        <th data-col="category" onclick="certSortTable('category')">Category <span class="sort-icon">↕</span></th>
+        <th data-col="certType" onclick="certSortTable('certType')">Type <span class="sort-icon">↕</span></th>
+        <th data-col="issuedBy" onclick="certSortTable('issuer')">Issued By <span class="sort-icon">↕</span></th>
+        <th data-col="expiry" onclick="certSortTable('expiryDate')">Expiry <span class="sort-icon">↕</span></th>
+        <th data-col="issueDate" onclick="certSortTable('issueDate')">Issue Date <span class="sort-icon">↕</span></th>
+        <th data-col="approval" onclick="certSortTable('approvalStatus')">Approval <span class="sort-icon">↕</span></th>
+        <th data-col="client" onclick="certSortTable('client')">Client <span class="sort-icon">↕</span></th>
+        <th data-col="qr" style="text-align:center;">QR</th>
+        <th data-col="fileLink">File</th>
+      </tr></thead>
+      <tbody id="certTableBody">`;
 
-      html+=`<tr class="cert-row" onmouseenter="certShowRowActions(this)" onmouseleave="certHideRowActions(this)">
-        <td class="cell-check"><input type="checkbox" class="sap-checkbox" data-id="${c.id}" onchange="certUpdateMassBar()"/></td>
-        <td data-col="jobNumber"><span style="font-family:monospace;font-size:11px;font-weight:700;color:var(--blue);background:var(--blue-light);border:1px solid #90caf9;border-radius:4px;padding:2px 6px;white-space:nowrap;">${h(c.jobNumber||'—')}</span></td>
-        <td data-col="certId"><span class="cert-id-chip">${h(c.id)}</span></td>
-        <td data-col="assetTag"><span class="asset-id-chip">${h(c.assetTag||'—')}</span></td>
-        <td data-col="name">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;">
-            <div style="min-width:0;">
-              <div style="font-weight:600;font-size:13px;cursor:pointer;color:var(--blue);" onclick="openCertDrawer('${c.id}')">${h(c.equipName)}</div>
+    if(page.length===0){
+      html+=`</tbody></table>
+        <div class="sap-table__empty">
+          <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+          <p>No certificates found.</p>
+        </div>`;
+    } else {
+      page.forEach(c=>{
+        const st=getCertStatus(c);
+        const tc2=tc[c.certCategory]||tc[c.certType]||{bg:'#f5f6f7',color:'#6a6d70'};
+        const d=getCertDays(c);
+        const expCls=d<0?'red':d<=30?'orange':d<=90?'var(--purple)':'green';
+        const expCol=d<0?'var(--error)':d<=30?'var(--warning)':d<=90?'var(--purple)':'var(--success)';
+        const canApprove=c.approvalStatus==='pending';
+
+        html+=`<tr class="cert-row" onmouseenter="certShowRowActions(this)" onmouseleave="certHideRowActions(this)">
+          <td class="cell-check"><input type="checkbox" class="sap-checkbox" data-id="${c.id}" onchange="certUpdateMassBar()"/></td>
+          <td data-col="jobNumber"><span style="font-family:monospace;font-size:11px;font-weight:700;color:var(--blue);background:var(--blue-light);border:1px solid #90caf9;border-radius:4px;padding:2px 6px;white-space:nowrap;">${h(c.jobNumber||'—')}</span></td>
+          <td data-col="certId"><span class="cert-id-chip">${h(c.id)}</span></td>
+          <td data-col="assetTag"><span class="asset-id-chip">${h(c.assetTag||'—')}</span></td>
+          <td data-col="name">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;">
+              <div style="min-width:0;">
+                <div style="font-weight:600;font-size:13px;cursor:pointer;color:var(--blue);" onclick="openCertDrawer('${c.id}')">${h(c.equipName)}</div>
+              </div>
+              <div class="row-actions" style="display:none;gap:3px;flex-shrink:0;align-items:center;">
+                <button class="btn btn-ghost btn-icon" onclick="openCertDrawer('${c.id}')" title="View"><i class="fa-solid fa-eye" style="font-size:11px;"></i></button>
+                ${(()=>{
+                  const isInspector=state.currentInspectorId!==null;
+                  const isOwnCert=c.uploadedBy===state.currentInspectorId;
+                  const inWindow=c.uploadedAt&&(Date.now()-new Date(c.uploadedAt).getTime()<=28800000);
+                  const canEdit=!isInspector||(isOwnCert&&inWindow);
+                  const canDelete=canEdit;
+                  const canApproveCert=!isInspector&&canApprove;
+                  let btns='';
+                  if(canEdit)btns+=`<button class="btn btn-secondary btn-icon" onclick="openEditCertModal('${c.id}')" title="Edit"><i class="fa-solid fa-pen" style="font-size:11px;"></i></button>`;
+                  if(canApproveCert)btns+=`<button class="btn btn-success btn-icon" onclick="approveCert('${c.id}')" title="Approve"><i class="fa-solid fa-check" style="font-size:11px;"></i></button>
+                <button class="btn btn-danger btn-icon" onclick="openCertRejectModal('${c.id}')" title="Reject"><i class="fa-solid fa-xmark" style="font-size:11px;"></i></button>`;
+                  if(canDelete)btns+=`<button class="btn btn-danger btn-icon" onclick="if(confirm('Delete ${c.id}?')){deleteCert('${c.id}')}" title="Delete"><i class="fa-solid fa-trash" style="font-size:11px;"></i></button>`;
+                  return btns;
+                })()}
+              </div>
             </div>
-            <div class="row-actions" style="display:none;gap:3px;flex-shrink:0;align-items:center;">
-              <button class="btn btn-ghost btn-icon" onclick="openCertDrawer('${c.id}')" title="View"><i class="fa-solid fa-eye" style="font-size:11px;"></i></button>
-              <button class="btn btn-secondary btn-icon" onclick="openEditCertModal('${c.id}')" title="Edit"><i class="fa-solid fa-pen" style="font-size:11px;"></i></button>
-              ${canApprove?`<button class="btn btn-success btn-icon" onclick="approveCert('${c.id}')" title="Approve"><i class="fa-solid fa-check" style="font-size:11px;"></i></button>
-              <button class="btn btn-danger btn-icon" onclick="openCertRejectModal('${c.id}')" title="Reject"><i class="fa-solid fa-xmark" style="font-size:11px;"></i></button>`:''}
-              <button class="btn btn-danger btn-icon" onclick="if(confirm('Delete ${c.id}?')){deleteCert('${c.id}')}" title="Delete"><i class="fa-solid fa-trash" style="font-size:11px;"></i></button>
-            </div>
+          </td>
+          <td data-col="category"><span style="font-size:11px;">${h(c.category||'—')}</span></td>
+          <td data-col="certType"><span class="cert-type-chip" style="background:${tc2.bg};color:${tc2.color};">${h(c.certCategory||c.certType)}</span></td>
+          <td data-col="issuedBy" style="font-size:12px;">${h(c.issuer||'—')}</td>
+          <td data-col="expiry">
+            ${getCertExpiryBar(c)}
+            <div style="font-size:11px;color:var(--text-sec);margin-top:2px;">${c.expiryDate}</div>
+          </td>
+          <td data-col="issueDate" style="font-size:12px;">${c.issueDate||'—'}</td>
+          <td data-col="approval">${getCertBadge(c.approvalStatus)}${c.rejectionReason?`<div style="font-size:10px;color:var(--error);margin-top:2px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${h(c.rejectionReason)}">${h(c.rejectionReason)}</div>`:''}</td>
+          <td data-col="client"><span style="font-size:12px;font-weight:600;">${h(c.client||'—')}</span></td>
+          <td data-col="qr" style="text-align:center;">
+            <button class="qr-icon-btn" onclick="openCertQRModal('${c.id}')" title="View QR">
+              <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            </button>
+          </td>
+          <td data-col="fileLink">
+            ${c.fileName||c.pdfUrl?`<button class="cert-file-link" onclick="showToast('Opening ${c.fileName||'certificate'}','info')">
+              <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              ${h(c.fileName||'View')}
+            </button>`:`<span style="color:var(--text-sec);font-size:11px;">—</span>`}
+          </td>
+        </tr>`;
+      });
+      html+=`</tbody></table>`;
+    }
+
+    // Mobile cards
+    html+=`<div class="cert-cards-view" id="certCardsContainer" style="padding:12px;">`;
+    if(page.length===0){
+      html+=`<div class="empty-state"><i class="fa-solid fa-certificate"></i><p>No certificates found</p></div>`;
+    } else {
+      page.forEach(c=>{
+        const tc2=tc[c.certCategory]||tc[c.certType]||{bg:'#f5f6f7',color:'#6a6d70'};
+        html+=`<div class="cert-card">
+          <div class="cert-card__header">
+            <span class="cert-card__title" onclick="openCertDrawer('${c.id}')">${h(c.equipName)}</span>
+            ${getCertBadge(c.approvalStatus)}
           </div>
-        </td>
-        <td data-col="category"><span style="font-size:11px;">${h(c.category||'—')}</span></td>
-        <td data-col="certType"><span class="cert-type-chip" style="background:${tc2.bg};color:${tc2.color};">${h(c.certCategory||c.certType)}</span></td>
-        <td data-col="issuedBy" style="font-size:12px;">${h(c.issuer||'—')}</td>
-        <td data-col="expiry">
-          ${getCertExpiryBar(c)}
-          <div style="font-size:11px;color:var(--text-sec);margin-top:2px;">${c.expiryDate}</div>
-        </td>
-        <td data-col="issueDate" style="font-size:12px;">${c.issueDate||'—'}</td>
-        <td data-col="approval">${getCertBadge(c.approvalStatus)}${c.rejectionReason?`<div style="font-size:10px;color:var(--error);margin-top:2px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${h(c.rejectionReason)}">${h(c.rejectionReason)}</div>`:''}</td>
-        <td data-col="client"><span style="font-size:12px;font-weight:600;">${h(c.client||'—')}</span></td>
-        <td data-col="qr" style="text-align:center;">
-          <button class="qr-icon-btn" onclick="openCertQRModal('${c.id}')" title="View QR">
-            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-          </button>
-        </td>
-        <td data-col="fileLink">
-          ${c.fileName||c.pdfUrl?`<button class="cert-file-link" onclick="showToast('Opening ${c.fileName||'certificate'}','info')">
-            <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            ${h(c.fileName||'View')}
-          </button>`:`<span style="color:var(--text-sec);font-size:11px;">—</span>`}
-        </td>
-      </tr>`;
-    });
-    html+=`</tbody></table>`;
+          <div style="font-size:11px;color:var(--text-sec);margin-bottom:4px;"><span class="cert-id-chip">${h(c.id)}</span></div>
+          <div class="cert-card__details">
+            <div><strong>Type:</strong> <span style="color:${tc2.color};">${h(c.certCategory||c.certType)}</span></div>
+            <div><strong>Expiry:</strong> ${getCertExpiryBar(c)}</div>
+            <div><strong>Asset:</strong> ${h(c.assetTag||'—')}</div>
+            <div><strong>Client:</strong> ${h(c.client||'—')}</div>
+          </div>
+          <div class="cert-card__footer">
+            ${c.approvalStatus==='pending'?`<button class="btn btn-success btn-sm" onclick="approveCert('${c.id}')">Approve</button><button class="btn btn-danger btn-sm" onclick="openCertRejectModal('${c.id}')">Reject</button>`:''}
+            <button class="btn btn-ghost btn-sm" onclick="openCertDrawer('${c.id}')">View</button>
+          </div>
+        </div>`;
+      });
+    }
+    html+=`</div>`;
+
+    // Pagination
+    html+=`<div class="sap-pagination">
+      <div class="sap-pagination__info">Showing ${start+1}-${end} of ${total}</div>
+      <div class="sap-pagination__controls">${certRenderPagination(total)}</div>
+      <div class="sap-pagination__size">
+        <span>Rows:</span>
+        <select onchange="certSetPageSize(this.value)">
+          <option value="25" ${certPageSize===25?'selected':''}>25</option>
+          <option value="50" ${certPageSize===50?'selected':''}>50</option>
+          <option value="100" ${certPageSize===100?'selected':''}>100</option>
+        </select>
+      </div>
+    </div>`;
+
+    html+=`</div>`;
+  } else if(certEntityView==='clients'){
+    html+=renderCertClientsView();
+  } else if(certEntityView==='functionalLocations'){
+    html+=renderCertFLView();
+  } else if(certEntityView==='inspectors'){
+    html+=renderCertInspectorsView();
+  } else if(certEntityView==='jobs'){
+    html+=renderCertJobsView();
   }
 
   html+=`</div>`;
-
-  // Mobile cards
-  html+=`<div class="cert-cards-view" id="certCardsContainer" style="padding:12px;">`;
-  if(page.length===0){
-    html+=`<div class="empty-state"><i class="fa-solid fa-certificate"></i><p>No certificates found</p></div>`;
-  } else {
-    page.forEach(c=>{
-      const tc2=tc[c.certCategory]||tc[c.certType]||{bg:'#f5f6f7',color:'#6a6d70'};
-      html+=`<div class="cert-card">
-        <div class="cert-card__header">
-          <span class="cert-card__title" onclick="openCertDrawer('${c.id}')">${h(c.equipName)}</span>
-          ${getCertBadge(c.approvalStatus)}
-        </div>
-        <div style="font-size:11px;color:var(--text-sec);margin-bottom:4px;"><span class="cert-id-chip">${h(c.id)}</span></div>
-        <div class="cert-card__details">
-          <div><strong>Type:</strong> <span style="color:${tc2.color};">${h(c.certCategory||c.certType)}</span></div>
-          <div><strong>Expiry:</strong> ${getCertExpiryBar(c)}</div>
-          <div><strong>Asset:</strong> ${h(c.assetTag||'—')}</div>
-          <div><strong>Client:</strong> ${h(c.client||'—')}</div>
-        </div>
-        <div class="cert-card__footer">
-          ${c.approvalStatus==='pending'?`<button class="btn btn-success btn-sm" onclick="approveCert('${c.id}')">Approve</button><button class="btn btn-danger btn-sm" onclick="openCertRejectModal('${c.id}')">Reject</button>`:''}
-          <button class="btn btn-ghost btn-sm" onclick="openCertDrawer('${c.id}')">View</button>
-        </div>
-      </div>`;
-    });
-  }
-  html+=`</div>`;
-
-  // Pagination
-  html+=`<div class="sap-pagination">
-    <div class="sap-pagination__info">Showing ${start+1}-${end} of ${total}</div>
-    <div class="sap-pagination__controls">${certRenderPagination(total)}</div>
-    <div class="sap-pagination__size">
-      <span>Rows:</span>
-      <select onchange="certSetPageSize(this.value)">
-        <option value="25" ${certPageSize===25?'selected':''}>25</option>
-        <option value="50" ${certPageSize===50?'selected':''}>50</option>
-        <option value="100" ${certPageSize===100?'selected':''}>100</option>
-      </select>
-    </div>
-  </div>`;
-
-  html+=`</div></div>`;
   return html;
+}
+
+/* ── Entity view: Clients ── */
+function renderCertClientsView(){
+  const now=new Date().toISOString().split('T')[0];
+  let activeClients=DATA.accounts.filter(a=>a.status==='active');
+  if(state.currentInspectorId){
+    const ja=DATA.jobAssignments.filter(a=>a.inspectorId===state.currentInspectorId);
+    const activeJobIds=ja.map(a=>a.jobId);
+    const openJobs=DATA.jobs.filter(j=>activeJobIds.includes(j.id)&&j.status!=='closed');
+    const allowedClientIds=[...new Set(openJobs.map(j=>j.clientId).filter(Boolean))];
+    activeClients=activeClients.filter(c=>allowedClientIds.includes(c.id));
+  }
+  let html='<div class="cert-entity-grid" style="padding:16px;">';
+  activeClients.forEach(cl=>{
+    const fls=DATA.functionalLocations.filter(f=>f.clientId===cl.id);
+    const certs=DATA.certificates.filter(c=>c.clientId===cl.id);
+    html+=`<div class="cert-entity-card">
+      <div class="cert-entity-card__header" onclick="certClientFilter='${cl.id}';certEntityView='list';rerenderSection()" style="cursor:pointer;">
+        <div class="cert-entity-card__title">${h(cl.name)}</div>
+        <div class="cert-entity-card__meta">${cl.type||''} · ${cl.country||''}</div>
+      </div>
+      <div class="cert-entity-card__stats">
+        <span class="cert-entity-stat"><strong>${certs.length}</strong> certs</span>
+        <span class="cert-entity-stat"><strong>${fls.length}</strong> locations</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>getCertStatus(c)==='expired').length}</strong> expired</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>getCertStatus(c)==='expiring').length}</strong> expiring</span>
+      </div>
+      ${fls.length?`<div class="cert-entity-sublist"><div style="font-size:11px;font-weight:700;color:var(--text-sec);margin-bottom:4px;">FUNCTIONAL LOCATIONS</div>
+        ${fls.map(fl=>{
+          const flCerts=DATA.certificates.filter(c=>c.flId===fl.id);
+          return`<div class="cert-entity-subitem" onclick="certLocFilter='${fl.id}';certEntityView='list';rerenderSection()">
+            <span>${h(fl.name)}</span>
+            <span class="cert-entity-stat">${flCerts.length} certs</span>
+          </div>`;
+        }).join('')}</div>`:''}
+    </div>`;
+  });
+  html+='</div>';
+  return html;
+}
+
+/* ── Entity view: Functional Locations ── */
+function renderCertFLView(){
+  let fls=DATA.functionalLocations.filter(f=>f.status==='active');
+  if(state.currentInspectorId){
+    const ja=DATA.jobAssignments.filter(a=>a.inspectorId===state.currentInspectorId);
+    const activeJobIds=ja.map(a=>a.jobId);
+    const openJobs=DATA.jobs.filter(j=>activeJobIds.includes(j.id)&&j.status!=='closed');
+    const allowedFlIds=[...new Set(openJobs.map(j=>j.flId).filter(Boolean))];
+    fls=fls.filter(f=>allowedFlIds.includes(f.id));
+  }
+  let html='<div class="cert-entity-grid" style="padding:16px;">';
+  fls.forEach(fl=>{
+    const client=DATA.accounts.find(a=>a.id===fl.clientId);
+    const certs=DATA.certificates.filter(c=>c.flId===fl.id);
+    html+=`<div class="cert-entity-card">
+      <div class="cert-entity-card__header" onclick="certLocFilter='${fl.id}';certEntityView='list';rerenderSection()" style="cursor:pointer;">
+        <div class="cert-entity-card__title">${h(fl.name)}</div>
+        <div class="cert-entity-card__meta">${fl.type||''}${client?' · '+h(client.name):''}</div>
+      </div>
+      <div class="cert-entity-card__stats">
+        <span class="cert-entity-stat"><strong>${certs.length}</strong> certs</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>getCertStatus(c)==='expired').length}</strong> expired</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>getCertStatus(c)==='expiring').length}</strong> expiring</span>
+      </div>
+      ${certs.length?`<div style="margin-top:8px;"><div style="font-size:11px;font-weight:700;color:var(--text-sec);margin-bottom:4px;">CERTIFICATES (${certs.length})</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">${certs.slice(0,10).map(c=>`<span class="cert-type-chip" style="font-size:10px;padding:2px 6px;cursor:pointer;" onclick="certSetTab('all');certSavedView='all';certLocFilter='${fl.id}';certEntityView='list';rerenderSection()">${h(c.equipName)}</span>`).join('')}${certs.length>10?`<span style="font-size:10px;color:var(--text-sec);">+${certs.length-10} more</span>`:''}</div></div>`:''}
+    </div>`;
+  });
+  html+='</div>';
+  return html;
+}
+
+/* ── Entity view: Inspectors ── */
+function renderCertInspectorsView(){
+  const inspectors=DATA.inspectors.filter(i=>i.status==='active');
+  let html='<div class="cert-entity-grid" style="padding:16px;">';
+  inspectors.forEach(ins=>{
+    const certs=DATA.certificates.filter(c=>c.inspectorId===ins.id);
+    html+=`<div class="cert-entity-card">
+      <div class="cert-entity-card__header" onclick="certInspectorFilter='${ins.id}';certEntityView='list';rerenderSection()" style="cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:10px;height:10px;border-radius:50%;background:${ins.color||'#6a6d70'};flex-shrink:0;"></span>
+          <div class="cert-entity-card__title">${h(ins.name)}</div>
+        </div>
+        <div class="cert-entity-card__meta">${ins.title||''}</div>
+      </div>
+      <div class="cert-entity-card__stats">
+        <span class="cert-entity-stat"><strong>${certs.length}</strong> certs</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>getCertStatus(c)==='expired').length}</strong> expired</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>getCertStatus(c)==='expiring').length}</strong> expiring</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>c.approvalStatus==='pending').length}</strong> pending</span>
+      </div>
+      ${ins.email?`<div style="font-size:12px;color:var(--text-sec);margin-top:4px;"><i class="fa-regular fa-envelope"></i> ${h(ins.email)}</div>`:''}
+      ${certs.length?`<div style="margin-top:8px;"><div style="font-size:11px;font-weight:700;color:var(--text-sec);margin-bottom:4px;">CERTIFICATES (${certs.length})</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">${certs.slice(0,8).map(c=>`<span class="cert-type-chip" style="font-size:10px;padding:2px 6px;cursor:pointer;" onclick="certInspectorFilter='${ins.id}';certEntityView='list';rerenderSection()">${h(c.equipName)}</span>`).join('')}${certs.length>8?`<span style="font-size:10px;color:var(--text-sec);">+${certs.length-8} more</span>`:''}</div></div>`:''}
+    </div>`;
+  });
+  html+='</div>';
+  return html;
+}
+
+/* ── Entity view: Jobs (Work Orders) ── */
+function getJobsForCurrentUser(){
+  if(state.currentInspectorId){
+    const assignedJobIds=DATA.jobAssignments.filter(ja=>ja.inspectorId===state.currentInspectorId).map(ja=>ja.jobId);
+    return DATA.jobs.filter(j=>assignedJobIds.includes(j.id));
+  }
+  return DATA.jobs;
+}
+
+function renderCertJobsView(){
+  const jobs=getJobsForCurrentUser();
+  const statusColors={open:'#0070f2',in_progress:'#e76500',completed:'#188918',closed:'#6a6d70'};
+  let html='<div class="cert-entity-grid" style="padding:16px;">';
+  jobs.forEach(job=>{
+    const client=DATA.accounts.find(a=>a.id===job.clientId);
+    const fl=DATA.functionalLocations.find(f=>f.id===job.flId);
+    const inspectors=DATA.jobAssignments.filter(ja=>ja.jobId===job.id).map(ja=>DATA.inspectors.find(i=>i.id===ja.inspectorId)).filter(Boolean);
+    const certs=DATA.certificates.filter(c=>c.jobId===job.id);
+    const isClosed=job.status==='closed';
+    html+=`<div class="cert-entity-card" style="${isClosed?'opacity:.5;':''}">
+      <div class="cert-entity-card__header" onclick="${isClosed?'':`certJobFilter='${job.id}';certEntityView='list';rerenderSection()`}" style="cursor:${isClosed?'default':'pointer'};">
+        <div class="cert-entity-card__title">${h(job.title)}</div>
+        <div class="cert-entity-card__meta">${client?h(client.name):'—'}${fl?' · '+h(fl.name):''}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+        <span class="job-status-badge" style="background:${(statusColors[job.status]||'#6a6d70')}22;color:${statusColors[job.status]||'#6a6d70'};border:1px solid ${(statusColors[job.status]||'#6a6d70')}44;">${job.status.replace('_',' ')}</span>
+        <span class="cert-entity-stat"><strong>${certs.length}</strong> certs</span>
+        <span class="cert-entity-stat"><strong>${certs.filter(c=>getCertStatus(c)==='expired').length}</strong> expired</span>
+        ${state.currentUserRole!=='Inspector'&&!isClosed?`<button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:10px;padding:2px 6px;" onclick="event.stopPropagation();cycleJobStatus('${job.id}')">Cycle ▾</button>`:''}
+      </div>
+      ${inspectors.length?`<div style="font-size:11px;color:var(--text-sec);margin-bottom:4px;">Assigned: ${inspectors.map(i=>`<span class="inspector-dot" style="background:${i.color||'#6a6d70'};display:inline-block;width:8px;height:8px;border-radius:50%;"></span> ${h(i.name)}`).join(', ')}</div>`:''}
+      ${job.description?`<div style="font-size:12px;color:var(--text-sec);margin-top:4px;">${h(job.description)}</div>`:''}
+      ${isClosed?`<div style="font-size:11px;color:var(--text-sec);margin-top:4px;">Closed: ${job.closedAt||'—'}</div>`:''}
+      ${!isClosed&&certs.length?`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);"><div style="display:flex;flex-wrap:wrap;gap:4px;">${certs.slice(0,6).map(c=>`<span class="cert-type-chip" style="font-size:10px;padding:2px 6px;cursor:pointer;" onclick="certJobFilter='${job.id}';certEntityView='list';rerenderSection()">${h(c.equipName)}</span>`).join('')}${certs.length>6?`<span style="font-size:10px;color:var(--text-sec);">+${certs.length-6} more</span>`:''}</div></div>`:''}
+    </div>`;
+  });
+  html+=`${jobs.length===0?'<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-sec);font-size:14px;">No jobs assigned.</div>':''}`;
+  html+='</div>';
+  return html;
+}
+
+function cycleJobStatus(jobId){
+  const job=DATA.jobs.find(j=>j.id===jobId);
+  if(!job)return;
+  const order=['open','in_progress','completed','closed'];
+  const idx=order.indexOf(job.status);
+  const next=order[(idx+1)%order.length];
+  job.status=next;
+  if(next==='completed')job.completedAt=new Date().toISOString().split('T')[0];
+  if(next==='closed')job.closedAt=new Date().toISOString().split('T')[0];
+  rerenderSection();
 }
 
 /* ── Certificate list helpers ── */
@@ -1662,6 +1990,66 @@ function certSetPageSize(s){
   rerenderSection();
 }
 
+function certSetTab(tab){
+  certSavedView=tab;
+  certEntityView='list';
+  certClientFilter='all';
+  certLocFilter='all';
+  certTypeFilter='all';
+  certInspectorFilter='all';
+  certJobFilter='all';
+  state.filters.search='';
+  certCurrentPage=1;
+  rerenderSection();
+}
+
+function certSetEntityView(view){
+  certEntityView=view;
+  if(view!=='list'){
+    certClientFilter='all';
+    certLocFilter='all';
+    certTypeFilter='all';
+    certInspectorFilter='all';
+    certJobFilter='all';
+  }
+  state.filters.search='';
+  certCurrentPage=1;
+  rerenderSection();
+}
+
+function certSetFilter(type, value){
+  if(type==='client') certClientFilter=value;
+  else if(type==='loc') certLocFilter=value;
+  else if(type==='type') certTypeFilter=value;
+  else if(type==='inspector') certInspectorFilter=value;
+  else if(type==='job') certJobFilter=value;
+  rerenderSection();
+}
+
+function certLoginInspector(inspectorId){
+  state.currentInspectorId=inspectorId;
+  state.currentUserRole='Inspector';
+  state.module='certificates';
+  state.section='allCerts';
+  certJobFilter='all';
+  certEntityView='list';
+  certSavedView='all';
+  certCurrentPage=1;
+  rerenderSection();
+}
+
+function certLogoutInspector(){
+  state.currentInspectorId=null;
+  state.currentUserRole='Admin';
+  state.module='certificates';
+  state.section='allCerts';
+  certJobFilter='all';
+  certEntityView='list';
+  certSavedView='all';
+  certCurrentPage=1;
+  rerenderSection();
+}
+
 function setCertSavedView(view){
   certSavedView=view;
   state.filters.search='';
@@ -1670,9 +2058,8 @@ function setCertSavedView(view){
 }
 
 function certSortTable(col){
-  certSortCol=col===certSortCol?certSortCol:col;
-  certSortDir=col===certSortCol?certSortDir*-1:1;
-  certSortCol=col;
+  if(col===certSortCol){certSortDir*=-1;}
+  else{certSortCol=col;certSortDir=1;}
   rerenderSection();
 }
 
@@ -1702,15 +2089,16 @@ function certResetColumns(){
 }
 
 function certLoadColState(){
+  const allCols=['jobNumber','certId','assetTag','category','certType','issuedBy','issueDate','expiry','approval','client','qr','fileLink'];
   const saved=localStorage.getItem('cert_col_state');
-  if(!saved)return;
-  try{
-    const st=JSON.parse(saved);
-    Object.entries(st).forEach(([k,v])=>{
-      const el=document.getElementById('certCol_'+k);
-      if(el)el.checked=v;
-    });
-  }catch(e){}
+  let st={};
+  if(saved){
+    try{st=JSON.parse(saved);}catch(e){}
+  }
+  allCols.forEach(k=>{
+    const el=document.getElementById('certCol_'+k);
+    if(el)el.checked=st[k]!==false;
+  });
 }
 
 function certShowRowActions(row){const b=row.querySelector('.row-actions');if(b)b.style.display='flex';}
@@ -1784,7 +2172,58 @@ function certExportCSV(){
 }
 
 function certExportPDF(){
-  showToast('PDF export coming soon','info');
+  if(typeof window.jspdf==='undefined'){
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload=()=>{
+      const t=document.createElement('script');
+      t.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js';
+      t.onload=()=>certExportPDF();
+      document.head.appendChild(t);
+    };
+    document.head.appendChild(s);
+    showToast('Loading PDF library…','info');
+    return;
+  }
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+  const colMap={jobNumber:'Job No.',certId:'Cert ID',assetTag:'Asset Tag',name:'Certificate Name',category:'Category',certType:'Type',issuedBy:'Issued By',expiry:'Expiry',issueDate:'Issue Date',approval:'Approval',client:'Client',qr:'QR',fileLink:'File'};
+  const visible=document.querySelectorAll('#certTableBody tr:first-child td[data-col]');
+  const cols=[];
+  const headers=[];
+  if(visible.length){
+    visible.forEach(td=>{const k=td.getAttribute('data-col');cols.push(k);headers.push(colMap[k]||k);});
+  } else {
+    const fallback=['jobNumber','certId','assetTag','name','category','certType','issuedBy','expiry','issueDate','approval','client','fileLink'];
+    fallback.forEach(k=>{cols.push(k);headers.push(colMap[k]||k);});
+  }
+  const body=DATA.certificates.map(c=>cols.map(k=>{
+    const m={jobNumber:c.jobNumber,certId:c.id,assetTag:c.assetTag,name:c.equipName,category:c.category,certType:c.certCategory||c.certType,issuedBy:c.issuer||'—',expiry:c.expiryDate||'—',issueDate:c.issueDate||'—',approval:c.approvalStatus||'—',client:c.client||'—',qr:'',fileLink:c.fileName||'—'};
+    return m[k]||'';
+  }));
+  doc.setFontSize(16);
+  doc.setTextColor(30,30,30);
+  doc.text('Certificate Report',14,16);
+  doc.setFontSize(9);
+  doc.setTextColor(120,120,120);
+  doc.text(`Generated: ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}`,14,22);
+  doc.autoTable({
+    head:[headers],
+    body,
+    startY:26,
+    styles:{fontSize:8,cellPadding:{top:2,bottom:2,left:2,right:2},overflow:'ellipsize',halign:'left'},
+    headStyles:{fillColor:[60,70,80],textColor:255,fontSize:8,fontStyle:'bold',halign:'left'},
+    alternateRowStyles:{fillColor:[245,247,250]},
+    margin:{top:26,right:10,bottom:15,left:10},
+    pageBreak:'auto',
+    didDrawPage:(data)=>{
+      doc.setFontSize(7);
+      doc.setTextColor(150,150,150);
+      doc.text(`AMICI ERP — Page ${doc.internal.getNumberOfPages()}`,doc.internal.pageSize.width-10,doc.internal.pageSize.height-5,{align:'right'});
+    }
+  });
+  doc.save('certificates_export.pdf');
+  showToast('PDF exported','success');
 }
 
 function deleteCert(id){
@@ -1957,11 +2396,11 @@ function renderCertNotifications(){
     <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <span>Service Worker</span>
-        <span style="color:${pushSupported?'var(--success)':'var(--error)'};">${pushSupported?'✅ Available':'❌ Not available'}</span>
+        <span style="color:${pushSupported?'var(--success)':'var(--error)'};">${pushSupported?'<i class="fa-solid fa-check-circle" style="color:var(--success)"></i> Available':'<i class="fa-solid fa-circle-xmark" style="color:var(--error)"></i> Not available'}</span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <span>Push API</span>
-        <span style="color:${pushSupported?'var(--success)':'var(--error)'};">${pushSupported?'✅ Supported':'❌ Not supported'}</span>
+        <span style="color:${pushSupported?'var(--success)':'var(--error)'};">${pushSupported?'<i class="fa-solid fa-check" style="color:var(--success)"></i> Supported':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i> Not supported'}</span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <span>Notification Permission</span>
@@ -2009,11 +2448,11 @@ function renderCertNotifications(){
     <div class="sec-card-body">
       <div style="font-size:13px;color:var(--text-sec);margin-bottom:8px;">The following certificates require attention:</div>
       <div style="display:flex;flex-direction:column;gap:6px;">
-        ${DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring').map(c=>`
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:${c.status==='expired'?'#fbe9e7':'#fff8e1'};border-radius:4px;font-size:12px;">
+        ${DATA.certificates.filter(c=>{const s=getCertStatus(c);return s==='expired'||s==='expiring';}).map(c=>{const s=getCertStatus(c);const d=getCertDays(c);return`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:${s==='expired'?'#fbe9e7':'#fff8e1'};border-radius:4px;font-size:12px;">
             <span><strong>${c.equipName}</strong> — ${c.certType}</span>
-            <span style="color:${c.status==='expired'?'var(--error)':'var(--warning)'};font-weight:700;">${c.status==='expired'?'Expired '+Math.abs(c.daysRemaining)+'d ago':c.daysRemaining+'d left'}</span>
-          </div>`).join('')}
+            <span style="color:${s==='expired'?'var(--error)':'var(--warning)'};font-weight:700;">${s==='expired'?'Expired '+Math.abs(d)+'d ago':d+'d left'}</span>
+          </div>`;}).join('')}
       </div>
     </div></div>
   </div>`;
@@ -2054,18 +2493,18 @@ function togglePushNotif(enabled){
 }
 
 function checkPushHealth(){
-  let info = `Service Worker: ${'serviceWorker' in navigator?'✅':'❌'}\n`;
-  info += `Push API: ${'PushManager' in window?'✅':'❌'}\n`;
+  let info = `Service Worker: ${'serviceWorker' in navigator?'<i class="fa-solid fa-check" style="color:var(--success)"></i>':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i>'}\n`;
+  info += `Push API: ${'PushManager' in window?'<i class="fa-solid fa-check" style="color:var(--success)"></i>':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i>'}\n`;
   info += `Notification: ${'Notification' in window?Notification.permission:'N/A'}\n`;
-  info += `Subscribed: ${state.pushSubscribed?'✅':'❌'}\n`;
+  info += `Subscribed: ${state.pushSubscribed?'<i class="fa-solid fa-check" style="color:var(--success)"></i>':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i>'}\n`;
   if(state._swReg){
     state._swReg.pushManager.getSubscription().then(sub=>{
       if(sub){
         info += `\n--- Subscription Details ---\n`;
         info += `Endpoint: ${sub.endpoint.slice(0,50)}...\n`;
         const keyJson = sub.toJSON();
-        info += `p256dh: ${keyJson.keys?.p256dh?'✅ Set':'❌ Missing'}\n`;
-        info += `auth: ${keyJson.keys?.auth?'✅ Set':'❌ Missing'}\n`;
+        info += `p256dh: ${keyJson.keys?.p256dh?'<i class="fa-solid fa-check" style="color:var(--success)"></i> Set':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i> Missing'}\n`;
+        info += `auth: ${keyJson.keys?.auth?'<i class="fa-solid fa-check" style="color:var(--success)"></i> Set':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i> Missing'}\n`;
       }
       showToast(info.replace(/\n/g,'<br>'),'info');
     });
@@ -2135,8 +2574,9 @@ function renderCertGantt(){
       </div>`;
     for(let mi=0; mi<months.length; mi++){
       if(mi===expMonthIdx){
-        const barCol = c.status==='expired'?'var(--error)':c.status==='expiring'?'var(--warning)':c.status==='renewal'?'var(--purple)':'var(--success)';
-        const barW = c.status==='expired'?Math.max(20,Math.min(95,Math.abs(c.daysRemaining)/30*100)):90;
+        const gs=getCertStatus(c);const gd=getCertDays(c);
+        const barCol = gs==='expired'?'var(--error)':gs==='expiring'?'var(--warning)':'var(--success)';
+        const barW = gs==='expired'?Math.max(20,Math.min(95,Math.abs(gd)/30*100)):90;
         html+=`<div style="position:relative;height:20px;display:flex;align-items:center;justify-content:center;">
           <div style="width:${barW}%;height:14px;background:${barCol};border-radius:3px;opacity:0.85;" title="${tip}"></div>
         </div>`;
@@ -2174,8 +2614,67 @@ function renderCertGantt(){
 /* ═══════════════════════════════════════════════
    NEW CERTIFICATE MODAL
 ═══════════════════════════════════════════════ */
-function openNewCertModal(){
+function certFilterFL(clientId){
+  const flSel=document.getElementById('nc-fl');
+  const siteInp=document.getElementById('nc-site');
+  if(!flSel)return;
+  Array.from(flSel.options).forEach(o=>{
+    o.style.display=(!clientId||o.dataset.client===clientId||!o.value)?'':'none';
+  });
+  if(clientId && !flSel.value){
+    const first=Array.from(flSel.options).find(o=>o.value&&o.style.display!=='none');
+    if(first){flSel.value=first.value;flSel.dispatchEvent(new Event('change'));}
+  }
+  if(!clientId){flSel.value='';siteInp.value='';}
+}
+
+function certFillSite(){
+  const flSel=document.getElementById('nc-fl');
+  const siteInp=document.getElementById('nc-site');
+  if(!flSel||!siteInp)return;
+  const opt=flSel.options[flSel.selectedIndex];
+  siteInp.value=opt&&opt.text?opt.text.split(' (')[0]:'';
+}
+
+function openNewCertModal(jobId){
+  const job=jobId?DATA.jobs.find(j=>j.id===jobId):null;
+  const preClientId=job?job.clientId:'';
+  const preFlId=job?job.flId:'';
+  const preInspectorId=job?(()=>{
+    const ja=DATA.jobAssignments.find(a=>a.jobId===jobId);
+    return ja?ja.inspectorId:'';
+  })():'';
+  const preSite=job?(()=>{const fl=DATA.functionalLocations.find(f=>f.id===job.flId);return fl?fl.name:'';})():'';
+  const clientOpts=DATA.accounts.filter(a=>a.status==='active').map(a=>`<option value="${a.id}" ${preClientId===a.id?'selected':''}>${h(a.name)}</option>`).join('');
+  const flOpts=DATA.functionalLocations.filter(f=>f.status==='active').map(f=>`<option value="${f.id}" data-client="${f.clientId||''}" ${preFlId===f.id?'selected':''}>${h(f.name)} (${f.flId})</option>`).join('');
+  const inspOpts=DATA.inspectors.filter(i=>i.status==='active').map(i=>`<option value="${i.id}" ${preInspectorId===i.id?'selected':''}>${h(i.name)} – ${h(i.title)}</option>`).join('');
+  const disabled=job?'disabled':'';
   const body=`
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Client <span style="color:var(--error)">*</span></label>
+        <select class="form-select" id="nc-client" onchange="certFilterFL(this.value)" style="font-weight:600;" ${disabled}>
+          <option value="">— Select Client —</option>
+          ${clientOpts}
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Functional Location</label>
+        <select class="form-select" id="nc-fl" onchange="certFillSite()" ${disabled}>
+          <option value="">— Select Location —</option>
+          ${flOpts}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Inspector</label>
+        <select class="form-select" id="nc-inspector" ${disabled}>
+          <option value="">— Select Inspector —</option>
+          ${inspOpts}
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Site / Location (text)</label><input class="form-input" id="nc-site" placeholder="Auto-filled from FL, or type manually" value="${h(preSite)}"></div>
+    </div>
+    ${job?`<input type="hidden" id="nc-jobId" value="${job.id}">`:''}
+    <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
     <div class="form-row">
       <div class="form-group"><label class="form-label">Equipment Name</label><input class="form-input" id="nc-name" placeholder="e.g. HP Centrifugal Pump – P-201"></div>
       <div class="form-group"><label class="form-label">Asset Tag / No.</label><input class="form-input" id="nc-tag" placeholder="e.g. ROT-P201"></div>
@@ -2197,16 +2696,6 @@ function openNewCertModal(){
       </div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Site / Location</label>
-        <select class="form-select" id="nc-site"><option>Block 15 – Rig Alpha</option><option>Block 7 – Offshore Platform</option><option>Onshore Processing Facility – South</option><option>Gas Treatment Plant – North</option><option>Head Office – Muscat</option><option>Block 3 – Exploration Camp</option></select>
-      </div>
-      <div class="form-group"><label class="form-label">Client</label><input class="form-input" id="nc-client" placeholder="e.g. ADNOC, OCC"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Job Number</label><input class="form-input" id="nc-job" placeholder="e.g. JOB-2025-001"></div>
-      <div class="form-group"><label class="form-label">Certificate Type</label><input class="form-input" id="nc-type" placeholder="e.g. API 510, LOLER, IEC 60079"></div>
-    </div>
-    <div class="form-row">
       <div class="form-group" id="nc-liftSubtype" style="display:none;">
         <label class="form-label">Lifting Subtype</label>
         <select class="form-select" id="nc-liftType"><option>LIFTING GEAR</option><option>LIFTING PERSONNEL</option><option>LIFTING EQUIPMENT</option></select>
@@ -2214,15 +2703,16 @@ function openNewCertModal(){
       <div class="form-group"><label class="form-label">Issuing Authority</label><input class="form-input" id="nc-issuer" placeholder="e.g. Bureau Veritas, DNV, SGS"></div>
     </div>
     <div class="form-row">
+      <div class="form-group"><label class="form-label">Job Number</label><input class="form-input" id="nc-job" placeholder="e.g. JOB-2025-001" value="${job?h(job.title):''}"></div>
+      <div class="form-group"><label class="form-label">Certificate Type</label><input class="form-input" id="nc-type" placeholder="e.g. API 510, LOLER, IEC 60079"></div>
+    </div>
+    <div class="form-row">
       <div class="form-group"><label class="form-label">Issue Date</label><input class="form-input" id="nc-issue" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
       <div class="form-group"><label class="form-label">Expiry Date</label><input class="form-input" id="nc-expiry" type="date"></div>
-      <div class="form-group"><label class="form-label">Upload Certificate (PDF)</label>
+      <div class="form-group"><label class="form-label">Upload PDF</label>
       <input class="form-input" id="nc-file" type="file" accept=".pdf"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Responsible Engineer</label>
-        <select class="form-select" id="nc-eng">${DATA.employees.filter(e=>e.dept==='HSE'||e.dept==='Maintenance'||e.dept==='Instrumentation').map(e=>`<option>${e.name}</option>`).join('')}</select>
-      </div>
       <div class="form-group"><label class="form-label">Upload PDF (filename)</label><input class="form-input" id="nc-pdf" placeholder="cert_filename.pdf" type="text"></div>
     </div>
     <div class="form-group"><label class="form-label">Remarks</label><textarea class="form-textarea" id="nc-remarks" placeholder="Inspector notes, findings, next actions..."></textarea></div>`;
@@ -2248,9 +2738,31 @@ async function submitNewCert(){
     showToast('File securely uploaded to Supabase Storage Bucket', 'success');
   }
 
-  const cert={id:newId,equipName:name,assetTag:$('#nc-tag').value,category:$('#nc-cat').value,certCategory, liftingSubtype,client:$('#nc-client').value,jobNumber:$('#nc-job').value,site:$('#nc-site').value,certType:$('#nc-type').value,issuer:$('#nc-issuer').value,issueDate:$('#nc-issue').value,expiryDate:expiry,daysRemaining:days,status,approvalStatus:'pending',engineer:$('#nc-eng').value,fileName:uploadedPdfUrl,pdfUrl:uploadedPdfUrl,remarks:$('#nc-remarks').value};
+  // FK lookups
+  const clientId=$('#nc-client').value||null;
+  const flId=$('#nc-fl').value||null;
+  const inspectorId=$('#nc-inspector').value||null;
+  const clientObj=clientId?DATA.accounts.find(a=>a.id===clientId):null;
+  const flObj=flId?DATA.functionalLocations.find(f=>f.id===flId):null;
+  const inspObj=inspectorId?DATA.inspectors.find(i=>i.id===inspectorId):null;
+  const site=$('#nc-site').value||(flObj?flObj.name:'');
+
+  const jobId=$('#nc-jobId')?.value||null;
+  const nowISO=new Date().toISOString();
+  const cert={
+    id:newId,equipName:name,assetTag:$('#nc-tag').value,category:$('#nc-cat').value,
+    certCategory,liftingSubtype,
+    clientId,flId,inspectorId, jobId,
+    uploadedAt:nowISO, uploadedBy:state.currentInspectorId||inspectorId,
+    client:clientObj?clientObj.name:'',site,certType:$('#nc-type').value,
+    issuer:$('#nc-issuer').value,issueDate:$('#nc-issue').value,
+    expiryDate:expiry,daysRemaining:days,status,
+    approvalStatus:'pending',engineer:inspObj?inspObj.name:'',
+    fileName:uploadedPdfUrl,pdfUrl:uploadedPdfUrl,
+    jobNumber:$('#nc-job').value,remarks:$('#nc-remarks').value
+  };
   if(supabase){
-    const{error}=await supabase.from('certificates').insert({id:newId,employee_id:null,cert_type:cert.certType,expiry_date:expiry,status});
+    const{error}=await supabase.from('certificates').insert({id:newId,employee_id:null,cert_type:cert.certType,expiry_date:expiry,status,client_id:clientId,fl_id:flId,inspector_id:inspectorId,job_id:jobId});
     if(error){showToast('Error saving certificate','error');return;}
   }
   DATA.certificates.push(cert);
@@ -2258,123 +2770,313 @@ async function submitNewCert(){
 }
 
 /* ═══════════════════════════════════════════════
-   BULK CERTIFICATE CREATION (Rigways style)
+   BULK CERTIFICATE IMPORT WIZARD (Rigways style)
 ═══════════════════════════════════════════════ */
 let BULK_CERTS = [];
+let BULK_STEP = 1;
+let BULK_DEFAULTS = { certCategory:'CAT III', validityMonths:12, inspectorId:'', inspectorName:'', clientId:'', clientName:'', flId:'', site:'', equipCategory:'Rotating', issuer:'' };
+
+const BULK_EQUIP_CATS = ['Rotating','Static','Lifting','Electrical','Pressure','Fire & Safety','Instrumentation','Vehicles'];
+const BULK_CERT_TYPES = ['CAT III','CAT IV','LIFTING','LOAD TEST','NDT','TUBULAR','ORIGINAL COC'];
+const BULK_LIFT_SUBTYPES = ['LIFTING GEAR','LIFTING PERSONNEL','LIFTING EQUIPMENT'];
 
 function openBulkCertModal(){
-  BULK_CERTS = [];
-  const html=`<div style="margin-bottom:12px;">
-    <button class="btn btn-secondary btn-sm" onclick="addBulkRow()"><i class="fa-solid fa-plus"></i> Add Row</button>
-    <button class="btn btn-primary btn-sm" onclick="batchSetDefaults()" style="margin-left:8px;"><i class="fa-solid fa-pen"></i> Set Defaults</button>
-  </div>
-  <div id="bulkRows" style="max-height:400px;overflow-y:auto;"></div>
-  <div id="bulkSummary" style="margin-top:10px;font-size:12px;color:var(--text-sec);"></div>`;
-  const footer=`<button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitBulkCerts()"><i class="fa-solid fa-check"></i> Create All</button>`;
-  openModal('Bulk Create Certificates',html,footer);
-  addBulkRow();
+  BULK_CERTS = []; BULK_STEP = 1;
+  BULK_DEFAULTS = { certCategory:'CAT III', validityMonths:12, inspectorId:'', inspectorName:'', clientId:'', clientName:'', flId:'', site:'', equipCategory:'Rotating', issuer:'' };
+  renderBulkWizard();
 }
 
-function addBulkRow(){
+function renderBulkWizard(){
+  const steps = ['1. Source & Defaults','2. Review Data','3. QR & Confirm'];
+  const $s=(s,i)=>`<div class="bulk-step ${i+1===BULK_STEP?'active':i+1<BULK_STEP?'done':''}" onclick="BULK_STEP=${i+1};renderBulkWizard()" role="tab" tabindex="0" aria-selected="${i+1===BULK_STEP}" onkeydown="if(event.key==='Enter'){BULK_STEP=${i+1};renderBulkWizard()}">${i+1<BULK_STEP?'<i class="fa-solid fa-check-circle"></i>':`<span class="bulk-step-num">${i+1}</span>`} ${s}</div>`;
+  const content = BULK_STEP===1 ? renderBulkStep1() : BULK_STEP===2 ? renderBulkStep2() : renderBulkStep3();
+  const prev = BULK_STEP>1 ? `<button class="btn btn-ghost btn-sm" onclick="BULK_STEP--;renderBulkWizard()"><i class="fa-solid fa-arrow-left"></i> Back</button>` : '';
+  const next = BULK_STEP<3 ? `<button class="btn btn-primary btn-sm" onclick="bulkWizardNext()">Next <i class="fa-solid fa-arrow-right"></i></button>` : '';
+  const submit = BULK_STEP===3 ? `<button class="btn btn-primary" onclick="submitBulkWizard()"><i class="fa-solid fa-check"></i> Import ${BULK_CERTS.length} Certificates</button>` : '';
+  const html = `
+    <div class="bulk-wizard">
+      <div class="bulk-steps" role="tablist">${steps.map($s).join('<div class="bulk-step-connector"></div>')}</div>
+      <div class="bulk-step-body">${content}</div>
+      <div class="bulk-nav">${prev}<div style="flex:1"></div>${next}${submit}</div>
+    </div>`;
+  const footer = `<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>`;
+  openModal('Mass Import Certificates', html, footer);
+  document.querySelector('.modal')?.classList.add('modal--wide');
+  if(BULK_STEP===2) setTimeout(()=>document.querySelector('.bulk-step-body')?.scrollTo(0,0),10);
+}
+
+function bulkWizardNext(){
+  if(BULK_STEP===1){
+    if(BULK_CERTS.length===0){ showToast('Add at least one certificate row before proceeding','error'); return; }
+    const missing = BULK_CERTS.filter(r=>!r.equipName||!r.expiryDate);
+    if(missing.length>0){ showToast(`${missing.length} row(s) missing equipment name or expiry — fix first`,'error'); return; }
+  }
+  if(BULK_STEP<3){ BULK_STEP++; renderBulkWizard(); }
+}
+
+/* ── Step 1: Source & Defaults ── */
+function renderBulkStep1(){
+  const clientOpts = `<option value="">— Select —</option>${DATA.accounts.filter(a=>a.status==='active').map(a=>`<option value="${a.id}" ${BULK_DEFAULTS.clientId===a.id?'selected':''}>${h(a.name)}</option>`).join('')}`;
+  const flOpts = `<option value="">— Select —</option>${DATA.functionalLocations.filter(f=>f.status==='active').map(f=>`<option value="${f.id}" ${BULK_DEFAULTS.flId===f.id?'selected':''}>${h(f.name)} (${f.flId})</option>`).join('')}`;
+  const inspOpts = `<option value="">— Select —</option>${DATA.inspectors.filter(i=>i.status==='active').map(i=>`<option value="${i.id}" ${BULK_DEFAULTS.inspectorId===i.id?'selected':''}>${h(i.name)} – ${h(i.title)}</option>`).join('')}`;
+  return `
+    <div style="margin-bottom:16px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;"><i class="fa-solid fa-file-import"></i> Import Source</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="bulkDownloadTemplate()"><i class="fa-solid fa-download"></i> Download CSV Template</button>
+        <label class="btn btn-primary btn-sm" style="cursor:pointer;"><i class="fa-solid fa-upload"></i> Upload CSV<input type="file" accept=".csv" style="display:none" onchange="bulkHandleCSV(this)"></label>
+        <button class="btn btn-ghost btn-sm" onclick="bulkAddRowManual()"><i class="fa-solid fa-pen"></i> Enter Manually</button>
+      </div>
+      ${BULK_CERTS.length>0?`<div style="margin-top:8px;font-size:12px;color:var(--text-sec);"><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> ${BULK_CERTS.length} row(s) loaded</div>`:''}
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px;"><i class="fa-solid fa-sliders"></i> Default Values (applied to all rows)</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Client</label><select class="form-select" id="bd-client" onchange="BULK_DEFAULTS.clientId=this.value;BULK_DEFAULTS.clientName=this.options[this.selectedIndex].text;bulkApplyDefaults()">${clientOpts}</select></div>
+      <div class="form-group"><label class="form-label">Functional Location</label><select class="form-select" id="bd-fl" onchange="BULK_DEFAULTS.flId=this.value;bulkFillSite()">${flOpts}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Site</label><input class="form-input" id="bd-site" value="${h(BULK_DEFAULTS.site)}" onchange="BULK_DEFAULTS.site=this.value"></div>
+      <div class="form-group"><label class="form-label">Inspector</label><select class="form-select" id="bd-inspector" onchange="BULK_DEFAULTS.inspectorId=this.value;BULK_DEFAULTS.inspectorName=this.options[this.selectedIndex].text.split(' – ')[0]">${inspOpts}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Cert Category</label><select class="form-select" id="bd-certCat" onchange="BULK_DEFAULTS.certCategory=this.value;document.getElementById('bd-liftWrap').style.display=this.value==='LIFTING'?'':'none'">${BULK_CERT_TYPES.map(t=>`<option value="${t}" ${BULK_DEFAULTS.certCategory===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">Equipment Category</label><select class="form-select" id="bd-equipCat" onchange="BULK_DEFAULTS.equipCategory=this.value">${BULK_EQUIP_CATS.map(c=>`<option value="${c}" ${BULK_DEFAULTS.equipCategory===c?'selected':''}>${c}</option>`).join('')}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Issuing Authority</label><input class="form-input" id="bd-issuer" value="${h(BULK_DEFAULTS.issuer)}" placeholder="e.g. Bureau Veritas" onchange="BULK_DEFAULTS.issuer=this.value"></div>
+      <div class="form-group"><label class="form-label">Validity (months)</label><input class="form-input" id="bd-validity" type="number" value="${BULK_DEFAULTS.validityMonths}" min="1" max="60" onchange="BULK_DEFAULTS.validityMonths=parseInt(this.value)||12"></div>
+    </div>`;
+}
+
+function bulkFillSite(){
+  const fl = DATA.functionalLocations.find(f=>f.id===document.getElementById('bd-fl')?.value);
+  if(fl){ document.getElementById('bd-site').value = fl.name; BULK_DEFAULTS.site = fl.name; }
+}
+
+function bulkApplyDefaults(){
+  // Auto-fill site from FL if possible
+  bulkFillSite();
+  // Issue dates get defaults when rows are added; updating defaults doesn't retro-change rows here
+}
+
+function bulkDownloadTemplate(){
+  const headers = ['assetTag','equipName','category','certCategory','liftingSubtype','client','site','jobNumber','inspector','issuer','certType','issueDate','expiryDate','remarks'];
+  const row = ['AST-0001','Example Equipment','Rotating','CAT III','','Client Name','Site Name','JOB-001','Inspector Name','Bureau Veritas','API 510','2026-01-15','2027-01-15','Inspector notes here'];
+  const csv = [headers.join(','), row.join(',')].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'cert_import_template.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('Template downloaded','success');
+}
+
+function bulkHandleCSV(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try {
+      const text = e.target.result;
+      const lines = text.split('\n').map(l=>l.trim()).filter(l=>l);
+      if(lines.length<2){ showToast('CSV must have a header row and at least one data row','error'); return; }
+      const headers = lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,''));
+      const colMap = {};
+      headers.forEach((h,i)=>colMap[h.toLowerCase()]=i);
+      const needed = ['assetTag','equipname','issuedate','expirydate'];
+      const missing = needed.filter(n=>!colMap[n]&&n!=='expirydate');
+      if(missing.length){ showToast('CSV missing required columns: '+missing.join(', '),'error'); return; }
+      const rows = [];
+      for(let i=1; i<lines.length; i++){
+        const vals = lines[i].split(',').map(v=>v.trim().replace(/^"|"$/g,''));
+        if(vals.length<2) continue;
+        const g = (k)=>{ const idx=colMap[k]; return idx!==undefined?vals[idx]||'':''; };
+        rows.push({
+          assetTag: g('assetTag') || `AST-${String(i).padStart(4,'0')}`,
+          equipName: g('equipname') || g('name') || '',
+          category: g('category') || g('equipcategory') || BULK_DEFAULTS.equipCategory,
+          certCategory: g('certcategory') || BULK_DEFAULTS.certCategory,
+          liftingSubtype: g('liftingsubtype') || '',
+          client: g('client') || BULK_DEFAULTS.clientName,
+          clientId: BULK_DEFAULTS.clientId,
+          site: g('site') || BULK_DEFAULTS.site,
+          jobNumber: g('jobnumber') || '',
+          inspector: g('inspector') || BULK_DEFAULTS.inspectorName,
+          inspectorId: BULK_DEFAULTS.inspectorId,
+          issuer: g('issuer') || BULK_DEFAULTS.issuer,
+          certType: g('certtype') || g('type') || '',
+          issueDate: g('issuedate') || new Date().toISOString().split('T')[0],
+          expiryDate: g('expirydate') || '',
+          remarks: g('remarks') || ''
+        });
+      }
+      if(!rows.length){ showToast('No valid data rows found in CSV','error'); return; }
+      BULK_CERTS = rows;
+      showToast(`${rows.length} row(s) loaded from CSV`,'success');
+      BULK_STEP = 2;
+      renderBulkWizard();
+    } catch(err) { showToast('Error parsing CSV: '+err.message,'error'); }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+function bulkAddRowManual(){
   const idx = BULK_CERTS.length;
-  BULK_CERTS.push({ assetId:`AST-${String(BULK_CERTS.length+1).padStart(4,'0')}`, name:'', type:'CAT III', date:new Date().toISOString().split('T')[0], expiryDate:'', liftingSubtype:'', inspector:'' });
-  renderBulkRows();
+  BULK_CERTS.push({
+    assetTag: `AST-${String(idx+1).padStart(4,'0')}`,
+    equipName: '', category: BULK_DEFAULTS.equipCategory, certCategory: BULK_DEFAULTS.certCategory,
+    liftingSubtype: '', client: BULK_DEFAULTS.clientName, clientId: BULK_DEFAULTS.clientId,
+    site: BULK_DEFAULTS.site, jobNumber: '',
+    inspector: BULK_DEFAULTS.inspectorName, inspectorId: BULK_DEFAULTS.inspectorId,
+    issuer: BULK_DEFAULTS.issuer, certType: '',
+    issueDate: new Date().toISOString().split('T')[0], expiryDate: '',
+    remarks: ''
+  });
+  if(BULK_STEP===1){ BULK_STEP=2; renderBulkWizard(); }
+  else renderBulkStep2Content();
 }
 
-function removeBulkRow(idx){
-  BULK_CERTS.splice(idx,1);
-  renderBulkRows();
+/* ── Step 2: Review Data ── */
+function renderBulkStep2(){
+  return `<div style="margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <span style="font-size:12px;color:var(--text-sec);font-weight:600;">${BULK_CERTS.length} row(s)</span>
+    <button class="btn btn-secondary btn-sm" onclick="bulkAddRowManual()"><i class="fa-solid fa-plus"></i> Add Row</button>
+    <button class="btn btn-ghost btn-sm" onclick="bulkClearAllRows()" ${BULK_CERTS.length===0?'disabled':''}><i class="fa-solid fa-trash"></i> Clear All</button>
+    <span id="bulkStep2Summary" style="font-size:12px;margin-left:auto;"></span>
+  </div><div id="bulkStep2Body" style="max-height:360px;overflow-y:auto;"></div>`;
 }
 
-function updateBulkItem(idx,field,val){
-  if(BULK_CERTS[idx]) BULK_CERTS[idx][field]=val;
-  renderBulkSummary();
-}
-
-function renderBulkRows(){
-  const container = document.getElementById('bulkRows');
+function renderBulkStep2Content(){
+  const container = document.getElementById('bulkStep2Body');
   if(!container) return;
-  let html = '<table class="data-table" style="width:100%;font-size:12px;"><thead><tr><th>Asset</th><th>Name</th><th>Type</th><th>Lifting Sub</th><th>Inspector</th><th>Date</th><th>Expiry</th><th></th></tr></thead><tbody>';
-  BULK_CERTS.forEach((item,idx)=>{
-    html+=`<tr>
-      <td><input class="sap-input" style="width:70px;height:28px;font-size:11px;" value="${item.assetId}" onchange="updateBulkItem(${idx},'assetId',this.value)"/></td>
-      <td><input class="sap-input" style="width:120px;height:28px;font-size:11px;" value="${item.name}" placeholder="Cert name" onchange="updateBulkItem(${idx},'name',this.value)"/></td>
-      <td><select class="sap-input" style="width:80px;height:28px;font-size:11px;" onchange="updateBulkItem(${idx},'type',this.value)">
-        ${['CAT III','CAT IV','LIFTING','LOAD TEST','NDT','TUBULAR','ORIGINAL COC'].map(t=>`<option value="${t}" ${item.type===t?'selected':''}>${t}</option>`).join('')}
-      </select></td>
-      <td>
-        <select class="sap-input" style="width:90px;height:28px;font-size:11px;" onchange="updateBulkItem(${idx},'liftingSubtype',this.value)">
-          <option value="">—</option>
-          <option value="LIFTING GEAR" ${item.liftingSubtype==='LIFTING GEAR'?'selected':''}>LIFTING GEAR</option>
-          <option value="LIFTING PERSONNEL" ${item.liftingSubtype==='LIFTING PERSONNEL'?'selected':''}>LIFTING PERSONNEL</option>
-          <option value="LIFTING EQUIPMENT" ${item.liftingSubtype==='LIFTING EQUIPMENT'?'selected':''}>LIFTING EQUIPMENT</option>
-        </select>
-      </td>
-      <td><input class="sap-input" style="width:90px;height:28px;font-size:11px;" value="${item.inspector}" placeholder="Inspector" onchange="updateBulkItem(${idx},'inspector',this.value)"/></td>
-      <td><input type="date" class="sap-input" style="width:110px;height:28px;font-size:11px;" value="${item.date}" onchange="updateBulkItem(${idx},'date',this.value);calcBulkExpiry(${idx})"/></td>
-      <td><input type="date" class="sap-input" style="width:110px;height:28px;font-size:11px;" value="${item.expiryDate}" onchange="updateBulkItem(${idx},'expiryDate',this.value)"/></td>
-      <td><button class="btn btn-danger btn-sm" onclick="removeBulkRow(${idx})"><i class="fa-solid fa-trash"></i></button></td>
+  const certCatOpts = BULK_CERT_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('');
+  const equipCatOpts = BULK_EQUIP_CATS.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const liftOpts = `<option value="">—</option>${BULK_LIFT_SUBTYPES.map(s=>`<option value="${s}">${s}</option>`).join('')}`;
+  let html = `<div class="bulk-step2-table-wrap"><table class="data-table" style="font-size:11px;white-space:nowrap;"><thead><tr>
+    <th>#</th><th>Asset Tag</th><th>Equipment Name <span style="color:var(--error)">*</span></th><th>Equip Cat</th><th>Cert Cat</th><th>Lifting Sub</th>
+    <th>Client</th><th>Site</th><th>Issuer</th><th>Issue Date</th><th>Expiry Date <span style="color:var(--error)">*</span></th><th>Remarks</th><th></th>
+  </tr></thead><tbody>`;
+  BULK_CERTS.forEach((r,i)=>{
+    const showLift = r.certCategory==='LIFTING'?'':'style="display:none"';
+    html += `<tr>
+      <td style="color:var(--text-sec);">${i+1}</td>
+      <td><input class="sap-input" style="width:70px;height:26px;font-size:10px;" value="${h(r.assetTag)}" onchange="bulkUpd(${i},'assetTag',this.value)"></td>
+      <td><input class="sap-input" style="width:130px;height:26px;font-size:10px;" value="${h(r.equipName)}" placeholder="Required" onchange="bulkUpd(${i},'equipName',this.value)"></td>
+      <td><select class="sap-input" style="width:85px;height:26px;font-size:10px;" onchange="bulkUpd(${i},'category',this.value)">${equipCatOpts.replace(`value="${r.category}"`,`value="${r.category}" selected`)}</select></td>
+      <td><select class="sap-input" style="width:80px;height:26px;font-size:10px;" onchange="bulkUpd(${i},'certCategory',this.value);renderBulkStep2Content()">${certCatOpts.replace(`value="${r.certCategory}"`,`value="${r.certCategory}" selected`)}</select></td>
+      <td><select class="sap-input" style="width:90px;height:26px;font-size:10px;" ${showLift} onchange="bulkUpd(${i},'liftingSubtype',this.value)">${liftOpts.replace(`value="${r.liftingSubtype}"`,`value="${r.liftingSubtype}" selected`)}</select></td>
+      <td><input class="sap-input" style="width:90px;height:26px;font-size:10px;" value="${h(r.client)}" onchange="bulkUpd(${i},'client',this.value)"></td>
+      <td><input class="sap-input" style="width:100px;height:26px;font-size:10px;" value="${h(r.site)}" onchange="bulkUpd(${i},'site',this.value)"></td>
+      <td><input class="sap-input" style="width:80px;height:26px;font-size:10px;" value="${h(r.issuer)}" onchange="bulkUpd(${i},'issuer',this.value)"></td>
+      <td><input type="date" class="sap-input" style="width:105px;height:26px;font-size:10px;" value="${r.issueDate}" onchange="bulkUpd(${i},'issueDate',this.value);if(!BULK_CERTS[${i}].expiryDate)bulkCalcExpiry(${i})"></td>
+      <td><input type="date" class="sap-input" style="width:105px;height:26px;font-size:10px;" value="${r.expiryDate}" onchange="bulkUpd(${i},'expiryDate',this.value)"></td>
+      <td><input class="sap-input" style="width:90px;height:26px;font-size:10px;" value="${h(r.remarks)}" onchange="bulkUpd(${i},'remarks',this.value)"></td>
+      <td><button class="btn btn-danger btn-icon" onclick="bulkRemoveRow(${i})" title="Remove"><i class="fa-solid fa-trash" style="font-size:10px;"></i></button></td>
     </tr>`;
   });
-  html+=`</tbody></table>`;
+  html += `</tbody></table></div>`;
   container.innerHTML = html;
-  renderBulkSummary();
+  const valid = BULK_CERTS.filter(r=>r.equipName&&r.expiryDate);
+  const el = document.getElementById('bulkStep2Summary');
+  if(el) el.innerHTML = `${valid.length}/${BULK_CERTS.length} complete ${valid.length===BULK_CERTS.length&&BULK_CERTS.length>0?'<i class="fa-solid fa-check-circle" style="color:var(--success)"></i>':'<span style="color:var(--warning)">Fill required fields</span>'}`;
 }
 
-function renderBulkSummary(){
-  const el = document.getElementById('bulkSummary');
-  if(!el) return;
-  const valid = BULK_CERTS.filter(item=>item.name&&item.date&&item.expiryDate);
-  el.innerHTML = `${BULK_CERTS.length} rows · ${valid.length} complete · <span style="color:${valid.length===BULK_CERTS.length&&BULK_CERTS.length>0?'var(--success)':'var(--warning)'}">${valid.length===BULK_CERTS.length?'Ready to create':'Incomplete rows highlighted'}</span>`;
+function bulkUpd(idx, field, val){
+  if(BULK_CERTS[idx]) BULK_CERTS[idx][field] = val;
 }
 
-function calcBulkExpiry(idx){
-  const item = BULK_CERTS[idx];
-  if(!item||!item.date) return;
-  const d = new Date(item.date);
-  d.setMonth(d.getMonth() + 12);
-  item.expiryDate = d.toISOString().split('T')[0];
-  renderBulkRows();
+function bulkRemoveRow(idx){
+  BULK_CERTS.splice(idx,1);
+  renderBulkStep2Content();
 }
 
-function batchSetDefaults(){
-  const type = prompt('Default cert type (CAT III, LIFTING, NDT, etc.):','CAT III');
-  if(!type) return;
-  const inspector = prompt('Default inspector name:','');
-  const months = parseInt(prompt('Default validity period in months (e.g. 12):','12'),10);
-  BULK_CERTS.forEach(item=>{
-    item.type = type;
-    if(inspector) item.inspector = inspector;
-    if(months&&item.date){
-      const d = new Date(item.date);
-      d.setMonth(d.getMonth() + months);
-      item.expiryDate = d.toISOString().split('T')[0];
-    }
+function bulkClearAllRows(){
+  if(!BULK_CERTS.length) return;
+  if(!confirm('Remove all rows?')) return;
+  BULK_CERTS = [];
+  renderBulkStep2Content();
+}
+
+function bulkCalcExpiry(idx){
+  const r = BULK_CERTS[idx];
+  if(!r||!r.issueDate) return;
+  const d = new Date(r.issueDate);
+  d.setMonth(d.getMonth() + (BULK_DEFAULTS.validityMonths||12));
+  r.expiryDate = d.toISOString().split('T')[0];
+  renderBulkStep2Content();
+}
+
+/* ── Step 3: QR & Confirm ── */
+function renderBulkStep3(){
+  const startId = DATA.certificates.length + 1;
+  const certs = BULK_CERTS.map((r,i)=>{
+    const id = 'CERT-'+String(startId+i).padStart(3,'0');
+    const days = r.expiryDate ? Math.round((new Date(r.expiryDate)-new Date())/(1000*60*60*24)) : 0;
+    const st = days<0?'expired':days<=30?'expiring':days<=90?'renewal':'valid';
+    return { ...r, tempId: id, days, status: st };
   });
-  renderBulkRows();
+  const validC = certs.filter(c=>c.status!=='expired').length;
+  const expiredC = certs.filter(c=>c.status==='expired').length;
+  const origin = window.location.origin;
+  let html = `<div style="margin-bottom:14px;display:flex;gap:16px;flex-wrap:wrap;">
+    <div class="stat-chip"><i class="fa-solid fa-certificate"></i> Total: ${certs.length}</div>
+    <div class="stat-chip" style="background:#e8f5e9;color:#2e7d32;"><i class="fa-solid fa-check-circle"></i> Valid: ${validC}</div>
+    <div class="stat-chip" style="background:#ffebee;color:#c62828;"><i class="fa-solid fa-exclamation-triangle"></i> Expired: ${expiredC}</div>
+  </div>
+  <div style="font-size:11px;color:var(--text-sec);margin-bottom:10px;">Review each certificate below. QR codes encode a direct link to each certificate.</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">`;
+  certs.forEach(c=>{
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(origin+'/?cert='+c.tempId)}`;
+    const stColor = c.status==='expired'?'var(--error)':c.status==='expiring'?'var(--warning)':c.status==='renewal'?'var(--purple)':'var(--success)';
+    html += `<div class="cert-qr-card" style="border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--card);">
+      <div style="text-align:center;margin-bottom:6px;">
+        <img src="${qrUrl}" alt="QR" style="width:100px;height:100px;border:1px solid var(--border);border-radius:4px;" loading="lazy" onerror="this.outerHTML='<div style=\\'width:100px;height:100px;margin:auto;background:var(--bg);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-sec);\\'>QR</div>'">
+      </div>
+      <div style="font-size:11px;font-weight:700;text-align:center;margin-bottom:2px;">${h(c.tempId)}</div>
+      <div style="font-size:10px;color:var(--text-sec);text-align:center;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(c.equipName||'No name')}</div>
+      <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">
+        <span style="font-size:9px;padding:1px 6px;border-radius:3px;background:${stColor}15;color:${stColor};font-weight:600;">${c.status}</span>
+        <span style="font-size:9px;padding:1px 6px;border-radius:3px;background:var(--bg);color:var(--text-sec);">${h(c.certCategory)}</span>
+      </div>
+      ${c.expiryDate?`<div style="font-size:9px;color:var(--text-sec);text-align:center;margin-top:4px;">Exp: ${c.expiryDate}</div>`:''}
+    </div>`;
+  });
+  html += `</div>`;
+  return html;
 }
 
-function submitBulkCerts(){
-  const incomplete = BULK_CERTS.filter(item=>!item.name||!item.date||!item.expiryDate);
-  if(incomplete.length>0){ showToast(`${incomplete.length} row(s) incomplete — fill all fields first`,'error'); return; }
-  if(BULK_CERTS.length===0){ showToast('No rows to create','error'); return; }
-  const newCerts = BULK_CERTS.map((item,idx)=>{
-    const newId = 'CERT-'+String(DATA.certificates.length+1+idx).padStart(3,'0');
-    const days = Math.round((new Date(item.expiryDate)-new Date())/(1000*60*60*24));
+/* ── Submit Wizard ── */
+function submitBulkWizard(){
+  const incomplete = BULK_CERTS.filter(r=>!r.equipName||!r.expiryDate);
+  if(incomplete.length>0){ showToast(`${incomplete.length} row(s) incomplete — fill equipment name and expiry`,'error'); return; }
+  if(BULK_CERTS.length===0){ showToast('No rows to import','error'); return; }
+  const now = new Date().toISOString();
+  const newCerts = BULK_CERTS.map((r,i)=>{
+    const newId = 'CERT-'+String(DATA.certificates.length+1+i).padStart(3,'0');
+    const days = Math.round((new Date(r.expiryDate)-new Date())/(1000*60*60*24));
     const status = days<0?'expired':days<=30?'expiring':days<=90?'renewal':'valid';
     return {
-      id:newId, equipName:item.name, assetTag:item.assetId, category:item.type==='LIFTING'?'Lifting':'General',
-      certCategory:item.type, liftingSubtype:item.liftingSubtype||'',
-      client:'', jobNumber:'', site:'Block 15 – Rig Alpha',
-      certType:item.type, issuer:item.inspector||'In-house',
-      issueDate:item.date, expiryDate:item.expiryDate,
+      id:newId, equipName:r.equipName, assetTag:r.assetTag||'',
+      category:r.category||BULK_DEFAULTS.equipCategory,
+      certCategory:r.certCategory||BULK_DEFAULTS.certCategory,
+      liftingSubtype:r.liftingSubtype||'',
+      clientId:BULK_DEFAULTS.clientId, client:r.client||BULK_DEFAULTS.clientName,
+      flId:BULK_DEFAULTS.flId, site:r.site||BULK_DEFAULTS.site,
+      inspectorId:BULK_DEFAULTS.inspectorId, engineer:r.inspector||BULK_DEFAULTS.inspectorName,
+      jobNumber:r.jobNumber||'', issuer:r.issuer||BULK_DEFAULTS.issuer,
+      certType:r.certType||'',
+      issueDate:r.issueDate||now.split('T')[0], expiryDate:r.expiryDate,
       daysRemaining:days, status, approvalStatus:'pending',
-      engineer:item.inspector||'—', fileName:'', pdfUrl:'', remarks:'Created via bulk import'
+      fileName:'', pdfUrl:'', remarks:r.remarks||'Imported via mass import wizard',
+      uploadedAt:now, uploadedBy:state.currentInspectorId||null
     };
   });
   DATA.certificates.push(...newCerts);
   closeModal();
-  showToast(`${newCerts.length} certificates created via bulk import`,'success');
+  showToast(`${newCerts.length} certificates imported successfully with QR codes`,'success');
   state.section='pendingApproval';
   rerenderSection();
 }
@@ -2577,7 +3279,7 @@ function renderSCDashboard(){
 
   const stockBadge=s=>s==='out'?'<span class="pill pill-expired">Out of Stock</span>':s==='critical'?'<span class="pill pill-expiring">Critical</span>':s==='low'?'<span class="pill pill-leave">Low</span>':'<span class="pill pill-valid">Normal</span>';
   const poBadge=s=>s==='approved'?'<span class="pill pill-valid">Approved</span>':s==='ordered'?'<span class="pill pill-blue">Ordered</span>':s==='received'?'<span class="pill pill-active">Received</span>':s==='cancelled'?'<span class="pill pill-inactive">Cancelled</span>':'<span class="pill pill-draft">Draft</span>';
-  const priorityBadge=p=>p==='Critical'?'<span style="color:var(--error);font-weight:700;font-size:11px;">● Critical</span>':p==='High'?'<span style="color:var(--warning);font-weight:700;font-size:11px;">● High</span>':'<span style="color:var(--text-sec);font-size:11px;">● Normal</span>';
+  const priorityBadge=p=>p==='Critical'?'<span style="color:var(--error);font-weight:700;font-size:11px;"><i class="fa-solid fa-circle" style="font-size:8px;color:var(--error);vertical-align:middle;margin-right:3px"></i>Critical</span>':p==='High'?'<span style="color:var(--warning);font-weight:700;font-size:11px;"><i class="fa-solid fa-circle" style="font-size:8px;color:var(--warning);vertical-align:middle;margin-right:3px"></i>High</span>':'<span style="color:var(--text-sec);font-size:11px;"><i class="fa-solid fa-circle" style="font-size:8px;color:var(--text-sec);vertical-align:middle;margin-right:3px"></i>Normal</span>';
 
   let html=`<div class="fade-in">`;
   html+=renderSCKPIs();
@@ -2639,7 +3341,7 @@ function renderSCDashboard(){
 function renderAllPOs(filterFn){
   const f=state.filters;
   const poBadge=s=>s==='approved'?'<span class="pill pill-valid">Approved</span>':s==='ordered'?'<span class="pill pill-blue">Ordered</span>':s==='received'?'<span class="pill pill-active">Received</span>':s==='cancelled'?'<span class="pill pill-inactive">Cancelled</span>':'<span class="pill pill-draft">Draft</span>';
-  const priorityBadge=p=>p==='Critical'?'<span style="color:var(--error);font-weight:700;font-size:11px;">●</span>':p==='High'?'<span style="color:var(--warning);font-weight:700;font-size:11px;">●</span>':'<span style="color:var(--text-sec);font-size:11px;">●</span>';
+  const priorityBadge=p=>p==='Critical'?'<i class="fa-solid fa-circle" style="font-size:8px;color:var(--error);vertical-align:middle"></i>':p==='High'?'<i class="fa-solid fa-circle" style="font-size:8px;color:var(--warning);vertical-align:middle"></i>':'<i class="fa-solid fa-circle" style="font-size:8px;color:var(--text-sec);vertical-align:middle"></i>';
 
   let items=DATA.purchaseOrders.filter(filterFn||(_=>true));
   if(f.search){const s=f.search.toLowerCase();items=items.filter(p=>p.id.toLowerCase().includes(s)||p.supplier.toLowerCase().includes(s)||p.description.toLowerCase().includes(s));}
@@ -2704,7 +3406,7 @@ function renderPODetail(p){
     <div class="obj-header-top">
       <div style="width:52px;height:52px;border-radius:8px;background:var(--blue-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fa-solid fa-file-invoice" style="font-size:22px;color:var(--blue);"></i></div>
       <div style="flex:1;"><h2>${p.id}</h2><div class="obj-sub">${p.supplier} · ${p.category}</div></div>
-      <span style="font-weight:700;font-size:13px;color:${priorityColors[p.priority]}">● ${p.priority}</span>
+      <span style="font-weight:700;font-size:13px;color:${priorityColors[p.priority]}"><i class="fa-solid fa-circle" style="font-size:8px;vertical-align:middle;margin-right:3px;color:${priorityColors[p.priority]}"></i> ${p.priority}</span>
     </div>
     <div class="obj-kv">
       <div class="obj-kv-item"><span class="obj-kv-label">Amount</span><span class="obj-kv-value" style="font-size:18px;font-weight:700;color:var(--blue)">${fmt(p.amount)} ${p.currency}</span></div>
@@ -2744,7 +3446,7 @@ function renderPODetail(p){
   }
   else if(state.detailTab==='supplier'){
     if(sup){
-      const stars='★'.repeat(Math.round(sup.rating))+'☆'.repeat(5-Math.round(sup.rating));
+      const stars='<i class="fa-solid fa-star" style="color:#f59e0b"></i>'.repeat(Math.round(sup.rating))+'<i class="fa-regular fa-star" style="color:#d1d5db"></i>'.repeat(5-Math.round(sup.rating));
       html+=`<div class="sec-card"><div class="sec-card-head">Supplier Profile</div><div class="sec-card-body">
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #f0f0f0;">
           <div class="avatar" style="width:48px;height:48px;background:${avatarColor(sup.name)};font-size:16px;">${initials(sup.name)}</div>
@@ -2810,7 +3512,7 @@ function renderAllSuppliers(){
   if(f.search){const s=f.search.toLowerCase();items=items.filter(x=>x.name.toLowerCase().includes(s)||x.country.toLowerCase().includes(s)||x.category.toLowerCase().includes(s));}
   if(f.category&&f.category!=='all') items=items.filter(x=>x.category===f.category);
   const cats=[...new Set(DATA.suppliers.map(s=>s.category))].sort();
-  const ratingBar=r=>`<div style="display:flex;align-items:center;gap:4px;"><span style="color:#f5a623;font-size:12px;">${'★'.repeat(Math.round(r))}</span><span style="font-size:11px;color:var(--text-sec)">${r}</span></div>`;
+  const ratingBar=r=>`<div style="display:flex;align-items:center;gap:4px;"><span style="color:#f5a623;font-size:12px;">${'<i class="fa-solid fa-star" style="color:#f5a623;font-size:12px"></i>'.repeat(Math.round(r))}</span><span style="font-size:11px;color:var(--text-sec)">${r}</span></div>`;
 
   let html=`<div class="fade-in">`;
   html+=renderSCKPIs();
@@ -2851,7 +3553,7 @@ function renderAllSuppliers(){
 function selectSupplierItem(id){ state.selectedId=id; state.detailTab='info'; rerenderSection(); }
 
 function renderSupplierDetail(s){
-  const stars='★'.repeat(Math.round(s.rating))+'☆'.repeat(5-Math.round(s.rating));
+  const stars='<i class="fa-solid fa-star" style="color:#f59e0b"></i>'.repeat(Math.round(s.rating))+'<i class="fa-regular fa-star" style="color:#d1d5db"></i>'.repeat(5-Math.round(s.rating));
   const supPOs=DATA.purchaseOrders.filter(p=>p.supplierId===s.id);
   const tabs=[{id:'info',label:'Profile'},{id:'orders',label:`Orders (${supPOs.length})`},{id:'performance',label:'Performance'}];
 
@@ -3056,7 +3758,7 @@ function submitNewInventory() {
     has_variants: false,
   };
   DATA.inventory.push(item);
-  if (supabase) supabase.from('inventory').insert(item).catch(() => {});
+  if (supabase) supabase.from('inventory').insert(item).catch(supabaseCatch);
   closeModal(); showToast('Item added', 'success'); rerenderSection();
 }
 
@@ -3145,8 +3847,8 @@ function submitNewQI(editId) {
     inspector: $('#nqi-inspector').value || 'N/A',
     parameters: params, notes: $('#nqi-notes').value.trim(), status,
   };
-  if (!editId) { DATA.qualityInspections.push(qi); if(supabase) supabase.from('quality_inspections').insert(qi).catch(() => {}); }
-  else { const idx = DATA.qualityInspections.findIndex(q => q.id === editId); DATA.qualityInspections[idx] = qi; if(supabase) supabase.from('quality_inspections').upsert(qi).catch(() => {}); }
+  if (!editId) { DATA.qualityInspections.push(qi); if(supabase) supabase.from('quality_inspections').insert(qi).catch(supabaseCatch); }
+  else { const idx = DATA.qualityInspections.findIndex(q => q.id === editId); DATA.qualityInspections[idx] = qi; if(supabase) supabase.from('quality_inspections').upsert(qi).catch(supabaseCatch); }
   closeModal(); showToast(editId ? 'Inspection updated' : 'Inspection created', 'success'); rerenderSection();
 }
 
@@ -3238,8 +3940,8 @@ function submitNewLCV(editId) {
     charges: {freight, insurance, duty, handling},
     totalCharges: total, distribution: $('#nl-dist').value, items: alloc,
   };
-  if (!editId) { DATA.landedCostVouchers.push(v); if(supabase) supabase.from('landed_cost_vouchers').insert(v).catch(() => {}); }
-  else { const idx = DATA.landedCostVouchers.findIndex(x => x.id === editId); DATA.landedCostVouchers[idx] = v; if(supabase) supabase.from('landed_cost_vouchers').upsert(v).catch(() => {}); }
+  if (!editId) { DATA.landedCostVouchers.push(v); if(supabase) supabase.from('landed_cost_vouchers').insert(v).catch(supabaseCatch); }
+  else { const idx = DATA.landedCostVouchers.findIndex(x => x.id === editId); DATA.landedCostVouchers[idx] = v; if(supabase) supabase.from('landed_cost_vouchers').upsert(v).catch(supabaseCatch); }
   closeModal(); showToast(editId ? 'Voucher updated' : 'Voucher created', 'success'); rerenderSection();
 }
 
@@ -3326,8 +4028,8 @@ function submitNewRR(editId) {
     autoCreatePO: $('#nrr-auto').checked,
     lastTriggered: null,
   };
-  if (!editId) { DATA.reorderRules.push(r); if(supabase) supabase.from('reorder_rules').insert(r).catch(() => {}); }
-  else { const idx = DATA.reorderRules.findIndex(x => x.id === editId); DATA.reorderRules[idx] = r; if(supabase) supabase.from('reorder_rules').upsert(r).catch(() => {}); }
+  if (!editId) { DATA.reorderRules.push(r); if(supabase) supabase.from('reorder_rules').insert(r).catch(supabaseCatch); }
+  else { const idx = DATA.reorderRules.findIndex(x => x.id === editId); DATA.reorderRules[idx] = r; if(supabase) supabase.from('reorder_rules').upsert(r).catch(supabaseCatch); }
   closeModal(); showToast(editId ? 'Rule updated' : 'Rule added', 'success'); rerenderSection();
 }
 
@@ -3347,8 +4049,8 @@ function autoGenerateMR() {
     };
     DATA.materialRequests.push(mr);
     r.lastTriggered = new Date().toISOString().slice(0,10);
-    if (supabase) supabase.from('material_requests').insert(mr).catch(() => {});
-    if (supabase) supabase.from('reorder_rules').upsert(r).catch(() => {});
+    if (supabase) supabase.from('material_requests').insert(mr).catch(supabaseCatch);
+    if (supabase) supabase.from('reorder_rules').upsert(r).catch(supabaseCatch);
     created.push(`${item.name} (${reorderQty} ${item.uom})`);
   });
   if (created.length === 0) { showToast('No items below reorder point', 'info'); return; }
@@ -3429,6 +4131,11 @@ async function submitNewPO(){
    RENDER ENGINE
 ═══════════════════════════════════════════════ */
 function renderSidebar(){
+  const hideSidebar = state.module === 'certificates';
+  const sb = document.getElementById('modSidebar');
+  if(sb) sb.classList.toggle('hidden', hideSidebar);
+  if(hideSidebar) return;
+
   let html='';
   if(state.module==='hr') html=renderHRSidebar();
   else if(state.module==='crm') html=renderCRMSidebar();
@@ -3472,8 +4179,8 @@ function recordStockMovement(itemId, type, qty, uom, refType, refId, unitCost, n
     supabase.from('stock_ledger').insert({
       id:entry.id, item_id:itemId, movement_type:type, quantity:qty, uom:entry.uom,
       ref_type:refType, ref_id:refId, date:entry.date, unit_cost:unitCost, notes
-    }).catch(()=>{});
-    supabase.from('inventory').update({stock_level:item.qtyOnHand,last_received:item.lastReceived,status:item.status}).eq('id',itemId).catch(()=>{});
+    }).catch(supabaseCatch);
+    supabase.from('inventory').update({stock_level:item.qtyOnHand,last_received:item.lastReceived,status:item.status}).eq('id',itemId).catch(supabaseCatch);
   }
   return entry;
 }
@@ -3594,7 +4301,7 @@ function renderAllMRs(filterFn){
   if(state.sortCol){const col=state.sortCol,dir=state.sortDir==='asc'?1:-1;items.sort((a,b)=>{let va=a[col],vb=b[col];if(typeof va==='string')return va.localeCompare(vb)*dir;return(va-vb)*dir;});}
 
   const statusBadge=s=>s==='approved'?'<span class="pill pill-valid">Approved</span>':s==='rejected'?'<span class="pill pill-inactive">Rejected</span>':s==='pending'?'<span class="pill pill-leave">Pending</span>':'<span class="pill pill-draft">Draft</span>';
-  const priorityBadge=p=>p==='Critical'?'<span style="color:var(--error);font-weight:700;font-size:11px;">● Critical</span>':p==='High'?'<span style="color:var(--warning);font-weight:700;font-size:11px;">● High</span>':'<span style="color:var(--text-sec);font-size:11px;">● Normal</span>';
+  const priorityBadge=p=>p==='Critical'?'<span style="color:var(--error);font-weight:700;font-size:11px;"><i class="fa-solid fa-circle" style="font-size:8px;color:var(--error);vertical-align:middle;margin-right:3px"></i>Critical</span>':p==='High'?'<span style="color:var(--warning);font-weight:700;font-size:11px;"><i class="fa-solid fa-circle" style="font-size:8px;color:var(--warning);vertical-align:middle;margin-right:3px"></i>High</span>':'<span style="color:var(--text-sec);font-size:11px;"><i class="fa-solid fa-circle" style="font-size:8px;color:var(--text-sec);vertical-align:middle;margin-right:3px"></i>Normal</span>';
 
   let html=`<div class="fade-in">`;
   html+=`<div class="md-layout" style="min-height:calc(100vh - var(--shell-h) - var(--tab-h) - 48px);">`;
@@ -3792,7 +4499,7 @@ async function submitNewMR(){
     const{error}=await supabase.from('material_requests').insert({
       id:newId,title,status:'draft',priority:mr.priority,
       department:mr.department,site:mr.site,requested_by:mr.requestedBy,required_date:mr.requiredDate,notes:mr.notes
-    }).catch(()=>{});
+    }).catch(supabaseCatch);
   }
   DATA.materialRequests.push(mr);
   mrItemRowCount=1;
@@ -3803,19 +4510,17 @@ async function submitNewMR(){
 async function approveMR(id){
   const mr=DATA.materialRequests.find(m=>m.id===id);
   if(!mr) return showToast('Not found','error');
-  mr.status='pending'; // first submit as pending if draft
-  if(mr.status==='pending'){
-    mr.status='approved'; mr.approvedBy=DATA.employees[0]?.name||'Manager'; mr.approvedDate=new Date().toISOString().split('T')[0];
-    if(supabase) supabase.from('material_requests').update({status:'approved',approved_by:mr.approvedBy,approved_date:mr.approvedDate}).eq('id',id).catch(()=>{});
-    showToast(id+' approved','success'); rerenderSection();
-  }
+  if(mr.status!=='draft'&&mr.status!=='pending') return showToast('Can only approve draft/pending requests','error');
+  mr.status='approved'; mr.approvedBy=DATA.employees[0]?.name||'Manager'; mr.approvedDate=new Date().toISOString().split('T')[0];
+  if(supabase) supabase.from('material_requests').update({status:'approved',approved_by:mr.approvedBy,approved_date:mr.approvedDate}).eq('id',id).catch(supabaseCatch);
+  showToast(id+' approved','success'); rerenderSection();
 }
 
 async function rejectMR(id){
   const mr=DATA.materialRequests.find(m=>m.id===id);
   if(!mr||mr.status!=='pending') return showToast('Can only reject pending requests','error');
   mr.status='rejected';
-  if(supabase) supabase.from('material_requests').update({status:'rejected'}).eq('id',id).catch(()=>{});
+  if(supabase) supabase.from('material_requests').update({status:'rejected'}).eq('id',id).catch(supabaseCatch);
   showToast(id+' rejected','warning'); rerenderSection();
 }
 
@@ -3839,8 +4544,8 @@ async function convertMRtoPO(id){
   DATA.purchaseOrders.push(po);
   mr.poRef=poId;
   if(supabase){
-    supabase.from('purchase_orders').insert({id:poId,supplier_name:po.supplier,description:po.description,total_amount:estTotal,status:'draft',priority:mr.priority,site:mr.site,requested_by:mr.requestedBy,order_date:po.createdDate}).catch(()=>{});
-    supabase.from('material_requests').update({po_ref:poId}).eq('id',id).catch(()=>{});
+    supabase.from('purchase_orders').insert({id:poId,supplier_name:po.supplier,description:po.description,total_amount:estTotal,status:'draft',priority:mr.priority,site:mr.site,requested_by:mr.requestedBy,order_date:po.createdDate}).catch(supabaseCatch);
+    supabase.from('material_requests').update({po_ref:poId}).eq('id',id).catch(supabaseCatch);
   }
   showToast(poId+' created from '+mr.id,'success');
   state.selectedId=poId; state.section='allPOs'; state.detailTab='info';
@@ -3888,6 +4593,12 @@ function renderContent(){
     else if(state.section==='wonThisQuarter') html=renderCRMDeals(d=>d.stage==='Closed Won');
     else if(state.section==='fieldServiceLogs') html=renderCRMFieldServiceLogs();
     else if(state.section==='partnersJVs') html=renderCRMPartners();
+    else if(state.section==='crmContacts') html=renderCRMContacts();
+    else if(state.section==='crmQuotations') html=renderCRMQuotations();
+    else if(state.section==='crmProspects') html=renderCRMProspects();
+    else if(state.section==='crmCommunications') html=renderCRMCommunications();
+    else if(state.section==='crmWinLoss') html=renderCRMWinLoss();
+    else if(state.section==='crmTerritory') html=renderCRMTerritory();
     else if(state.section==='crmSettings') html=renderCRMSettings();
     else html=renderAllAccounts();
   }
@@ -3895,8 +4606,8 @@ function renderContent(){
     if(state.section==='allCerts') html=renderCertificates();
     else if(state.section==='certGantt') html=renderCertGantt();
     else if(state.section==='certNotifications') html=renderCertNotifications();
-    else if(state.section==='expiredCerts') html=renderCertificates(c=>c.status==='expired');
-    else if(state.section==='expiringSoon') html=renderCertificates(c=>c.status==='expiring');
+    else if(state.section==='expiredCerts') html=renderCertificates(c=>getCertStatus(c)==='expired');
+    else if(state.section==='expiringSoon') html=renderCertificates(c=>getCertStatus(c)==='expiring');
     else if(state.section==='pendingApproval') html=renderCertificates(c=>c.approvalStatus==='pending');
     else if(state.section.startsWith('certType_')){
       const ctMap={'certType_CATIII':'CAT III','certType_CATIV':'CAT IV','certType_LIFTING':'LIFTING','certType_LOADTEST':'LOAD TEST','certType_NDT':'NDT','certType_TUBULAR':'TUBULAR','certType_ORIGINALCOC':'ORIGINAL COC'};
@@ -3957,6 +4668,13 @@ function renderContent(){
 
 function renderAll(){
   renderTabBar();
+  if(state.module==='certificates')renderCertSubNav();
+  else{
+    const subNav=$('#certSubNav');
+    if(subNav)subNav.style.display='none';
+    const body=document.querySelector('.app-body');
+    if(body)body.classList.remove('subnav-open');
+  }
   renderSidebar();
   renderContent();
 }
@@ -3965,6 +4683,13 @@ function rerenderSection(){
   destroyCharts();
   recomputeInvoiceStatuses();
   renderTabBar();
+  if(state.module==='certificates')renderCertSubNav();
+  else{
+    const subNav=$('#certSubNav');
+    if(subNav)subNav.style.display='none';
+    const body=document.querySelector('.app-body');
+    if(body)body.classList.remove('subnav-open');
+  }
   renderSidebar();
   renderContent();
 }
@@ -3984,13 +4709,16 @@ $('#notifBtn').addEventListener('click',e=>{
 $('#userBtn').addEventListener('click',e=>{
   e.stopPropagation();
   if(activeDropdown===$('#userBtn')){ closeDropdown(); return; }
-  const roles=['System Admin','HR Manager','HSE / Inspection Engineer','Procurement Officer','Executive / C-Level'];
+  const roles=['System Admin','HR Manager','Procurement Officer','Executive / C-Level'];
+  const inspOpts=DATA.inspectors.filter(i=>i.status==='active').map(i=>`<option value="${i.id}">${h(i.name)} – ${h(i.title)}</option>`).join('');
   let html=`<div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
     <div class="avatar" style="width:40px;height:40px;font-size:14px;background:var(--blue)">KA</div>
     <div><div style="font-size:14px;font-weight:600;">Khalid Al-Rashidi</div><div style="font-size:12px;color:var(--text-sec);">k.alrashidi@amici.com</div></div>
   </div>
   <div class="dropdown-header" style="font-size:11px;padding:8px 14px 4px;">Switch Role (Demo)</div>
   ${roles.map(r=>`<button type="button" class="dropdown-item" data-action="select-role" data-role="${r}" style="width:100%;border:none;background:transparent;"><i class="fa-solid fa-user-tag"></i>${r}</button>`).join('')}
+  <div class="dropdown-header" style="font-size:11px;padding:4px 14px 4px;border-top:1px solid var(--border);margin-top:4px;">Inspector Mode</div>
+  <div style="padding:4px 10px 8px;display:flex;gap:4px;"><select id="inspectorLoginSelect" style="flex:1;height:28px;border:1px solid var(--border);border-radius:4px;font-size:12px;padding:0 6px;"><option value="">Select inspector...</option>${inspOpts}</select><button class="btn btn-primary btn-sm" onclick="certLoginInspector(document.getElementById('inspectorLoginSelect').value);closeDropdown();">Login</button></div>
   <div style="border-top:1px solid var(--border);"><button type="button" class="dropdown-item" style="color:var(--error);width:100%;border:none;background:transparent;" data-action="sign-out"><i class="fa-solid fa-right-from-bracket" style="color:var(--error);"></i>Sign Out</button></div>`;
   openDropdown($('#userBtn'),html);
 });
@@ -4054,8 +4782,8 @@ const AI = {
       `${m.id}|${m.title}|${m.status}|${m.priority}|items:${m.items.length}|site:${m.site}|dept:${m.department}|${m.requiredDate}`
     ).join('\n');
 
-    const expiredCerts = DATA.certificates.filter(c=>c.status==='expired').map(c=>c.equipName).join(', ');
-    const expiringCerts = DATA.certificates.filter(c=>c.status==='expiring').map(c=>`${c.equipName}(${c.daysRemaining}d)`).join(', ');
+    const expiredCerts = DATA.certificates.filter(c=>getCertStatus(c)==='expired').map(c=>c.equipName).join(', ');
+    const expiringCerts = DATA.certificates.filter(c=>getCertStatus(c)==='expiring').map(c=>`${c.equipName}(${getCertDays(c)}d)`).join(', ');
     const lowStock = DATA.inventory.filter(i=>i.status!=='normal').map(i=>`${i.name}(${i.qtyOnHand}${i.uom})`).join(', ');
     const pendingPOs = DATA.purchaseOrders.filter(p=>p.status==='draft').map(p=>p.id).join(', ');
 
@@ -4152,7 +4880,7 @@ Always include confirm_message so the user knows what action will be taken befor
       }
       case 'flag_cert': {
         const cert = DATA.certificates.find(x=>x.id===p.cert_id);
-        if(cert){ cert.remarks=(cert.remarks||'')+'\n⚠ AI Flag: '+p.note; showToast(`${p.cert_id} flagged`,'warning'); }
+        if(cert){ cert.remarks=(cert.remarks||'')+'\n<i class="fa-solid fa-triangle-exclamation" style="color:var(--warning)"></i> AI Flag: '+p.note; showToast(`${p.cert_id} flagged`,'warning'); }
         else showToast('Certificate not found','error');
         break;
       }
@@ -4293,7 +5021,7 @@ function renderAIMessages(){
 
   if(AI.history.length === 0){
     el.innerHTML = `<div class="ai-empty">
-      <div class="ai-empty-icon">✦</div>
+      <div class="ai-empty-icon"><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--warning);font-size:28px"></i></div>
       <h3>AMICI AI Assistant</h3>
       <p>Ask me about employees, certificates, purchase orders, inventory, or CRM accounts. I can also take actions.</p>
     </div>`;
@@ -4565,7 +5293,7 @@ async function initializeApp() {
   await loadData();
   renderAll();
   hideLoading();
-  const certAlerts = DATA.certificates.filter(c=>c.status==='expired'||c.status==='expiring');
+  const certAlerts = DATA.certificates.filter(c=>{const s=getCertStatus(c);return s==='expired'||s==='expiring';});
   const notifBadge = document.getElementById('notifBadge');
   if (notifBadge) notifBadge.textContent = certAlerts.length + DATA.leaveRequests.filter(l=>l.status==='Pending').length;
   
@@ -4870,20 +5598,85 @@ async function submitNewFSL() {
     status: $('#fsl-status').value
   };
   if(!DATA.fieldServiceLogs) DATA.fieldServiceLogs = [];
-  if(supabase) await supabase.from('crm_field_service_logs').insert(log).catch(()=>{});
+  if(supabase) await supabase.from('crm_field_service_logs').insert(log).catch(supabaseCatch);
   DATA.fieldServiceLogs.push(log);
   closeModal(); showToast('Log created','success'); rerenderSection();
 }
 
 /* ── CRM PARTNERS / JVs ── */
+/* ── CRM PARTNERS / JVS ── */
+function openNewPartnerModal() {
+  openModal(t('partnersJVs'), `<div class="modal-body">
+    <div class="form-row"><div class="form-group">
+      <label>Partner / JV Name *</label>
+      <input id="partnerName" class="form-input" placeholder="e.g. Gulf Tech Solutions">
+    </div><div class="form-group">
+      <label>Type *</label>
+      <select id="partnerType" class="form-input">
+        <option value="Partner">Partner</option>
+        <option value="Joint Venture">Joint Venture</option>
+      </select>
+    </div></div>
+    <div class="form-row"><div class="form-group">
+      <label>Contact Person</label>
+      <input id="partnerContact" class="form-input" placeholder="Name">
+    </div><div class="form-group">
+      <label>Email</label>
+      <input id="partnerEmail" class="form-input" type="email" placeholder="email@example.com">
+    </div></div>
+    <div class="form-row"><div class="form-group">
+      <label>Phone</label>
+      <input id="partnerPhone" class="form-input" placeholder="+966 5X XXX XXXX">
+    </div><div class="form-group">
+      <label>Website</label>
+      <input id="partnerWebsite" class="form-input" placeholder="https://">
+    </div></div>
+    <div class="form-group">
+      <label>Address</label>
+      <input id="partnerAddress" class="form-input" placeholder="Street, City, Country">
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="partnerNotes" class="form-input" rows="3" placeholder="Optional notes"></textarea>
+    </div>
+  </div>`, `<button class="btn btn-primary" onclick="submitNewPartner()">${t('save')}</button>
+    <button class="btn btn-ghost" onclick="closeModal()">${t('cancel')}</button>`);
+}
+function submitNewPartner() {
+  const name = document.getElementById('partnerName')?.value?.trim();
+  if(!name) { showToast('Partner name is required','error'); return; }
+  const id = 'PRT-' + String(DATA.partners.length + 1).padStart(3,'0');
+  DATA.partners.push({
+    id,
+    name,
+    type: document.getElementById('partnerType')?.value || 'Partner',
+    contact: document.getElementById('partnerContact')?.value?.trim() || '',
+    email: document.getElementById('partnerEmail')?.value?.trim() || '',
+    phone: document.getElementById('partnerPhone')?.value?.trim() || '',
+    website: document.getElementById('partnerWebsite')?.value?.trim() || '',
+    address: document.getElementById('partnerAddress')?.value?.trim() || '',
+    notes: document.getElementById('partnerNotes')?.value?.trim() || '',
+    createdDate: new Date().toISOString().split('T')[0]
+  });
+  closeModal();
+  showToast('Partner added','success');
+  rerenderSection();
+}
 function renderCRMPartners() {
   const partners = DATA.partners || [];
   let html = `<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
     <h2>Partners & Joint Ventures</h2>
-    <button class="btn btn-primary"><i class="fa-solid fa-plus"></i> New Partner</button>
+    <button class="btn btn-primary" onclick="openNewPartnerModal()"><i class="fa-solid fa-plus"></i> New Partner</button>
   </div>`;
   if(partners.length===0) {
     html+=`<div class="empty-state" style="margin-top:40px"><i class="fa-solid fa-handshake"></i><p>No partners registered</p></div>`;
+  } else {
+    html+=`<table class="data-table" style="margin-top:16px">
+      <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Contact</th><th>Email</th><th>Phone</th><th>Created</th></tr></thead><tbody>`;
+    partners.forEach(p=>{
+      html+=`<tr><td>${p.id}</td><td>${p.name}</td><td>${statusPill(p.type)}</td><td>${p.contact||'-'}</td><td>${p.email||'-'}</td><td>${p.phone||'-'}</td><td>${fmtDate(p.createdDate)}</td></tr>`;
+    });
+    html+=`</tbody></table>`;
   }
   html+=`</div>`;
   return html;
@@ -5003,12 +5796,12 @@ async function submitContact() {
   };
   if (editId) {
     Object.assign(DATA.contacts.find(x => x.id === editId), obj);
-    if (supabase) await supabase.from('crm_contacts').update(obj).eq('id', editId).catch(() => {});
+    if (supabase) await supabase.from('crm_contacts').update(obj).eq('id', editId).catch(supabaseCatch);
     showToast('Contact updated', 'success');
   } else {
     obj.id = 'CON-' + Date.now();
     DATA.contacts.push(obj);
-    if (supabase) await supabase.from('crm_contacts').insert(obj).catch(() => {});
+    if (supabase) await supabase.from('crm_contacts').insert(obj).catch(supabaseCatch);
     showToast('Contact saved', 'success');
   }
   closeModal();
@@ -5018,7 +5811,7 @@ async function submitContact() {
 async function deleteContact(id) {
   if (!confirm('Delete this contact?')) return;
   DATA.contacts = DATA.contacts.filter(c => c.id !== id);
-  if (supabase) await supabase.from('crm_contacts').delete().eq('id', id).catch(() => {});
+  if (supabase) await supabase.from('crm_contacts').delete().eq('id', id).catch(supabaseCatch);
   showToast('Contact deleted', 'success');
   rerenderSection();
 }
@@ -5190,12 +5983,12 @@ async function submitQuotation() {
   };
   if (editId) {
     Object.assign(DATA.quotations.find(x => x.id === editId), obj);
-    if (supabase) await supabase.from('crm_quotations').update(obj).eq('id', editId).catch(() => {});
+    if (supabase) await supabase.from('crm_quotations').update(obj).eq('id', editId).catch(supabaseCatch);
     showToast('Quotation updated', 'success');
   } else {
     obj.id = 'QTN-' + Date.now();
     DATA.quotations.push(obj);
-    if (supabase) await supabase.from('crm_quotations').insert(obj).catch(() => {});
+    if (supabase) await supabase.from('crm_quotations').insert(obj).catch(supabaseCatch);
     showToast('Quotation created', 'success');
   }
   closeModal();
@@ -5233,7 +6026,7 @@ window.viewQuotation = (id) => {
 
 window.sendQuotation = async (id) => {
   const q = DATA.quotations.find(x => x.id === id);
-  if (q) { q.status = 'Sent'; if (supabase) await supabase.from('crm_quotations').update({ status: 'Sent' }).eq('id', id).catch(() => {}); showToast('Quotation marked as Sent', 'success'); rerenderSection(); }
+  if (q) { q.status = 'Sent'; if (supabase) await supabase.from('crm_quotations').update({ status: 'Sent' }).eq('id', id).catch(supabaseCatch); showToast('Quotation marked as Sent', 'success'); rerenderSection(); }
 };
 
 window.convertQuotationToInvoice = async (id) => {
@@ -5248,7 +6041,7 @@ window.convertQuotationToInvoice = async (id) => {
     items: q.items.map(it => ({ ...it }))
   };
   DATA.invoices.push(newInv);
-  if (supabase) await supabase.from('fin_invoices').insert(newInv).catch(() => {});
+  if (supabase) await supabase.from('fin_invoices').insert(newInv).catch(supabaseCatch);
   showToast('Invoice ' + newInv.id + ' created from ' + q.id, 'success');
   rerenderSection();
 };
@@ -5256,7 +6049,7 @@ window.convertQuotationToInvoice = async (id) => {
 window.deleteQuotation = async (id) => {
   if (!confirm('Delete this quotation?')) return;
   DATA.quotations = DATA.quotations.filter(q => q.id !== id);
-  if (supabase) await supabase.from('crm_quotations').delete().eq('id', id).catch(() => {});
+  if (supabase) await supabase.from('crm_quotations').delete().eq('id', id).catch(supabaseCatch);
   showToast('Quotation deleted', 'success');
   rerenderSection();
 };
@@ -5348,12 +6141,12 @@ async function submitProspect() {
   };
   if (editId) {
     Object.assign(DATA.prospects.find(x => x.id === editId), obj);
-    if (supabase) await supabase.from('crm_prospects').update(obj).eq('id', editId).catch(() => {});
+    if (supabase) await supabase.from('crm_prospects').update(obj).eq('id', editId).catch(supabaseCatch);
     showToast('Prospect updated', 'success');
   } else {
     obj.id = 'PRO-' + Date.now();
     DATA.prospects.push(obj);
-    if (supabase) await supabase.from('crm_prospects').insert(obj).catch(() => {});
+    if (supabase) await supabase.from('crm_prospects').insert(obj).catch(supabaseCatch);
     showToast('Prospect saved', 'success');
   }
   closeModal();
@@ -5367,8 +6160,8 @@ window.convertProspectToLead = async (id) => {
   DATA.leads.push(newLead);
   p.status = 'Converted';
   if (supabase) {
-    await supabase.from('crm_leads').insert(newLead).catch(() => {});
-    await supabase.from('crm_prospects').update({ status: 'Converted' }).eq('id', id).catch(() => {});
+    await supabase.from('crm_leads').insert(newLead).catch(supabaseCatch);
+    await supabase.from('crm_prospects').update({ status: 'Converted' }).eq('id', id).catch(supabaseCatch);
   }
   showToast('Prospect converted to Lead: ' + newLead.id, 'success');
   rerenderSection();
@@ -5377,7 +6170,7 @@ window.convertProspectToLead = async (id) => {
 window.deleteProspect = async (id) => {
   if (!confirm('Delete this prospect?')) return;
   DATA.prospects = DATA.prospects.filter(p => p.id !== id);
-  if (supabase) await supabase.from('crm_prospects').delete().eq('id', id).catch(() => {});
+  if (supabase) await supabase.from('crm_prospects').delete().eq('id', id).catch(supabaseCatch);
   showToast('Prospect deleted', 'success');
   rerenderSection();
 };
@@ -5495,7 +6288,7 @@ async function submitComm() {
   };
   if (!obj.subject && !obj.content) { showToast('Subject or content required', 'error'); return; }
   DATA.communications.push(obj);
-  if (supabase) await supabase.from('crm_communications').insert(obj).catch(() => {});
+  if (supabase) await supabase.from('crm_communications').insert(obj).catch(supabaseCatch);
   closeModal();
   showToast('Communication logged', 'success');
   rerenderSection();
@@ -5581,9 +6374,9 @@ window.convertLeadToAccount = async (id) => {
   };
   DATA.deals.push(newDeal);
   if (supabase) {
-    await supabase.from('crm_accounts').insert(newAcct).catch(() => {});
-    await supabase.from('crm_contacts').insert(newContact).catch(() => {});
-    await supabase.from('crm_deals').insert(newDeal).catch(() => {});
+    await supabase.from('crm_accounts').insert(newAcct).catch(supabaseCatch);
+    await supabase.from('crm_contacts').insert(newContact).catch(supabaseCatch);
+    await supabase.from('crm_deals').insert(newDeal).catch(supabaseCatch);
   }
   showToast('Lead converted: Account ' + newAcct.id + ', Contact, and Deal created', 'success');
   rerenderSection();
@@ -5592,7 +6385,7 @@ window.convertLeadToAccount = async (id) => {
 window.deleteLead = async (id) => {
   if (!confirm('Delete this lead?')) return;
   DATA.leads = DATA.leads.filter(l => l.id !== id);
-  if (supabase) await supabase.from('crm_leads').delete().eq('id', id).catch(() => {});
+  if (supabase) await supabase.from('crm_leads').delete().eq('id', id).catch(supabaseCatch);
   showToast('Lead deleted', 'success');
   rerenderSection();
 };
@@ -5793,7 +6586,7 @@ function renderCRMWinLoss() {
             <td style="font-weight:600">${d.title}</td>
             <td style="font-size:12px;color:var(--text-sec)">${acctName}</td>
             <td>${fmt(d.value)}</td>
-            <td><span style="color:${d.stage === 'Closed Won' ? 'var(--success)' : 'var(--error)'};font-weight:600">${d.stage === 'Closed Won' ? '✓ Won' : '✗ Lost'}</span></td>
+            <td><span style="color:${d.stage === 'Closed Won' ? 'var(--success)' : 'var(--error)'};font-weight:600">${d.stage === 'Closed Won' ? '<i class="fa-solid fa-trophy"></i> Won' : '<i class="fa-solid fa-ban"></i> Lost'}</span></td>
             <td style="font-size:12px">${d.sales_person || '—'}</td>
             <td style="font-size:12px;color:var(--text-sec);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.notes || d.lost_reason || '—'}</td>
           </tr>`;
@@ -6123,9 +6916,9 @@ function openNewExpenseModal() {
 }
 
 async function submitNewExpense() {
-  const amt=$('#nx-amt').value;
-  if(!amt){showToast('Amount required','error');return;}
-  const newExp = { id:'EXP-'+Date.now(), employee_id:'EMP-001', date:$('#nx-date').value||new Date().toISOString().split('T')[0], amount:parseFloat(amt), category:$('#nx-cat').value, description:$('#nx-desc').value, status:'Pending' };
+  const amt=parseFloat($('#nx-amt').value);
+  if(isNaN(amt)||amt<0){showToast('Valid amount required','error');return;}
+  const newExp = { id:'EXP-'+Date.now(), employee_id:'EMP-001', date:$('#nx-date').value||new Date().toISOString().split('T')[0], amount:amt, category:$('#nx-cat').value, description:$('#nx-desc').value, status:'Pending' };
   
   if (supabase) {
     const { error } = await supabase.from('hr_expense_claims').insert(newExp);
@@ -6742,7 +7535,7 @@ async function submitNewChartAccount() {
   if (!name || !id) { showToast('Name and Code required', 'error'); return; }
   if (DATA.chartAccounts.find(a => a.id === id)) { showToast('Account code already exists', 'error'); return; }
   const acc = { id, name, type, parent_id: parentId, is_group: isGroup, balance: 0 };
-  if (supabase) supabase.from('fin_chart_accounts').insert(acc).catch(() => {});
+  if (supabase) supabase.from('fin_chart_accounts').insert(acc).catch(supabaseCatch);
   DATA.chartAccounts.push(acc);
   closeModal(); showToast('Account created', 'success'); rerenderSection();
 }
@@ -6801,7 +7594,7 @@ function openNewJournalEntryModal() {
       </div>
     </div>
     <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px">
-      <span id="nje-balance" style="font-weight:700;color:var(--success)">Balanced ✓ (Dr $0 = Cr $0)</span>
+      <span id="nje-balance" style="font-weight:700;color:var(--success)">Balanced <i class="fa-solid fa-check" style="color:var(--success)"></i> (Dr $0 = Cr $0)</span>
     </div>
   </div>`;
   const footer = `<button class="btn btn-primary" onclick="submitNewJournalEntry()">Post Entry</button>`;
@@ -6831,8 +7624,8 @@ function calcJETotal() {
   const el = document.getElementById('nje-balance');
   if (el) {
     const diff = Math.abs(totalDr - totalCr);
-    if (diff < 0.01) el.innerHTML = `<span style="color:var(--success)">Balanced ✓ (Dr $${totalDr.toLocaleString()} = Cr $${totalCr.toLocaleString()})</span>`;
-    else el.innerHTML = `<span style="color:var(--error)">Out of balance ✗ (Dr $${totalDr.toLocaleString()} ≠ Cr $${totalCr.toLocaleString()}, Diff $${diff.toFixed(2)})</span>`;
+    if (diff < 0.01) el.innerHTML = `<span style="color:var(--success)">Balanced <i class="fa-solid fa-check" style="color:var(--success)"></i> (Dr $${totalDr.toLocaleString()} = Cr $${totalCr.toLocaleString()})</span>`;
+    else el.innerHTML = `<span style="color:var(--error)">Out of balance <i class="fa-solid fa-xmark" style="color:var(--error)"></i> (Dr $${totalDr.toLocaleString()} ≠ Cr $${totalCr.toLocaleString()}, Diff $${diff.toFixed(2)})</span>`;
   }
 }
 
@@ -6859,7 +7652,7 @@ async function submitNewJournalEntry() {
 
   const ref = $('#nje-ref').value.trim();
   const je = { id: 'JE-' + Date.now(), date, reference: ref || null, description: desc, entries };
-  if (supabase) supabase.from('fin_journal_entries').insert(je).catch(() => {});
+  if (supabase) supabase.from('fin_journal_entries').insert(je).catch(supabaseCatch);
   DATA.journalEntries.push(je);
   closeModal(); showToast('Journal entry posted', 'success'); rerenderSection();
 }
@@ -6868,7 +7661,7 @@ async function submitNewJournalEntry() {
 function autoPostJE(reference, description, entries) {
   const je = { id: 'JE-' + Date.now(), date: new Date().toISOString().split('T')[0], reference, description, entries };
   DATA.journalEntries.push(je);
-  if (supabase) supabase.from('fin_journal_entries').insert(je).catch(() => {});
+  if (supabase) supabase.from('fin_journal_entries').insert(je).catch(supabaseCatch);
 }
 
 /* ── Fixed Assets ── */
@@ -6940,13 +7733,13 @@ async function submitNewFixedAsset(editId) {
     status: $('#nfa-status').value, supplier_id: $('#nfa-supplier').value || null
   };
   if (!editId) {
-    if (supabase) supabase.from('fin_fixed_assets').insert(asset).catch(() => {});
+    if (supabase) supabase.from('fin_fixed_assets').insert(asset).catch(supabaseCatch);
     DATA.fixedAssets.push(asset);
     autoPostJE(asset.id, 'Fixed Asset ' + name + ' acquired', [{account_id:'ACC-FA', debit:asset.cost, credit:0},{account_id:'ACC-AP', debit:0, credit:asset.cost}]);
   } else {
     const idx = DATA.fixedAssets.findIndex(a => a.id === editId);
     if (idx >= 0) DATA.fixedAssets[idx] = asset;
-    if (supabase) supabase.from('fin_fixed_assets').upsert(asset).catch(() => {});
+    if (supabase) supabase.from('fin_fixed_assets').upsert(asset).catch(supabaseCatch);
   }
   closeModal(); showToast(editId ? 'Asset updated' : 'Asset added', 'success'); rerenderSection();
 }
@@ -7012,10 +7805,12 @@ async function submitNewPayment(invoiceId) {
   }
 
   // Update Invoice Status if fully paid
-  const totalPaid = DATA.payments.filter(p=>p.invoice_id===invoiceId).reduce((s,p)=>s+parseFloat(p.amount),0);
-  if(totalPaid >= parseFloat(inv.total_amount)) {
-    inv.status = 'Paid';
-    if(supabase) await supabase.from('fin_invoices').update({status:'Paid'}).eq('id', invoiceId);
+  if(inv){
+    const totalPaid = DATA.payments.filter(p=>p.invoice_id===invoiceId).reduce((s,p)=>s+parseFloat(p.amount),0);
+    if(totalPaid >= parseFloat(inv.total_amount)) {
+      inv.status = 'Paid';
+      if(supabase) await supabase.from('fin_invoices').update({status:'Paid'}).eq('id', invoiceId);
+    }
   }
 
   closeModal(); showToast('Payment logged','success'); rerenderSection();
@@ -7076,6 +7871,8 @@ window.closeDropdown = closeDropdown;
 window.selectEmployee = selectEmployee;
 window.openNewEmployeeModal = openNewEmployeeModal;
 window.submitNewEmployee = submitNewEmployee;
+window.openNewLeaveModal = openNewLeaveModal;
+window.submitLeaveRequest = submitLeaveRequest;
 window.selectCRMItem = selectCRMItem;
 window.openNewAccountModal = openNewAccountModal;
 window.submitNewAccount = submitNewAccount;
@@ -7090,6 +7887,13 @@ window.closeCertDrawer = closeCertDrawer;
 window.openCertQRModal = openCertQRModal;
 window.closeCertQRModal = closeCertQRModal;
 window.openEditCertModal = openEditCertModal;
+window.certSetTab = certSetTab;
+window.certSetEntityView = certSetEntityView;
+window.certSetFilter = certSetFilter;
+window.certLoginInspector = certLoginInspector;
+window.certLogoutInspector = certLogoutInspector;
+window.cycleJobStatus = cycleJobStatus;
+window.rerenderSection = rerenderSection;
 window.setCertSavedView = setCertSavedView;
 window.certSortTable = certSortTable;
 window.certToggleColDropdown = certToggleColDropdown;
@@ -7109,12 +7913,17 @@ window.certExportPDF = certExportPDF;
 window.certGetSelectedIds = certGetSelectedIds;
 window.deleteCert = deleteCert;
 window.openBulkCertModal = openBulkCertModal;
-window.addBulkRow = addBulkRow;
-window.removeBulkRow = removeBulkRow;
-window.updateBulkItem = updateBulkItem;
-window.batchSetDefaults = batchSetDefaults;
-window.calcBulkExpiry = calcBulkExpiry;
-window.submitBulkCerts = submitBulkCerts;
+window.bulkWizardNext = bulkWizardNext;
+window.bulkDownloadTemplate = bulkDownloadTemplate;
+window.bulkHandleCSV = bulkHandleCSV;
+window.bulkAddRowManual = bulkAddRowManual;
+window.bulkRemoveRow = bulkRemoveRow;
+window.bulkClearAllRows = bulkClearAllRows;
+window.bulkUpd = bulkUpd;
+window.bulkCalcExpiry = bulkCalcExpiry;
+window.bulkFillSite = bulkFillSite;
+window.renderBulkStep2Content = renderBulkStep2Content;
+window.submitBulkWizard = submitBulkWizard;
 window.togglePushNotif = togglePushNotif;
 window.checkPushHealth = checkPushHealth;
 window.requestNotifPermission = requestNotifPermission;
@@ -7139,3 +7948,5 @@ window.submitProspect = submitProspect;
 window.deleteProspect = deleteProspect;
 window.openNewCommModal = openNewCommModal;
 window.submitComm = submitComm;
+window.openNewPartnerModal = openNewPartnerModal;
+window.submitNewPartner = submitNewPartner;

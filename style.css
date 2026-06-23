@@ -16,6 +16,7 @@
   --teal:#0f6c6c;
   --shell-h:48px;
   --tab-h:44px;
+  --subnav-h:126px;
   --side-w:240px;
   --motion-fast:150ms;
   --motion-base:200ms;
@@ -98,7 +99,16 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 
 /* ── LAYOUT SHELL ── */
 .app-body{position:fixed;top:calc(var(--shell-h) + var(--tab-h));left:0;right:0;bottom:0;
-  display:flex;overflow:hidden;}
+  display:flex;overflow:hidden;transition:top .2s;}
+.app-body.subnav-open{top:calc(var(--shell-h) + var(--tab-h) + var(--subnav-h));}
+
+/* Cert subnav bar (between tab bar and app-body) */
+.cert-subnav-bar{position:fixed;top:calc(var(--shell-h) + var(--tab-h));left:0;right:0;height:var(--subnav-h);z-index:850;background:var(--white);overflow:hidden;}
+
+@media(max-width:768px){
+  :root{--subnav-h:120px;}
+  .cert-subnav-bar{overflow-x:auto;}
+}
 
 /* ── MODULE SIDEBAR ── */
 .mod-sidebar{width:var(--side-w);min-width:var(--side-w);background:var(--white);

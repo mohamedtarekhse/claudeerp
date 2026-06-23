@@ -517,6 +517,13 @@ function switchSection(sec){
   state.filters={};
   state.sortCol=null;
   destroyCharts();
+  if(state.module==='certificates')renderCertSubNav();
+  else{
+    const subNav=$('#certSubNav');
+    if(subNav)subNav.style.display='none';
+    const body=document.querySelector('.app-body');
+    if(body)body.classList.remove('subnav-open');
+  }
   renderSidebar();
   renderContent();
 }
@@ -1437,6 +1444,72 @@ function getCertExpiryBar(c){
   return`<span style="font-size:12px;font-weight:700;color:${cls};">${lbl}</span>`;
 }
 
+/* ── Certificate sub-nav bar (status tabs + inspector bar + entity tabs) ── */
+function renderCertSubNav(){
+  const allCerts=DATA.certificates;
+  const tabCounts={
+    all:allCerts.length,
+    valid:allCerts.filter(c=>getCertStatus(c)==='valid').length,
+    expiring:allCerts.filter(c=>getCertStatus(c)==='expiring').length,
+    expired:allCerts.filter(c=>getCertStatus(c)==='expired').length,
+    pending:allCerts.filter(c=>c.approvalStatus==='pending').length,
+    rejected:allCerts.filter(c=>c.approvalStatus==='rejected').length,
+    noFile:allCerts.filter(c=>!c.fileName&&!c.pdfUrl).length,
+    newUploads:allCerts.filter(c=>{const u=c.uploadTime?new Date(c.uploadTime):null;return u&&(new Date()-u)<=86400000;}).length,
+  };
+  const badgeCls=(id,i)=>{
+    if(i===0||id==='all')return'default';
+    if(id==='expiring'||id==='pending'||id==='newUploads')return'warning';
+    if(id==='expired'||id==='rejected')return'error';
+    return'default';
+  };
+  const tabs=[
+    {id:'all',label:'All'},{id:'valid',label:'Valid'},{id:'expiring',label:'Expiring'},
+    {id:'expired',label:'Expired'},{id:'pending',label:'Pending'},{id:'rejected',label:'Rejected'},
+    {id:'noFile',label:'No File'},{id:'newUploads',label:'New Uploads'},
+  ];
+  let html='';
+  html+=`<div class="cert-sub-nav">`;
+  tabs.forEach((t,i)=>{
+    const cnt=tabCounts[t.id];
+    html+=`<button class="sap-tab ${certSavedView===t.id?'active':''}" onclick="certSetTab('${t.id}')"><span>${t.label}</span><span class="sap-tab__badge sap-tab__badge--${badgeCls(t.id,i)}">${cnt}</span></button>`;
+  });
+  html+=`</div>`;
+
+  if(state.currentInspectorId){
+    const ins=DATA.inspectors.find(i=>i.id===state.currentInspectorId);
+    html+=`<div class="inspector-bar"><span style="display:flex;align-items:center;gap:6px;"><span class="inspector-dot" style="background:${ins?.color||'#6a6d70'}"></span><strong>${ins?h(ins.name):'Inspector'}</strong><span class="badge badge--blue">Inspector Mode</span></span><button class="btn btn-ghost btn-sm" onclick="certLogoutInspector()">Logout</button></div>`;
+  } else {
+    const inspOpts=DATA.inspectors.filter(i=>i.status==='active').map(i=>`<option value="${i.id}">${h(i.name)} – ${h(i.title)}</option>`).join('');
+    html+=`<div class="inspector-bar"><span style="font-size:12px;color:var(--text-sec);cursor:pointer;" onclick="document.getElementById('insLoginDropdown').classList.toggle('open')">Login as Inspector ▾</span><select id="insLoginDropdown" class="col-dropdown" style="position:absolute;top:100%;right:0;display:none;width:240px;" onchange="certLoginInspector(this.value)"><option value="">Select inspector...</option>${inspOpts}</select><div style="flex:1;"></div><span style="font-size:11px;color:var(--text-sec);">Admin Mode</span></div>`;
+  }
+
+  const entityTabs=state.currentInspectorId
+    ? [{id:'list',label:'Certificates'}]
+    : [
+        {id:'list',label:'Certificates'},
+        {id:'clients',label:'Clients'},
+        {id:'functionalLocations',label:'Functional Locations'},
+        {id:'inspectors',label:'Inspectors'},
+        {id:'jobs',label:'Jobs'},
+      ];
+  html+=`<div class="cert-sub-nav">`;
+  entityTabs.forEach(t=>{
+    const isJobTab=t.id==='jobs';
+    const jobCounts=isJobTab?getJobsForCurrentUser().length:0;
+    html+=`<button class="sap-tab ${certEntityView===t.id?'active':''}" onclick="certSetEntityView('${t.id}')"><span>${t.label}</span>${isJobTab?`<span class="sap-tab__badge sap-tab__badge--${jobCounts?'warning':'default'}">${jobCounts}</span>`:''}</button>`;
+  });
+  html+=`</div>`;
+
+  const el=$('#certSubNav');
+  if(el){
+    el.style.display='';
+    el.innerHTML=html;
+  }
+  const body=document.querySelector('.app-body');
+  if(body)body.classList.add('subnav-open');
+}
+
 function renderCertificates(filterFn){
   const isMobile=window.innerWidth<=768;
   if(![25,50,100].includes(certPageSize))certPageSize=25;
@@ -1444,6 +1517,13 @@ function renderCertificates(filterFn){
   if(filterFn)certCurrentPage=1;
 
   let data=filterFn?DATA.certificates.filter(filterFn):[...DATA.certificates];
+  // Inspector auto-filter: inspector sees only certs assigned to them or their active jobs
+  if(state.currentInspectorId){
+    const activeJobs=DATA.jobAssignments
+      .filter(ja=>ja.inspectorId===state.currentInspectorId&&ja.status!=='closed')
+      .map(ja=>ja.jobId);
+    data=data.filter(c=>c.inspectorId===state.currentInspectorId||(c.jobId&&activeJobs.includes(c.jobId)));
+  }
   const search=(state.filters.search||'').toLowerCase();
 
   // Apply saved view / sub-nav tab filter
@@ -1512,61 +1592,6 @@ function renderCertificates(filterFn){
   let html=`<div class="fade-in">`;
   html+=renderCertKPIs();
   html+=`<div class="sap-card" style="background:var(--white);border:1px solid var(--border);border-radius:8px;overflow:hidden;">`;
-
-  // Sub-nav tabs (Rigways style)
-  const allCerts=DATA.certificates;
-  const tabCounts={
-    all:allCerts.length,
-    valid:allCerts.filter(c=>getCertStatus(c)==='valid').length,
-    expiring:allCerts.filter(c=>getCertStatus(c)==='expiring').length,
-    expired:allCerts.filter(c=>getCertStatus(c)==='expired').length,
-    pending:allCerts.filter(c=>c.approvalStatus==='pending').length,
-    rejected:allCerts.filter(c=>c.approvalStatus==='rejected').length,
-    noFile:allCerts.filter(c=>!c.fileName&&!c.pdfUrl).length,
-    newUploads:allCerts.filter(c=>{const u=c.uploadTime?new Date(c.uploadTime):null;return u&&(new Date()-u)<=86400000;}).length,
-  };
-  const badgeCls=(id,i)=>{
-    if(i===0||id==='all')return'default';
-    if(id==='expiring'||id==='pending'||id==='newUploads')return'warning';
-    if(id==='expired'||id==='rejected')return'error';
-    return'default';
-  };
-  const tabs=[
-    {id:'all',label:'All'},{id:'valid',label:'Valid'},{id:'expiring',label:'Expiring'},
-    {id:'expired',label:'Expired'},{id:'pending',label:'Pending'},{id:'rejected',label:'Rejected'},
-    {id:'noFile',label:'No File'},{id:'newUploads',label:'New Uploads'},
-  ];
-  html+=`<div class="cert-sub-nav">`;
-  tabs.forEach((t,i)=>{
-    const cnt=tabCounts[t.id];
-    html+=`<button class="sap-tab ${certSavedView===t.id?'active':''}" onclick="certSetTab('${t.id}')"><span>${t.label}</span><span class="sap-tab__badge sap-tab__badge--${badgeCls(t.id,i)}">${cnt}</span></button>`;
-  });
-  html+=`</div>`;
-
-  // Entity sub-nav (second row)
-  // Inspector login/logout bar
-  if(state.currentInspectorId){
-    const ins=DATA.inspectors.find(i=>i.id===state.currentInspectorId);
-    html+=`<div class="inspector-bar"><span style="display:flex;align-items:center;gap:6px;"><span class="inspector-dot" style="background:${ins?.color||'#6a6d70'}"></span><strong>${ins?h(ins.name):'Inspector'}</strong><span class="badge badge--blue">Inspector Mode</span></span><button class="btn btn-ghost btn-sm" onclick="certLogoutInspector()">Logout</button></div>`;
-  } else {
-    const inspOpts=DATA.inspectors.filter(i=>i.status==='active').map(i=>`<option value="${i.id}">${h(i.name)} – ${h(i.title)}</option>`).join('');
-    html+=`<div class="inspector-bar"><span style="font-size:12px;color:var(--text-sec);cursor:pointer;" onclick="document.getElementById('insLoginDropdown').classList.toggle('open')">Login as Inspector ▾</span><select id="insLoginDropdown" class="col-dropdown" style="position:absolute;top:100%;right:0;display:none;width:240px;" onchange="certLoginInspector(this.value)"><option value="">Select inspector...</option>${inspOpts}</select><div style="flex:1;"></div><span style="font-size:11px;color:var(--text-sec);">Admin Mode</span></div>`;
-  }
-
-  const entityTabs=[
-    {id:'list',label:'Certificates'},
-    {id:'clients',label:'Clients'},
-    {id:'functionalLocations',label:'Functional Locations'},
-    {id:'inspectors',label:'Inspectors'},
-    {id:'jobs',label:'Jobs'},
-  ];
-  html+=`<div class="cert-sub-nav">`;
-  entityTabs.forEach(t=>{
-    const isJobTab=t.id==='jobs';
-    const jobCounts=isJobTab?getJobsForCurrentUser().length:0;
-    html+=`<button class="sap-tab ${certEntityView===t.id?'active':''}" onclick="certSetEntityView('${t.id}')"><span>${t.label}</span>${isJobTab?`<span class="sap-tab__badge sap-tab__badge--${jobCounts?'warning':'default'}">${jobCounts}</span>`:''}</button>`;
-  });
-  html+=`</div>`;
 
   if(certEntityView==='list'){
     html+=`<div class="sap-table-wrapper cert-table-view">`;
@@ -4390,6 +4415,13 @@ function renderContent(){
 
 function renderAll(){
   renderTabBar();
+  if(state.module==='certificates')renderCertSubNav();
+  else{
+    const subNav=$('#certSubNav');
+    if(subNav)subNav.style.display='none';
+    const body=document.querySelector('.app-body');
+    if(body)body.classList.remove('subnav-open');
+  }
   renderSidebar();
   renderContent();
 }
@@ -4398,6 +4430,13 @@ function rerenderSection(){
   destroyCharts();
   recomputeInvoiceStatuses();
   renderTabBar();
+  if(state.module==='certificates')renderCertSubNav();
+  else{
+    const subNav=$('#certSubNav');
+    if(subNav)subNav.style.display='none';
+    const body=document.querySelector('.app-body');
+    if(body)body.classList.remove('subnav-open');
+  }
   renderSidebar();
   renderContent();
 }

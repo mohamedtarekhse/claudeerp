@@ -61,14 +61,15 @@ const ROLE_LABELS = Object.keys(ROLE_KEY_MAP);
 
 /* ── Register Service Worker for Push Notifications ── */
 if('serviceWorker' in navigator && 'PushManager' in window){
-  navigator.serviceWorker.register('/sw.js').then(reg=>{
-    state._swReg = reg;
-    // Check if already subscribed
-    reg.pushManager.getSubscription().then(sub=>{
-      state.pushSubscribed = !!sub;
-      state.pushEnabled = !!sub;
-    });
-  }).catch(supabaseCatch);
+  try {
+    navigator.serviceWorker.register('/sw.js').then(reg=>{
+      state._swReg = reg;
+      reg.pushManager.getSubscription().then(sub=>{
+        state.pushSubscribed = !!sub;
+        state.pushEnabled = !!sub;
+      });
+    }).catch(()=>{});
+  } catch(e) {}
 }
 
 /* ═══════════════════════════════════════════════
@@ -8298,6 +8299,7 @@ window.openNewDealModal = openNewDealModal;
 window.submitNewDeal = submitNewDeal;
 window.openNewTaskModal = openNewTaskModal;
 window.submitNewTask = submitNewTask;
+window.toggleRole = toggleRole;
 window.toggleLang = toggleLang;
 window.switchModule = switchModule;
 window.switchSection = switchSection;

@@ -543,7 +543,7 @@ function renderHRKPIs(){
   const active=DATA.employees.filter(e=>e.status==='active').length;
   const field=DATA.employees.filter(e=>e.crew==='Offshore'||e.crew==='Onshore').length;
   const open=4;
-  const pending=pendingLeave+2;
+  const pending=DATA.leaveRequests.filter(l=>l.status==='pending'||l.status==='Pending').length+2;
   return `<div class="kpi-grid">
     <div class="kpi-card"><span class="kpi-label">${t('totalHeadcount')}</span><span class="kpi-value">${total}</span><span class="kpi-change" style="color:var(--text-sec)"><i class="fa-solid fa-building"></i> All Employees</span></div>
     <div class="kpi-card green"><span class="kpi-label">${t('activeEmployees')}</span><span class="kpi-value">${active}</span><span class="kpi-change kpi-up"><i class="fa-solid fa-arrow-up"></i> ${Math.round(active/total*100)}% of total</span></div>

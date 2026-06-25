@@ -13,7 +13,7 @@ const state = {
 
 /* ── Role Helpers ── */
 const ROLE_HIERARCHY = {
-  system_admin: ['system_admin','hr_manager','hr_user','crm_manager','crm_user','sc_manager','sc_user','fin_manager','fin_user','employee','inspector'],
+  system_admin: ['system_admin','hr_manager','hr_user','crm_manager','crm_user','sc_manager','sc_user','fin_manager','fin_user','employee'],
   hr_manager: ['hr_manager','hr_user','employee'],
   hr_user: ['hr_user','employee'],
   crm_manager: ['crm_manager','crm_user','employee'],

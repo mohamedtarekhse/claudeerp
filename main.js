@@ -378,6 +378,7 @@ function avatarColor(name){ const colors=['#0070f2','#188918','#e9730c','#6b3fa0
 function destroyCharts(){ state.charts.forEach(c=>{try{c.destroy();}catch(e){}}); state.charts=[]; }
 
 function statusPill(status){
+  const s=status&&status.toLowerCase();
   const map={
     active:'pill-active',inactive:'pill-inactive',leave:'pill-leave',probation:'pill-probation',notice:'pill-notice',
     valid:'pill-valid',expired:'pill-expired',expiring:'pill-expiring',renewal:'pill-renewal',
@@ -388,8 +389,8 @@ function statusPill(status){
     valid:'Valid',expired:'Expired',expiring:'Expiring Soon',renewal:'Due Renewal',
     approved:'Approved',pending:'Pending',draft:'Draft',ordered:'Ordered',cancelled:'Cancelled',processing:'Processing',
   };
-  const cls = map[status]||'pill-blue';
-  return `<span class="pill ${cls}">${labelMap[status]||status}</span>`;
+  const cls = map[s]||'pill-blue';
+  return `<span class="pill ${cls}">${labelMap[s]||status}</span>`;
 }
 
 function sortIcon(col){ if(state.sortCol!==col) return '<i class="fa-solid fa-sort sort-icon"></i>'; return state.sortDir==='asc'?'<i class="fa-solid fa-sort-up sort-icon"></i>':'<i class="fa-solid fa-sort-down sort-icon"></i>';}
@@ -477,22 +478,23 @@ function switchModule(mod){
 /* ═══════════════════════════════════════════════
    HR SIDEBAR
 ═══════════════════════════════════════════════ */
-const pendingLeave = DATA.leaveRequests.filter(l=>l.status==='pending').length;
-const newHireCount = DATA.employees.filter(e=>{ const d=new Date(e.startDate); const n=new Date(); return (n-d)/(1000*60*60*24*30)<3; }).length;
-const probationCount = DATA.employees.filter(e=>e.status==='probation').length;
 
 function renderHRSidebar(){
+  const pendingLeave = DATA.leaveRequests.filter(l=>l.status==='pending'||l.status==='Pending').length;
+  const newHireCount = DATA.employees.filter(e=>{const d=new Date(e.startDate);const n=new Date();return(n-d)/(1000*60*60*24*30)<3;}).length;
+  const probationCount = DATA.employees.filter(e=>e.status==='probation').length;
+  const openPosCount = DATA.openPositions.length;
   const sections=[
     {group:null, items:[
       {id:'allEmployees',icon:'fa-users',label:t('allEmployees')},
       {id:'newHires',icon:'fa-user-plus',label:t('newHires'),badge:newHireCount,badgeCls:'blue'},
       {id:'onProbation',icon:'fa-clock',label:t('onProbation'),badge:probationCount,badgeCls:'orange'},
       {id:'leaveRequests',icon:'fa-calendar-xmark',label:t('leaveRequests'),badge:pendingLeave},
-      {id:'timesheets',icon:'fa-table-list',label:t('timesheets'),badge:2},
+      {id:'timesheets',icon:'fa-table-list',label:t('timesheets')},
       {id:'absenceCalendar',icon:'fa-calendar-days',label:t('absenceCalendar')},
     ]},
     {group:'Workforce', items:[
-      {id:'openPositions',icon:'fa-briefcase',label:t('openPositions'),badge:4},
+      {id:'openPositions',icon:'fa-briefcase',label:t('openPositions'),badge:openPosCount},
       {id:'performanceCycle',icon:'fa-chart-line',label:t('performanceCycle')},
       {id:'trainingHSE',icon:'fa-hard-hat',label:t('trainingHSE')},
       {id:'compensation',icon:'fa-money-bill-wave',label:t('compensation')},
@@ -808,7 +810,7 @@ function renderLeaveRequests(){
     <thead><tr><th>Request ID</th><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Approver</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody>`;
   items.forEach(l=>{ html+=`<tr><td style="font-weight:500">${l.id}</td><td>${l.employeeName||l.empName||'Unknown'}</td><td>${l.type}</td><td>${fmtDate(l.startDate||l.from)}</td><td>${fmtDate(l.endDate||l.to)}</td><td>${l.days}</td><td>${l.approver}</td><td>${statusPill(l.status)}</td>
-    <td>${l.status==='Pending'?`<button class="btn btn-primary btn-sm" onclick="approveLeave('${l.id}')">Approve</button>`:''}</td></tr>`; });
+    <td>${l.status==='pending'?`<button class="btn btn-primary btn-sm" onclick="approveLeave('${l.id}')">Approve</button>`:''}</td></tr>`; });
   html+=`</tbody></table></div></div></div>`;
   return html;
 }
@@ -841,7 +843,7 @@ async function submitLeaveRequest() {
   }
   
   const days = Math.round((new Date(to) - new Date(from))/(1000*60*60*24)) + 1;
-  const newReq = { id:'LR-'+Date.now(), employeeName:empName, type:$('#nl-type').value, startDate:from, endDate:to, days, status:'Pending' };
+  const newReq = { id:'LR-'+Date.now(), employeeName:empName, type:$('#nl-type').value, startDate:from, endDate:to, days, status:'pending' };
   
   if(supabase) await supabase.from('leave_requests').insert(newReq);
   DATA.leaveRequests.push(newReq);
@@ -850,9 +852,9 @@ async function submitLeaveRequest() {
 
 window.approveLeave = async function(id) {
   const req = DATA.leaveRequests.find(l => l.id === id);
-  if(req) {
-    req.status = 'Approved';
-    if(supabase) await supabase.from('leave_requests').update({status:'Approved'}).eq('id', id);
+  if(!req||req.status!=='pending') return;
+  req.status = 'approved';
+  if(supabase) await supabase.from('leave_requests').update({status:'approved'}).eq('id', id);
     
     // Auto-update attendance
     const emp = DATA.employees.find(e => e.name === (req.employeeName||req.empName));
@@ -864,8 +866,8 @@ window.approveLeave = async function(id) {
       showToast('Leave Approved. Attendance updated.', 'success');
     }
     rerenderSection();
-  }
 }
+
 function renderHRStub(label){
   return `<div class="fade-in"><div class="empty-state" style="padding:80px 20px;"><i class="fa-solid fa-hard-hat" style="font-size:48px;opacity:.2;margin-bottom:16px;"></i><p style="font-size:15px;font-weight:600;">${label}</p><p style="margin-top:6px;font-size:13px;">This section is planned for Chunk 3.</p></div></div>`;
 }
@@ -1102,6 +1104,7 @@ function renderCRMSidebar(){
       {id:'crmContacts',icon:'fa-address-card',label:'Contacts'},
       {id:'crmQuotations',icon:'fa-file-invoice',label:'Quotations'},
       {id:'myFavorites',icon:'fa-star',label:t('myFavorites')},
+      {id:'openContracts',icon:'fa-file-signature',label:t('openContracts')},
       {id:'wonThisQuarter',icon:'fa-trophy',label:t('wonThisQuarter')},
     ]},
     {group:'Pipeline',items:[
@@ -1140,8 +1143,8 @@ function renderCRMSidebar(){
 function renderCRMKPIs(){
   const active=DATA.accounts.filter(a=>a.status==='active');
   const totalVal=active.reduce((s,a)=>s+a.contractValue,0);
-  const allO=DATA.allOpps;
-  const won=allO.filter(o=>o.stage==='Award').length;
+  const allO=DATA.allOpps||DATA.deals||[];
+  const won=allO.filter(o=>o.stage==='Award'||o.stage==='Closed Won').length;
   const total=allO.length;
   const avgVal=won>0?allO.filter(o=>o.stage==='Award').reduce((s,o)=>s+o.value,0)/won:0;
   return `<div class="kpi-grid">
@@ -2329,8 +2332,8 @@ function certExportPDF(){
 function deleteCert(id){
   const idx=DATA.certificates.findIndex(x=>x.id===id);
   if(idx>-1)DATA.certificates.splice(idx,1);
+  if(supabase) supabase.from('certificates').delete().eq('id',id).catch(supabaseCatch);
   showToast(`Certificate ${id} deleted`,'success');
-  const selEl=document.getElementById('certTableBody');
   rerenderSection();
 }
 
@@ -2422,6 +2425,7 @@ function approveCert(id){
   const c=DATA.certificates.find(x=>x.id===id);
   if(!c)return;
   c.approvalStatus='approved';
+  if(supabase) supabase.from('certificates').update({approval_status:'approved'}).eq('id',id).catch(supabaseCatch);
   showToast(`Certificate ${id} approved`,'success');
   closeCertDrawer();
   rerenderSection();
@@ -2448,6 +2452,7 @@ function confirmCertReject(){
   if(!reason){showToast('Please provide a rejection reason','error');return;}
   const c=DATA.certificates.find(x=>x.id===certRejectTargetId);
   if(c){c.approvalStatus='rejected';c.rejectionReason=reason;}
+  if(supabase) supabase.from('certificates').update({approval_status:'rejected',rejection_reason:reason}).eq('id',certRejectTargetId).catch(supabaseCatch);
   showToast(`Certificate ${certRejectTargetId} rejected`,'warning');
   closeCertRejectModal();
   closeCertDrawer();
@@ -3373,7 +3378,7 @@ function renderSCDashboard(){
   const pos=DATA.purchaseOrders;
   const inv=DATA.inventory;
   const recentPOs=pos.slice(-5).reverse();
-  const lowStockItems=inv.filter(i=>i.status!=='normal').sort((a,b)=>{'out critical low'.indexOf(a.status)-'out critical low'.indexOf(b.status)});
+  const lowStockItems=inv.filter(i=>i.status!=='normal').sort((a,b)=>'out critical low'.indexOf(a.status)-'out critical low'.indexOf(b.status));
   const catSpend={};
   pos.filter(p=>p.status!=='cancelled').forEach(p=>{ catSpend[p.category]=(catSpend[p.category]||0)+p.amount; });
 
@@ -3572,35 +3577,49 @@ window.approvePO = async function(id){
   }
   const po=DATA.purchaseOrders.find(p=>p.id===id);
   if(po){
-    po.status='ordered'; po.approvedBy=DATA.employees[0]?.name||'Rania Saleh';
-    if(supabase) await supabase.from('purchase_orders').update({status:'ordered'}).eq('id',id);
-    showToast(id+' approved and ordered','success'); rerenderSection();
+    if(po.status==='draft'){po.status='approved';po.approvedBy=DATA.employees[0]?.name||'Rania Saleh';}
+    else if(po.status==='approved'||po.status==='pending'){po.status='ordered';po.approvedBy=po.approvedBy||DATA.employees[0]?.name||'Rania Saleh';}
+    else return showToast('Cannot approve PO in '+po.status+' status','error');
+    if(supabase) await supabase.from('purchase_orders').update({status:po.status}).eq('id',id);
+    showToast(id+' '+po.status,'success'); rerenderSection();
   }
 }
 
 window.receivePO = async function(id) {
   const po=DATA.purchaseOrders.find(p=>p.id===id);
-  if(po) {
-    po.status = 'received';
-    if(supabase) await supabase.from('purchase_orders').update({status:'received'}).eq('id', id);
-    
-    // Auto-update inventory + record in stock ledger
-    const itemName = po.description || 'Received Item';
-    let invItem = DATA.inventory.find(i => i.name.toLowerCase() === itemName.toLowerCase());
-    if(invItem) {
-      recordStockMovement(invItem.id, 'in', 1, invItem.unit || 'Lot', 'PO Receipt', id, 0, 'Received via PO ' + id);
-      showToast('PO Received. Inventory + stock ledger updated for ' + itemName, 'success');
-    } else {
-      const newInv = { id: 'INV-ITM-'+Date.now(), name: itemName, category: po.category, stock: 1, min: 5, unit: 'Lot', location: po.site };
+  if(!po)return;
+  po.status='received';
+  if(supabase) await supabase.from('purchase_orders').update({status:'received'}).eq('id', id);
+  const lines=po.poLines||[];
+  if(lines.length===0){
+    const itemName=po.description||'Received Item';
+    let invItem=DATA.inventory.find(i=>i.name.toLowerCase()===itemName.toLowerCase());
+    if(invItem){recordStockMovement(invItem.id,'in',1,invItem.uom||'Lot','PO Receipt',id,0,'Received via PO '+id);}
+    else{
+      const newInv={id:'INV-ITM-'+Date.now(),name:itemName,category:po.category,stock:1,min:5,uom:'Lot',location:po.site};
       DATA.inventory.push(newInv);
-      if(supabase) {
-        await supabase.from('inventory').insert({id: newInv.id, item_name: itemName, category: po.category, stock_level: 1, min_stock: 5, unit: 'Lot', location: po.site});
-      }
-      recordStockMovement(newInv.id, 'in', 1, 'Lot', 'PO Receipt', id, 0, 'Received via PO ' + id);
-      showToast('PO Received. New inventory item + stock ledger entry created for ' + itemName, 'success');
+      if(supabase) await supabase.from('inventory').insert({id:newInv.id,item_name:itemName,category:po.category,stock_level:1,min_stock:5,unit:'Lot',location:po.site});
+      recordStockMovement(newInv.id,'in',1,'Lot','PO Receipt',id,0,'Received via PO '+id);
     }
-    rerenderSection();
+  }else{
+    lines.forEach(line=>{
+      const qty=line.qty||1;
+      let invItem=DATA.inventory.find(i=>i.name.toLowerCase()===line.item.toLowerCase());
+      if(invItem){
+        invItem.qtyOnHand=(invItem.qtyOnHand||0)+qty;
+        invItem.lastReceived=new Date().toISOString().split('T')[0];
+        recordStockMovement(invItem.id,'in',qty,line.unit||invItem.uom||'Unit','PO Receipt',id,0,'Received via PO '+id);
+        if(supabase) supabase.from('inventory').update({stock_level:invItem.qtyOnHand,last_received:invItem.lastReceived}).eq('id',invItem.id);
+      }else{
+        const newInv={id:'INV-ITM-'+Date.now()+Math.random().toString(36).slice(2,6),name:line.item,category:po.category,site:po.site,warehouse:'',uom:line.unit||'Unit',qtyOnHand:qty,reorderPoint:1,maxStock:10,unitCost:line.unitPrice||0,status:'normal',lastReceived:new Date().toISOString().split('T')[0],supplierId:po.supplierId};
+        DATA.inventory.push(newInv);
+        if(supabase) supabase.from('inventory').insert({id:newInv.id,item_name:line.item,category:po.category,stock_level:qty,min_stock:1,unit:line.unit||'Unit',location:po.site});
+        recordStockMovement(newInv.id,'in',qty,line.unit||'Unit','PO Receipt',id,0,'Received via PO '+id);
+      }
+    });
   }
+  showToast('PO Received. Inventory updated.','success');
+  rerenderSection();
 }
 
 /* ═══════════════════════════════════════════════
@@ -4377,7 +4396,7 @@ function renderStockLedgerPage(){
   let balance=0;
   const typeIcon=t=>t==='in'?'fa-arrow-down':'fa-arrow-up';
   const typeColor=t=>t==='in'?'var(--success)':'var(--error)';
-  const typeLabel=t=>t==='in'?t('in'):t==='out'?t('out'):t==='transfer'?t('transfer'):t('adjustment');
+  const typeLabel=v=>v==='in'?t('in'):v==='out'?t('out'):v==='transfer'?t('transfer'):t('adjustment');
 
   let html=`<div class="fade-in">`;
   html+=`<div class="sec-card"><div class="sec-card-head">${t('stockLedger')}
@@ -4801,8 +4820,8 @@ function renderContent(){
     else html=renderCertificates();
   }
   else if(state.module==='supply'){
-    if(state.section==='scDashboard'||state.section==='warehouses') html=renderSCDashboard();
-    else if(state.section==='warehouseCapacity') html=renderWarehouseCapacity();
+    if(state.section==='scDashboard') html=renderSCDashboard();
+    else if(state.section==='warehouses'||state.section==='warehouseCapacity') html=renderWarehouseCapacity();
     else if(state.section==='materialRequests') html=renderAllMRs();
     else if(state.section==='allPOs') html=renderAllPOs();
     else if(state.section==='pendingApprovalPO') html=renderAllPOs(p=>p.status==='draft');
@@ -5415,8 +5434,8 @@ async function loadData() {
       supabase.from('purchase_orders').select('*, po_line_items(*)').then(r => { if (!r.error && r.data && r.data.length > 0) DATA.purchaseOrders = r.data.map(po => ({ id: po.id, supplier: po.supplier_name, description: po.description, amount: po.total_amount, status: po.status, priority: po.priority, site: po.site, requestedBy: po.requested_by, createdDate: po.order_date, deliveryDate: po.delivery_date, poLines: (po.po_line_items || []).map(l => ({ item: l.item_desc, qty: l.quantity, unit: l.unit, unitPrice: l.unit_price })) })); }),
       supabase.from('crm_accounts').select('*').then(r => { if (!r.error && r.data && r.data.length > 0) DATA.accounts = r.data.map(a => ({ id: a.id, name: a.name, industry: a.industry, status: a.status, tier: a.tier, managerId: a.manager_id, revenue: a.revenue, lastContact: a.last_contact, nextAction: a.next_action })); }),
       supabase.from('crm_field_service_logs').select('*').then(r => { if (r.data && r.data.length > 0) DATA.fieldServiceLogs = r.data.map(l => ({ id: l.id, client_name: l.client_name, engineer_name: l.engineer_name, date: l.date, job_description: l.job_description, status: l.status })); }),
-      supabase.from('leave_requests').select('*').then(r => { if (r.data && r.data.length > 0) DATA.leaveRequests = r.data.map(lr => ({ id: lr.id, empId: lr.employee_id, type: lr.leave_type, start: lr.start_date, end: lr.end_date, status: lr.status })); }),
-      supabase.from('certificates').select('*').then(r => { if (r.data && r.data.length > 0) DATA.certificates = r.data.map(c => ({ id: c.id, empId: c.employee_id, type: c.cert_type, expiry: c.expiry_date, status: c.status })); }),
+      supabase.from('leave_requests').select('*').then(r => { if (r.data && r.data.length > 0) DATA.leaveRequests = r.data.map(lr => ({ id: lr.id, empId: lr.employee_id, employeeName: lr.employee_name, type: lr.leave_type, start: lr.start_date || lr.start, end: lr.end_date || lr.end, startDate: lr.start_date || lr.start, endDate: lr.end_date || lr.end, days: lr.days, status: lr.status, approver: lr.approver })); }),
+      supabase.from('certificates').select('*').then(r => { if (r.data && r.data.length > 0) DATA.certificates = r.data.map(c => ({ id: c.id, empId: c.employee_id, empName: c.employee_name, type: c.cert_type, issued_by: c.issued_by, issued_date: c.issued_date, expiry: c.expiry_date, status: c.status, notes: c.notes, alertDays: c.alert_days ?? 30, template: c.template, description: c.description, category: c.category })); }),
       supabase.from('crm_leads').select('*').then(r => { if (r.data && r.data.length > 0) DATA.leads = r.data.map(l => ({ id: l.id, name: l.name, email: l.email, phone: l.phone, status: l.status, source: l.source })); }),
       supabase.from('crm_deals').select('*').then(r => { if (r.data && r.data.length > 0) DATA.deals = r.data.map(d => ({ id: d.id, title: d.title, lead_id: d.lead_id, account_id: d.account_id, value: d.value, stage: d.stage, expected_close_date: d.expected_close_date, invoice_id: d.invoice_id || null })); }),
       supabase.from('crm_tasks').select('*').then(r => { if (r.data && r.data.length > 0) DATA.tasks = r.data.map(t => ({ id: t.id, description: t.description, due_date: t.due_date, status: t.status, assigned_to: t.assigned_to, related_lead_id: t.related_lead_id, related_deal_id: t.related_deal_id })); }),
@@ -5474,7 +5493,7 @@ async function initializeApp() {
   hideLoading();
   const certAlerts = DATA.certificates.filter(c=>{const s=getCertStatus(c);return s==='expired'||s==='expiring';});
   const notifBadge = document.getElementById('notifBadge');
-  if (notifBadge) notifBadge.textContent = certAlerts.length + DATA.leaveRequests.filter(l=>l.status==='Pending').length;
+  if (notifBadge) notifBadge.textContent = certAlerts.length + DATA.leaveRequests.filter(l=>l.status==='pending').length;
   
   if (certAlerts.length > 0) {
     setTimeout(()=> showToast(`Warning: ${certAlerts.length} certificates are expired or expiring soon.`, 'error'), 1500);
@@ -6852,7 +6871,8 @@ function renderCRMTerritory() {
 /* ── HR ATTENDANCE ── */
 function renderHRAttendance() {
   const today = new Date().toISOString().split('T')[0];
-  const myAtt = DATA.attendance.find(a => a.employee_id === 'EMP-001' && a.date === today);
+  const myId = DATA.employees[0]?.id||'EMP-001';
+  const myAtt = DATA.attendance.find(a => a.employee_id === myId && a.date === today);
   const checkedIn = myAtt && myAtt.check_in_time && !myAtt.check_out_time;
   
   let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
@@ -6879,7 +6899,8 @@ function renderHRAttendance() {
 async function hrCheckIn() {
   const today = new Date().toISOString().split('T')[0];
   const time = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
-  const rec = { id:'ATT-'+Date.now(), employee_id:'EMP-001', date:today, status:'Present', check_in_time:time, check_out_time:null };
+  const myId = DATA.employees[0]?.id||'EMP-001';
+  const rec = { id:'ATT-'+Date.now(), employee_id:myId, date:today, status:'Present', check_in_time:time, check_out_time:null };
   
   if (supabase) {
     const { error } = await supabase.from('hr_attendance').insert(rec);
@@ -6892,7 +6913,8 @@ async function hrCheckIn() {
 async function hrCheckOut() {
   const today = new Date().toISOString().split('T')[0];
   const time = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
-  const myAtt = DATA.attendance.find(a => a.employee_id === 'EMP-001' && a.date === today);
+  const myId = DATA.employees[0]?.id||'EMP-001';
+  const myAtt = DATA.attendance.find(a => a.employee_id === myId && a.date === today);
   
   if(myAtt) {
     myAtt.check_out_time = time;
@@ -7193,7 +7215,7 @@ function openNewExpenseModal() {
 async function submitNewExpense() {
   const amt=parseFloat($('#nx-amt').value);
   if(isNaN(amt)||amt<0){showToast('Valid amount required','error');return;}
-  const newExp = { id:'EXP-'+Date.now(), employee_id:'EMP-001', date:$('#nx-date').value||new Date().toISOString().split('T')[0], amount:amt, category:$('#nx-cat').value, description:$('#nx-desc').value, status:'Pending' };
+  const newExp = { id:'EXP-'+Date.now(), employee_id:DATA.employees[0]?.id||'EMP-001', date:$('#nx-date').value||new Date().toISOString().split('T')[0], amount:amt, category:$('#nx-cat').value, description:$('#nx-desc').value, status:'Pending' };
   
   if (supabase) {
     const { error } = await supabase.from('hr_expense_claims').insert(newExp);
@@ -7711,8 +7733,8 @@ function renderFinBS() {
 
   const totalAssets = (balances['Accounts Receivable'] || 0) + (balances['Bank'] || 0);
   const totalLiabilities = (balances['Accounts Payable'] || 0);
-  const equity = (balances['Revenue'] || 0) - (balances['Expense / Inventory'] || 0) + totalLiabilities;
-  const totalEqLiab = totalLiabilities + Math.abs(equity);
+  const equity = totalAssets - totalLiabilities;
+  const totalEqLiab = totalAssets;
 
   return `<div class="fade-in"><h2>Balance Sheet</h2>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:16px">
@@ -7785,7 +7807,13 @@ function renderFinChartAccounts() {
       DATA.invoices.forEach(inv => {
         if (acc.id === 'ACC-AR' && inv.type === 'Sales') bal += parseFloat(inv.total_amount) - DATA.payments.filter(p => p.invoice_id === inv.id).reduce((s, p) => s + parseFloat(p.amount), 0);
         if (acc.id === 'ACC-AP' && inv.type === 'Purchase') bal += parseFloat(inv.total_amount) - DATA.payments.filter(p => p.invoice_id === inv.id).reduce((s, p) => s + parseFloat(p.amount), 0);
-        if (acc.id === 'ACC-BANK') DATA.payments.forEach(p => { if (inv && inv.type === 'Sales') bal += parseFloat(p.amount); else if (inv && inv.type === 'Purchase') bal -= parseFloat(p.amount); });
+        if (acc.id === 'ACC-BANK'){
+          DATA.payments.forEach(p => {
+            const payInv = DATA.invoices.find(i => i.id === p.invoice_id);
+            if (payInv && payInv.type === 'Sales') bal += parseFloat(p.amount);
+            else if (payInv && payInv.type === 'Purchase') bal -= parseFloat(p.amount);
+          });
+        }
         if (acc.id === 'ACC-REV' && inv.type === 'Sales') bal += parseFloat(inv.total_amount);
         if (acc.id === 'ACC-OPEX' && inv.type === 'Purchase') bal += parseFloat(inv.total_amount);
         if (acc.id === 'ACC-FA') bal += 0; // Fixed assets balance computed separately
@@ -8083,7 +8111,7 @@ function openNewPaymentListModal() {
   openModal('Select Invoice', `<div class="modal-body">
     <div class="form-group"><label>Invoice *</label>
       <select id="pay-inv-select" class="form-input">${opts}</select></div>
-  </div>`, `<button class="btn btn-primary" onclick="openNewPaymentModal(document.getElementById('pay-inv-select').value);closeModal()">Continue</button>
+  </div>`, `      <button class="btn btn-primary" onclick="openNewPaymentModal(document.getElementById('pay-inv-select').value)">Continue</button>
     <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`);
 }
 

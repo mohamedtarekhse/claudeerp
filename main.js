@@ -5,10 +5,59 @@ import { supabase } from './supabase.js';
 ═══════════════════════════════════════════════ */
 const state = {
   module:'hr', section:'allEmployees', selectedId:null, detailTab:'info',
-  filters:{}, sortCol:null, sortDir:'asc', charts:[], currentUserRole:'Admin',
+  filters:{}, sortCol:null, sortDir:'asc', charts:[],
+  roles:['system_admin'], currentUserRole:'System Admin',
   currentInspectorId:null,
   pushEnabled:false, pushSubscribed:false,
 };
+
+/* ── Role Helpers ── */
+const ROLE_HIERARCHY = {
+  system_admin: ['system_admin','hr_manager','hr_user','crm_manager','crm_user','sc_manager','sc_user','fin_manager','fin_user','employee','inspector'],
+  hr_manager: ['hr_manager','hr_user','employee'],
+  hr_user: ['hr_user','employee'],
+  crm_manager: ['crm_manager','crm_user','employee'],
+  crm_user: ['crm_user','employee'],
+  sc_manager: ['sc_manager','sc_user','employee'],
+  sc_user: ['sc_user','employee'],
+  fin_manager: ['fin_manager','fin_user','employee'],
+  fin_user: ['fin_user','employee'],
+  employee: ['employee'],
+  inspector: ['inspector'],
+};
+function effectiveRoles(){
+  const set = new Set();
+  state.roles.forEach(r => {
+    const inherited = ROLE_HIERARCHY[r];
+    if(inherited) inherited.forEach(x => set.add(x));
+  });
+  return [...set];
+}
+function hasRole(r){return effectiveRoles().includes(r);}
+function requireRoles(requiredRoles,msg){
+  const eff = effectiveRoles();
+  if(!requiredRoles.some(r=>eff.includes(r))){
+    showToast(msg||'Access denied','error');return false;
+  }return true;
+}
+function getPrimaryRole(){return state.roles[0]||'employee';}
+function toggleRole(cb){
+  const k = cb.dataset.rolekey;
+  if(cb.checked){
+    if(!state.roles.includes(k)) state.roles.push(k);
+  } else {
+    state.roles = state.roles.filter(r => r !== k);
+  }
+  if(state.roles.length===0){ state.roles=['employee']; cb.checked=true; }
+  const priority = ['system_admin','hr_manager','crm_manager','sc_manager','fin_manager','hr_user','crm_user','sc_user','fin_user','employee'];
+  const sorted = [...state.roles].sort((a,b)=>priority.indexOf(a)-priority.indexOf(b));
+  const top = sorted[0];
+  state.currentUserRole = Object.keys(ROLE_KEY_MAP).find(k=>ROLE_KEY_MAP[k]===top)||'Employee';
+  rerenderSection();
+}
+
+const ROLE_KEY_MAP = {'System Admin':'system_admin','HR Manager':'hr_manager','HR User':'hr_user','CRM Manager':'crm_manager','CRM User':'crm_user','SC Manager':'sc_manager','SC User':'sc_user','Finance Manager':'fin_manager','Finance User':'fin_user','Employee':'employee'};
+const ROLE_LABELS = Object.keys(ROLE_KEY_MAP);
 
 /* ── Register Service Worker for Push Notifications ── */
 if('serviceWorker' in navigator && 'PushManager' in window){
@@ -455,7 +504,7 @@ const MODULES = [
 ];
 
 function renderTabBar(){
-  const isInspector=state.currentUserRole==='Inspector';
+  const isInspector=hasRole('inspector');
   const mods=MODULES.filter(m=>!isInspector||m.id==='certificates');
   $('#tabBar').innerHTML = `<div class="tab-list" role="tablist">${
     mods.map((m,i)=>`
@@ -484,31 +533,33 @@ function renderHRSidebar(){
   const newHireCount = DATA.employees.filter(e=>{const d=new Date(e.startDate);const n=new Date();return(n-d)/(1000*60*60*24*30)<3;}).length;
   const probationCount = DATA.employees.filter(e=>e.status==='probation').length;
   const openPosCount = DATA.openPositions.length;
-  const sections=[
+  const allSections=[
     {group:null, items:[
-      {id:'allEmployees',icon:'fa-users',label:t('allEmployees')},
-      {id:'newHires',icon:'fa-user-plus',label:t('newHires'),badge:newHireCount,badgeCls:'blue'},
-      {id:'onProbation',icon:'fa-clock',label:t('onProbation'),badge:probationCount,badgeCls:'orange'},
-      {id:'leaveRequests',icon:'fa-calendar-xmark',label:t('leaveRequests'),badge:pendingLeave},
-      {id:'timesheets',icon:'fa-table-list',label:t('timesheets')},
-      {id:'absenceCalendar',icon:'fa-calendar-days',label:t('absenceCalendar')},
+      {id:'allEmployees',icon:'fa-users',label:t('allEmployees'),roles:['system_admin','hr_manager','hr_user','employee']},
+      {id:'newHires',icon:'fa-user-plus',label:t('newHires'),badge:newHireCount,badgeCls:'blue',roles:['system_admin','hr_manager','hr_user']},
+      {id:'onProbation',icon:'fa-clock',label:t('onProbation'),badge:probationCount,badgeCls:'orange',roles:['system_admin','hr_manager','hr_user']},
+      {id:'leaveRequests',icon:'fa-calendar-xmark',label:t('leaveRequests'),badge:pendingLeave,roles:['system_admin','hr_manager','hr_user','employee']},
+      {id:'timesheets',icon:'fa-table-list',label:t('timesheets'),roles:['system_admin','hr_manager','hr_user','employee']},
+      {id:'absenceCalendar',icon:'fa-calendar-days',label:t('absenceCalendar'),roles:['system_admin','hr_manager','hr_user','employee']},
     ]},
     {group:'Workforce', items:[
-      {id:'openPositions',icon:'fa-briefcase',label:t('openPositions'),badge:openPosCount},
-      {id:'performanceCycle',icon:'fa-chart-line',label:t('performanceCycle')},
-      {id:'trainingHSE',icon:'fa-hard-hat',label:t('trainingHSE')},
-      {id:'compensation',icon:'fa-money-bill-wave',label:t('compensation')},
-      {id:'expenseClaims',icon:'fa-file-invoice-dollar',label:'Expense Claims'},
-      {id:'orgUnits',icon:'fa-sitemap',label:t('orgUnits')},
+      {id:'openPositions',icon:'fa-briefcase',label:t('openPositions'),badge:openPosCount,roles:['system_admin','hr_manager','hr_user']},
+      {id:'performanceCycle',icon:'fa-chart-line',label:t('performanceCycle'),roles:['system_admin','hr_manager']},
+      {id:'trainingHSE',icon:'fa-hard-hat',label:t('trainingHSE'),roles:['system_admin','hr_manager']},
+      {id:'compensation',icon:'fa-money-bill-wave',label:t('compensation'),roles:['system_admin','hr_manager']},
+      {id:'expenseClaims',icon:'fa-file-invoice-dollar',label:'Expense Claims',roles:['system_admin','hr_manager','hr_user','employee']},
+      {id:'orgUnits',icon:'fa-sitemap',label:t('orgUnits'),roles:['system_admin','hr_manager','hr_user']},
     ]},
     {group:'Admin', items:[
-      {id:'hrSettings',icon:'fa-gear',label:t('hrSettings')},
+      {id:'hrSettings',icon:'fa-gear',label:t('hrSettings'),roles:['system_admin','hr_manager']},
     ]},
   ];
   let html='';
-  sections.forEach(s=>{
+  allSections.forEach(s=>{
+    const filtered=s.items.filter(i=>i.roles.some(r=>hasRole(r)));
+    if(!filtered.length) return;
     if(s.group) html+=`<div class="sidebar-group">${s.group}</div>`;
-    s.items.forEach(i=>{
+    filtered.forEach(i=>{
       html+=`<div class="sidebar-item ${state.section===i.id?'active':''}" onclick="switchSection('${i.id}')">
         <i class="fa-solid ${i.icon}"></i> <span style="flex:1">${i.label}</span>
         ${i.badge?`<span class="sidebar-badge ${i.badgeCls||''}">${i.badge}</span>`:''}
@@ -593,7 +644,7 @@ function renderAllEmployees(){
         <option value="leave" ${f.status==='leave'?'selected':''}>On Leave</option>
         <option value="probation" ${f.status==='probation'?'selected':''}>Probation</option>
       </select>
-      <button class="btn btn-primary btn-sm" onclick="openNewEmployeeModal()"><i class="fa-solid fa-plus"></i> ${t('newEmployee')}</button>
+      ${hasRole('hr_manager')?`<button class="btn btn-primary btn-sm" onclick="openNewEmployeeModal()"><i class="fa-solid fa-plus"></i> ${t('newEmployee')}</button>`:''}
     </div>
     <div style="padding:6px 14px 4px;font-size:11px;color:var(--text-sec);background:#fafafa;border-bottom:1px solid var(--border);">${items.length} employees</div>
     <div class="list-container">`;
@@ -651,7 +702,7 @@ function renderEmployeeDetail(e){
   <div class="detail-tab-body">`;
 
   if(state.detailTab==='info'){
-    html+=`<div class="sec-card"><div class="sec-card-head">Employment Details <button class="btn btn-ghost btn-sm" onclick="showToast('Editing ${e.name}','info')"><i class="fa-solid fa-pen"></i> ${t('edit')}</button></div>
+    html+=`<div class="sec-card"><div class="sec-card-head">Employment Details ${hasRole('hr_manager')?`<button class="btn btn-ghost btn-sm" onclick="showToast('Editing ${e.name}','info')"><i class="fa-solid fa-pen"></i> ${t('edit')}</button>`:''}</div>
     <div class="sec-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;">
       ${[['Email',e.email],['Phone',e.phone],['Employment Type',e.empType],['Salary Band',e.salaryBand],['Cost Center',e.costCenter],['Manager',e.manager?DATA.employees.find(x=>x.id===e.manager)?.name||e.manager:'—'],['H2S Level',e.h2sLevel],['Work Permit',e.workPermit],['Visa Expiry',e.visa],['Med. Fitness',e.medFit?'<i class="fa-solid fa-check" style="color:var(--success)"></i> Fit':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i> Unfit'],['Med. Expiry',fmtDate(e.medExpiry)]].map(([k,v])=>`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">${k}</div><div style="font-size:13px;">${v}</div></div>`).join('')}
     </div></div>`;
@@ -810,7 +861,7 @@ function renderLeaveRequests(){
     <thead><tr><th>Request ID</th><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Approver</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody>`;
   items.forEach(l=>{ html+=`<tr><td style="font-weight:500">${l.id}</td><td>${l.employeeName||l.empName||'Unknown'}</td><td>${l.type}</td><td>${fmtDate(l.startDate||l.from)}</td><td>${fmtDate(l.endDate||l.to)}</td><td>${l.days}</td><td>${l.approver}</td><td>${statusPill(l.status)}</td>
-    <td>${l.status==='pending'?`<button class="btn btn-primary btn-sm" onclick="approveLeave('${l.id}')">Approve</button>`:''}</td></tr>`; });
+    <td>${l.status==='pending'&&hasRole('hr_manager')?`<button class="btn btn-primary btn-sm" onclick="approveLeave('${l.id}')">Approve</button>`:''}</td></tr>`; });
   html+=`</tbody></table></div></div></div>`;
   return html;
 }
@@ -851,6 +902,7 @@ async function submitLeaveRequest() {
 }
 
 window.approveLeave = async function(id) {
+  if(!requireRoles(['hr_manager','system_admin'],'Access denied: Requires HR Manager')) return;
   const req = DATA.leaveRequests.find(l => l.id === id);
   if(!req||req.status!=='pending') return;
   req.status = 'approved';
@@ -1096,38 +1148,40 @@ Object.assign(i18n.ar,{
 ═══════════════════════════════════════════════ */
 function renderCRMSidebar(){
   const overdueCount = DATA.tasks.filter(t=>t.status!=='completed'&&t.due_date&&t.due_date<new Date().toISOString().split('T')[0]).length;
-  const sections=[
+  const allSections=[
     {group:null,items:[
-      {id:'crmLeads',icon:'fa-users-viewfinder',label:'Leads'},
-      {id:'crmDeals',icon:'fa-kanban',label:'Deals Pipeline'},
-      {id:'allAccounts',icon:'fa-building',label:t('allAccounts')},
-      {id:'crmContacts',icon:'fa-address-card',label:'Contacts'},
-      {id:'crmQuotations',icon:'fa-file-invoice',label:'Quotations'},
-      {id:'myFavorites',icon:'fa-star',label:t('myFavorites')},
-      {id:'openContracts',icon:'fa-file-signature',label:t('openContracts')},
-      {id:'wonThisQuarter',icon:'fa-trophy',label:t('wonThisQuarter')},
+      {id:'crmLeads',icon:'fa-users-viewfinder',label:'Leads',roles:['system_admin','crm_manager','crm_user']},
+      {id:'crmDeals',icon:'fa-kanban',label:'Deals Pipeline',roles:['system_admin','crm_manager','crm_user']},
+      {id:'allAccounts',icon:'fa-building',label:t('allAccounts'),roles:['system_admin','crm_manager','crm_user','employee']},
+      {id:'crmContacts',icon:'fa-address-card',label:'Contacts',roles:['system_admin','crm_manager','crm_user']},
+      {id:'crmQuotations',icon:'fa-file-invoice',label:'Quotations',roles:['system_admin','crm_manager','crm_user']},
+      {id:'myFavorites',icon:'fa-star',label:t('myFavorites'),roles:['system_admin','crm_manager','crm_user','employee']},
+      {id:'openContracts',icon:'fa-file-signature',label:t('openContracts'),roles:['system_admin','crm_manager','crm_user']},
+      {id:'wonThisQuarter',icon:'fa-trophy',label:t('wonThisQuarter'),roles:['system_admin','crm_manager','crm_user']},
     ]},
     {group:'Pipeline',items:[
-      {id:'crmProspects',icon:'fa-binoculars',label:'Prospects'},
-      {id:'crmCommunications',icon:'fa-comments',label:'Communications'},
+      {id:'crmProspects',icon:'fa-binoculars',label:'Prospects',roles:['system_admin','crm_manager','crm_user']},
+      {id:'crmCommunications',icon:'fa-comments',label:'Communications',roles:['system_admin','crm_manager','crm_user']},
     ]},
     {group:'Analytics',items:[
-      {id:'crmWinLoss',icon:'fa-chart-simple',label:'Win/Loss Analysis'},
-      {id:'crmTerritory',icon:'fa-map-location-dot',label:'Territory View'},
+      {id:'crmWinLoss',icon:'fa-chart-simple',label:'Win/Loss Analysis',roles:['system_admin','crm_manager']},
+      {id:'crmTerritory',icon:'fa-map-location-dot',label:'Territory View',roles:['system_admin','crm_manager']},
     ]},
     {group:'Activities',items:[
-      {id:'myTasks',icon:'fa-list-check',label:t('myTasks'),badge:overdueCount,badgeCls:'red'},
-      {id:'fieldServiceLogs',icon:'fa-screwdriver-wrench',label:t('fieldServiceLogs')},
-      {id:'partnersJVs',icon:'fa-handshake',label:t('partnersJVs')},
+      {id:'myTasks',icon:'fa-list-check',label:t('myTasks'),badge:overdueCount,badgeCls:'red',roles:['system_admin','crm_manager','crm_user','employee']},
+      {id:'fieldServiceLogs',icon:'fa-screwdriver-wrench',label:t('fieldServiceLogs'),roles:['system_admin','crm_manager','crm_user']},
+      {id:'partnersJVs',icon:'fa-handshake',label:t('partnersJVs'),roles:['system_admin','crm_manager','crm_user','employee']},
     ]},
     {group:'Admin',items:[
-      {id:'crmSettings',icon:'fa-gear',label:t('crmSettings')},
+      {id:'crmSettings',icon:'fa-gear',label:t('crmSettings'),roles:['system_admin','crm_manager']},
     ]},
   ];
   let html='';
-  sections.forEach(s=>{
+  allSections.forEach(s=>{
+    const filtered=s.items.filter(i=>i.roles.some(r=>hasRole(r)));
+    if(!filtered.length) return;
     if(s.group) html+=`<div class="sidebar-group">${s.group}</div>`;
-    s.items.forEach(i=>{
+    filtered.forEach(i=>{
       html+=`<div class="sidebar-item ${state.section===i.id?'active':''}" onclick="switchSection('${i.id}')">
         <i class="fa-solid ${i.icon}"></i><span style="flex:1">${i.label}</span>
         ${i.badge?`<span class="sidebar-badge ${i.badgeCls||''}">${i.badge}</span>`:''}
@@ -1352,10 +1406,10 @@ function renderCertSidebar(){
   const cats=['Rotating','Static','Lifting','Electrical','Pressure','Fire & Safety','Instrumentation','Vehicles'];
   const catIcons={'Rotating':'fa-rotate','Static':'fa-industry','Lifting':'fa-weight-hanging','Electrical':'fa-bolt','Pressure':'fa-gauge-high','Fire & Safety':'fa-fire-extinguisher','Instrumentation':'fa-sliders','Vehicles':'fa-truck'};
   const catKeys={'Rotating':'catRotating','Static':'catStatic','Lifting':'catLifting','Electrical':'catElectrical','Pressure':'catPressure','Fire & Safety':'catFire','Instrumentation':'catInstrumentation','Vehicles':'catVehicles'};
-  /* ── Rigways cert type sidebar ── */
   const certTypes=['CAT III','CAT IV','LIFTING','LOAD TEST','NDT','TUBULAR','ORIGINAL COC'];
   const typeIcons={'CAT III':'fa-shield','CAT IV':'fa-shield','LIFTING':'fa-weight-hanging','LOAD TEST':'fa-dumbbell','NDT':'fa-chart-line','TUBULAR':'fa-pipe','ORIGINAL COC':'fa-file-circle-check'};
   const typeKeys={'CAT III':'catCATIII','CAT IV':'catCATIV','LIFTING':'catLIFTING','LOAD TEST':'catLOADTEST','NDT':'catNDT','TUBULAR':'catTUBULAR','ORIGINAL COC':'catORIGINALCOC'};
+  const canManage=hasRole('system_admin')||hasRole('inspector');
   let html=`<div class="sidebar-item ${state.section==='allCerts'?'active':''}" onclick="switchSection('allCerts')"><i class="fa-solid fa-certificate"></i><span style="flex:1">${t('allCerts')}</span></div>
     <div class="sidebar-item ${state.section==='expiredCerts'?'active':''}" onclick="switchSection('expiredCerts')"><i class="fa-solid fa-circle-xmark" style="color:var(--error)"></i><span style="flex:1">${t('expiredCerts')}</span><span class="sidebar-badge">${expired}</span></div>
     <div class="sidebar-item ${state.section==='expiringSoon'?'active':''}" onclick="switchSection('expiringSoon')"><i class="fa-solid fa-clock" style="color:var(--warning)"></i><span style="flex:1">${t('expiringSoon')}</span><span class="sidebar-badge orange">${expiring}</span></div>
@@ -1372,9 +1426,11 @@ function renderCertSidebar(){
     const cnt=certs.filter(c=>c.category===cat).length;
     html+=`<div class="sidebar-item ${state.section===id?'active':''}" onclick="switchSection('${id}')"><i class="fa-solid ${catIcons[cat]}"></i><span style="flex:1">${t(catKeys[cat])}</span><span class="sidebar-badge blue">${cnt}</span></div>`;
   });
-  html+=`<div class="sidebar-group">Actions</div>
+  html+=`<div class="sidebar-group">Actions</div>`;
+  if(canManage) html+=`
     <div class="sidebar-item" onclick="openNewCertModal()"><i class="fa-solid fa-upload"></i><span>${t('uploadCert')}</span></div>
-    <div class="sidebar-item" onclick="openBulkCertModal()"><i class="fa-solid fa-layer-group"></i><span>Bulk Create</span></div>
+    <div class="sidebar-item" onclick="openBulkCertModal()"><i class="fa-solid fa-layer-group"></i><span>Bulk Create</span></div>`;
+  html+=`
     <div class="sidebar-item ${state.section==='certGantt'?'active':''}" onclick="switchSection('certGantt')"><i class="fa-solid fa-chart-bar"></i><span>Expiry Timeline</span></div>
     <div class="sidebar-item ${state.section==='certNotifications'?'active':''}" onclick="switchSection('certNotifications')"><i class="fa-solid fa-bell"></i><span>Notifications</span></div>
     <div class="sidebar-item" onclick="showToast('Generating compliance report...','info')"><i class="fa-solid fa-chart-bar"></i><span>${t('complianceReport')}</span></div>`;
@@ -2041,7 +2097,7 @@ function renderCertJobsView(){
         <span class="job-status-badge" style="background:${(statusColors[job.status]||'#6a6d70')}22;color:${statusColors[job.status]||'#6a6d70'};border:1px solid ${(statusColors[job.status]||'#6a6d70')}44;">${job.status.replace('_',' ')}</span>
         <span class="cert-entity-stat"><strong>${certs.length}</strong> certs</span>
         <span class="cert-entity-stat"><strong>${certs.filter(c=>getCertStatus(c)==='expired').length}</strong> expired</span>
-        ${state.currentUserRole!=='Inspector'&&!isClosed?`<button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:10px;padding:2px 6px;" onclick="event.stopPropagation();cycleJobStatus('${job.id}')">Cycle ▾</button>`:''}
+        ${!hasRole('inspector')&&!isClosed?`<button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:10px;padding:2px 6px;" onclick="event.stopPropagation();cycleJobStatus('${job.id}')">Cycle ▾</button>`:''}
       </div>
       ${inspectors.length?`<div style="font-size:11px;color:var(--text-sec);margin-bottom:4px;">Assigned: ${inspectors.map(i=>`<span class="inspector-dot" style="background:${i.color||'#6a6d70'};display:inline-block;width:8px;height:8px;border-radius:50%;"></span> ${h(i.name)}`).join(', ')}</div>`:''}
       ${job.description?`<div style="font-size:12px;color:var(--text-sec);margin-top:4px;">${h(job.description)}</div>`:''}
@@ -2131,6 +2187,7 @@ function certSetFilter(type, value){
 
 function certLoginInspector(inspectorId){
   state.currentInspectorId=inspectorId;
+  if(!hasRole('inspector')) state.roles.push('inspector');
   state.currentUserRole='Inspector';
   state.module='certificates';
   state.section='allCerts';
@@ -2143,7 +2200,11 @@ function certLoginInspector(inspectorId){
 
 function certLogoutInspector(){
   state.currentInspectorId=null;
-  state.currentUserRole='Admin';
+  state.roles=state.roles.filter(r=>r!=='inspector');
+  if(state.roles.length===0) state.roles=['employee'];
+  const priority = ['system_admin','hr_manager','crm_manager','sc_manager','fin_manager','hr_user','crm_user','sc_user','fin_user','employee'];
+  const top = [...state.roles].sort((a,b)=>priority.indexOf(a)-priority.indexOf(b))[0];
+  state.currentUserRole = Object.keys(ROLE_KEY_MAP).find(k=>ROLE_KEY_MAP[k]===top)||'Employee';
   state.module='certificates';
   state.section='allCerts';
   certJobFilter='all';
@@ -3312,36 +3373,38 @@ function renderSCSidebar(){
   const pendingPOs = DATA.purchaseOrders.filter(p=>p.status==='draft').length;
   const lowStock = DATA.inventory.filter(i=>i.status==='low'||i.status==='critical'||i.status==='out').length;
   const pendingMRs = DATA.materialRequests.filter(m=>m.status==='pending').length;
-  const sections=[
+  const allSections=[
     {group:null,items:[
-      {id:'scDashboard',icon:'fa-gauge-high',label:t('scDashboard')},
-      {id:'materialRequests',icon:'fa-clipboard-list',label:t('materialRequests'),badge:pendingMRs},
-      {id:'allPOs',icon:'fa-file-invoice',label:t('allPOs')},
-      {id:'qualityInspections',icon:'fa-flask',label:'Quality Inspections'},
-      {id:'pendingApprovalPO',icon:'fa-clock',label:t('pendingApprovalPO'),badge:pendingPOs},
-      {id:'orderedItems',icon:'fa-truck-fast',label:t('orderedItems'),badge:DATA.purchaseOrders.filter(p=>p.status==='ordered').length,badgeCls:'blue'},
-      {id:'receivedItems',icon:'fa-box-archive',label:t('receivedItems')},
+      {id:'scDashboard',icon:'fa-gauge-high',label:t('scDashboard'),roles:['system_admin','sc_manager','sc_user','employee']},
+      {id:'materialRequests',icon:'fa-clipboard-list',label:t('materialRequests'),badge:pendingMRs,roles:['system_admin','sc_manager','sc_user']},
+      {id:'allPOs',icon:'fa-file-invoice',label:t('allPOs'),roles:['system_admin','sc_manager','sc_user']},
+      {id:'qualityInspections',icon:'fa-flask',label:'Quality Inspections',roles:['system_admin','sc_manager','sc_user']},
+      {id:'pendingApprovalPO',icon:'fa-clock',label:t('pendingApprovalPO'),badge:pendingPOs,roles:['system_admin','sc_manager']},
+      {id:'orderedItems',icon:'fa-truck-fast',label:t('orderedItems'),badge:DATA.purchaseOrders.filter(p=>p.status==='ordered').length,badgeCls:'blue',roles:['system_admin','sc_manager','sc_user']},
+      {id:'receivedItems',icon:'fa-box-archive',label:t('receivedItems'),roles:['system_admin','sc_manager','sc_user']},
     ]},
     {group:'Suppliers',items:[
-      {id:'allSuppliers',icon:'fa-building-user',label:t('allSuppliers')},
-      {id:'supplierPerformance',icon:'fa-chart-line',label:t('supplierPerformance')},
+      {id:'allSuppliers',icon:'fa-building-user',label:t('allSuppliers'),roles:['system_admin','sc_manager','sc_user']},
+      {id:'supplierPerformance',icon:'fa-chart-line',label:t('supplierPerformance'),roles:['system_admin','sc_manager']},
     ]},
     {group:'Inventory',items:[
-      {id:'inventoryItems',icon:'fa-boxes-stacked',label:t('inventoryItems')},
-      {id:'lowStockAlerts',icon:'fa-triangle-exclamation',label:t('lowStockAlerts'),badge:lowStock},
-      {id:'stockLedger',icon:'fa-book',label:t('stockLedger')},
-      {id:'warehouses',icon:'fa-warehouse',label:t('warehouses')},
-      {id:'landedCost',icon:'fa-ship',label:'Landed Cost'},
-      {id:'reorderRules',icon:'fa-cart-arrow-down',label:'Auto Reorder'},
+      {id:'inventoryItems',icon:'fa-boxes-stacked',label:t('inventoryItems'),roles:['system_admin','sc_manager','sc_user']},
+      {id:'lowStockAlerts',icon:'fa-triangle-exclamation',label:t('lowStockAlerts'),badge:lowStock,roles:['system_admin','sc_manager','sc_user']},
+      {id:'stockLedger',icon:'fa-book',label:t('stockLedger'),roles:['system_admin','sc_manager','sc_user']},
+      {id:'warehouses',icon:'fa-warehouse',label:t('warehouses'),roles:['system_admin','sc_manager','sc_user']},
+      {id:'landedCost',icon:'fa-ship',label:'Landed Cost',roles:['system_admin','sc_manager']},
+      {id:'reorderRules',icon:'fa-cart-arrow-down',label:'Auto Reorder',roles:['system_admin','sc_manager']},
     ]},
     {group:'Admin',items:[
-      {id:'scSettings',icon:'fa-gear',label:t('scSettings')},
+      {id:'scSettings',icon:'fa-gear',label:t('scSettings'),roles:['system_admin','sc_manager']},
     ]},
   ];
   let html='';
-  sections.forEach(s=>{
+  allSections.forEach(s=>{
+    const filtered=s.items.filter(i=>i.roles.some(r=>hasRole(r)));
+    if(!filtered.length) return;
     if(s.group) html+=`<div class="sidebar-group">${s.group}</div>`;
-    s.items.forEach(i=>{
+    filtered.forEach(i=>{
       html+=`<div class="sidebar-item ${state.section===i.id?'active':''}" onclick="switchSection('${i.id}')">
         <i class="fa-solid ${i.icon}"></i><span style="flex:1">${i.label}</span>
         ${i.badge?`<span class="sidebar-badge ${i.badgeCls||''}">${i.badge}</span>`:''}
@@ -3467,7 +3530,7 @@ function renderAllPOs(filterFn){
       <select class="filter-select" onchange="state.filters.priority=this.value;rerenderSection()">
         <option value="all">All Priority</option><option value="Critical">Critical</option><option value="High">High</option><option value="Normal">Normal</option>
       </select>
-      <button class="btn btn-primary btn-sm" onclick="openNewPOModal()"><i class="fa-solid fa-plus"></i> New PO</button>
+      ${(hasRole('sc_manager'))?`<button class="btn btn-primary btn-sm" onclick="openNewPOModal()"><i class="fa-solid fa-plus"></i> New PO</button>`:''}
     </div>
     <div style="padding:6px 14px 4px;font-size:11px;color:var(--text-sec);background:#fafafa;border-bottom:1px solid var(--border);">${items.length} purchase orders</div>
     <div class="list-container">`;
@@ -3529,7 +3592,7 @@ function renderPODetail(p){
     html+=`<div class="sec-card"><div class="sec-card-head">Purchase Order Details
       <div style="display:flex;gap:6px;">
         ${p.status==='draft'?`<button class="btn btn-primary btn-sm" onclick="approvePO('${p.id}')"><i class="fa-solid fa-check"></i> Approve</button>`:''}
-        ${p.status==='approved'||p.status==='ordered'?`<button class="btn btn-primary btn-sm" onclick="receivePO('${p.id}')"><i class="fa-solid fa-box-open"></i> Receive</button>`:''}
+        ${p.status==='approved'||p.status==='ordered'?(hasRole('sc_manager')?`<button class="btn btn-primary btn-sm" onclick="receivePO('${p.id}')"><i class="fa-solid fa-box-open"></i> Receive</button>`:''):''}
         <button class="btn btn-ghost btn-sm" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>
       </div>
     </div>
@@ -3572,9 +3635,7 @@ function renderPODetail(p){
 }
 
 window.approvePO = async function(id){
-  if(state.currentUserRole !== 'Manager' && state.currentUserRole !== 'Admin') {
-    return showToast('Access denied: Requires Manager role', 'error');
-  }
+  if(!requireRoles(['sc_manager','system_admin'],'Access denied: Requires SC Manager role')) return;
   const po=DATA.purchaseOrders.find(p=>p.id===id);
   if(po){
     if(po.status==='draft'){po.status='approved';po.approvedBy=DATA.employees[0]?.name||'Rania Saleh';}
@@ -3586,6 +3647,7 @@ window.approvePO = async function(id){
 }
 
 window.receivePO = async function(id) {
+  if(!requireRoles(['sc_manager','system_admin'],'Access denied: Requires SC Manager')) return;
   const po=DATA.purchaseOrders.find(p=>p.id===id);
   if(!po)return;
   po.status='received';
@@ -3656,6 +3718,7 @@ function openNewSupplierModal() {
     <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`);
 }
 async function submitNewSupplier() {
+  if(!requireRoles(['sc_manager','system_admin'],'Access denied: Requires SC Manager')) return;
   const name = document.getElementById('sup-name')?.value?.trim();
   if(!name){showToast('Supplier name required','error');return;}
   const id='SUP-'+String(DATA.suppliers.length+1).padStart(3,'0');
@@ -4907,14 +4970,16 @@ $('#notifBtn').addEventListener('click',e=>{
 $('#userBtn').addEventListener('click',e=>{
   e.stopPropagation();
   if(activeDropdown===$('#userBtn')){ closeDropdown(); return; }
-  const roles=['System Admin','HR Manager','Procurement Officer','Executive / C-Level'];
   const inspOpts=DATA.inspectors.filter(i=>i.status==='active').map(i=>`<option value="${i.id}">${h(i.name)} – ${h(i.title)}</option>`).join('');
   let html=`<div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
     <div class="avatar" style="width:40px;height:40px;font-size:14px;background:var(--blue)">KA</div>
     <div><div style="font-size:14px;font-weight:600;">Khalid Al-Rashidi</div><div style="font-size:12px;color:var(--text-sec);">k.alrashidi@amici.com</div></div>
   </div>
-  <div class="dropdown-header" style="font-size:11px;padding:8px 14px 4px;">Switch Role (Demo)</div>
-  ${roles.map(r=>`<button type="button" class="dropdown-item" data-action="select-role" data-role="${r}" style="width:100%;border:none;background:transparent;"><i class="fa-solid fa-user-tag"></i>${r}</button>`).join('')}
+  <div class="dropdown-header" style="font-size:11px;padding:8px 14px 4px;">Roles (Multi-Select)</div>
+  ${ROLE_LABELS.map(r=>{const k=ROLE_KEY_MAP[r];const checked=state.roles.includes(k)?'checked':'';return `<label class="dropdown-item" style="display:flex;align-items:center;gap:8px;padding:6px 14px;cursor:pointer;font-size:13px;"><input type="checkbox" data-rolekey="${k}" data-rolelabel="${r}" onchange="toggleRole(this)" ${checked} style="width:16px;height:16px;accent-color:var(--blue);"><span>${r}</span></label>`;}).join('')}
+  <div style="padding:6px 14px;border-top:1px solid var(--border);display:flex;gap:6px;">
+    <button class="btn btn-sm btn-primary" style="flex:1" onclick="closeDropdown()">Done</button>
+  </div>
   <div class="dropdown-header" style="font-size:11px;padding:4px 14px 4px;border-top:1px solid var(--border);margin-top:4px;">Inspector Mode</div>
   <div style="padding:4px 10px 8px;display:flex;gap:4px;"><select id="inspectorLoginSelect" style="flex:1;height:28px;border:1px solid var(--border);border-radius:4px;font-size:12px;padding:0 6px;"><option value="">Select inspector...</option>${inspOpts}</select><button class="btn btn-primary btn-sm" onclick="certLoginInspector(document.getElementById('inspectorLoginSelect').value);closeDropdown();">Login</button></div>
   <div style="border-top:1px solid var(--border);"><button type="button" class="dropdown-item" style="color:var(--error);width:100%;border:none;background:transparent;" data-action="sign-out"><i class="fa-solid fa-right-from-bracket" style="color:var(--error);"></i>Sign Out</button></div>`;
@@ -4989,6 +5054,16 @@ const AI = {
 You have real-time access to all system data and can both answer questions AND execute actions.
 
 TODAY: ${new Date().toISOString().split('T')[0]}
+CURRENT USER ROLE(S): ${state.roles.join(', ')} (${state.currentUserRole})
+
+=== ROLE-BASED ACTION RESTRICTIONS ===
+- "approve_po" and "create_po_draft" require SC Manager or System Admin role
+- "add_employee" requires HR Manager or System Admin role
+- "flag_cert" requires Inspector or System Admin role
+- "navigate" is unrestricted
+Current role ${state.roles.some(r=>['system_admin','sc_manager'].includes(r))?'CAN':'CANNOT'} approve/create POs.
+Current role ${state.roles.some(r=>['system_admin','hr_manager'].includes(r))?'CAN':'CANNOT'} add employees.
+Current role ${state.roles.some(r=>['system_admin','inspector'].includes(r))?'CAN':'CANNOT'} flag certificates.
 
 === ALERTS (action required) ===
 Expired Certificates: ${expiredCerts||'None'}
@@ -5065,6 +5140,7 @@ Always include confirm_message so the user knows what action will be taken befor
     const p = action.params;
     switch(action.action){
       case 'approve_po': {
+        if(!requireRoles(['sc_manager','system_admin'],'AI: Cannot approve PO - requires SC Manager')) return;
         const po = DATA.purchaseOrders.find(x=>x.id===p.po_id);
         if(po){ po.status='approved'; po.approvedBy='AMICI AI'; showToast(`${p.po_id} approved via AI`,'success'); rerenderSection(); }
         else showToast('PO not found','error');
@@ -5077,12 +5153,14 @@ Always include confirm_message so the user knows what action will be taken befor
         break;
       }
       case 'flag_cert': {
+        if(!requireRoles(['inspector','system_admin'],'AI: Cannot flag cert - requires Inspector')) return;
         const cert = DATA.certificates.find(x=>x.id===p.cert_id);
         if(cert){ cert.remarks=(cert.remarks||'')+'\n<i class="fa-solid fa-triangle-exclamation" style="color:var(--warning)"></i> AI Flag: '+p.note; showToast(`${p.cert_id} flagged`,'warning'); }
         else showToast('Certificate not found','error');
         break;
       }
       case 'create_po_draft': {
+        if(!requireRoles(['sc_manager','system_admin'],'AI: Cannot create PO - requires SC Manager')) return;
         const now=new Date();
         const newId=`PO-${now.getFullYear()}-${String(DATA.purchaseOrders.length+1).padStart(3,'0')}`;
         DATA.purchaseOrders.push({
@@ -5099,6 +5177,7 @@ Always include confirm_message so the user knows what action will be taken befor
         break;
       }
       case 'add_employee': {
+        if(!requireRoles(['hr_manager','system_admin'],'AI: Cannot add employee - requires HR Manager')) return;
         const newId='EMP-'+String(DATA.employees.length+1).padStart(3,'0');
         DATA.employees.push({
           id:newId, firstName:p.firstName||'', lastName:p.lastName||'',
@@ -5317,7 +5396,11 @@ document.addEventListener('click', e=>{
     return showToast('All notifications cleared','success');
   }
   if(action === 'select-role'){
-    showToast(`Role: ${role}`,'info');
+    const roleKey = ROLE_KEY_MAP[role]||'employee';
+    state.roles=[roleKey];
+    state.currentUserRole=role;
+    showToast(`Role: ${role}`,'success');
+    rerenderSection();
     return closeDropdown();
   }
   if(action === 'sign-out'){
@@ -5928,8 +6011,8 @@ function renderCRMContacts() {
         ${c.department ? `<span><i class="fa-solid fa-sitemap" style="width:16px;"></i> ${c.department}</span>` : ''}
       </div>
       <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
-        <button class="btn btn-ghost btn-sm" onclick="editContact('${c.id}')"><i class="fa-solid fa-pen"></i></button>
-        <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="deleteContact('${c.id}')"><i class="fa-solid fa-trash-can"></i></button>
+        ${hasRole('crm_manager')?`<button class="btn btn-ghost btn-sm" onclick="editContact('${c.id}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="deleteContact('${c.id}')"><i class="fa-solid fa-trash-can"></i></button>`:''}
       </div>
     </div>`;
   });
@@ -6007,6 +6090,7 @@ async function submitContact() {
 }
 
 async function deleteContact(id) {
+  if(!requireRoles(['crm_manager','system_admin'],'Access denied: Requires CRM Manager')) return;
   if (!confirm('Delete this contact?')) return;
   DATA.contacts = DATA.contacts.filter(c => c.id !== id);
   if (supabase) await supabase.from('crm_contacts').delete().eq('id', id).catch(supabaseCatch);
@@ -6058,7 +6142,7 @@ function renderCRMQuotations() {
         <button class="btn btn-ghost btn-sm" onclick="viewQuotation('${q.id}')"><i class="fa-solid fa-eye"></i></button>
         ${q.status === 'Draft' ? `<button class="btn btn-ghost btn-sm" onclick="sendQuotation('${q.id}')" title="Mark as Sent"><i class="fa-solid fa-paper-plane"></i></button>` : ''}
         ${q.status === 'Accepted' ? `<button class="btn btn-ghost btn-sm" style="color:var(--success)" onclick="convertQuotationToInvoice('${q.id}')" title="Convert to Invoice"><i class="fa-solid fa-file-invoice-dollar"></i></button>` : ''}
-        <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="deleteQuotation('${q.id}')"><i class="fa-solid fa-trash-can"></i></button>
+        ${(hasRole('crm_manager'))?`<button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="deleteQuotation('${q.id}')"><i class="fa-solid fa-trash-can"></i></button>`:''}
       </td>
     </tr>`;
   });
@@ -6245,6 +6329,7 @@ window.convertQuotationToInvoice = async (id) => {
 };
 
 window.deleteQuotation = async (id) => {
+  if(!requireRoles(['crm_manager','system_admin'],'Access denied: Requires CRM Manager')) return;
   if (!confirm('Delete this quotation?')) return;
   DATA.quotations = DATA.quotations.filter(q => q.id !== id);
   if (supabase) await supabase.from('crm_quotations').delete().eq('id', id).catch(supabaseCatch);
@@ -6286,8 +6371,8 @@ function renderCRMProspects() {
       <td style="font-size:12px;color:var(--text-sec)">${fmtDate(p.created_date)}</td>
       <td>
         ${p.status !== 'Converted' ? `<button class="btn btn-ghost btn-sm" style="color:var(--success)" onclick="convertProspectToLead('${p.id}')" title="Convert to Lead"><i class="fa-solid fa-arrow-right"></i></button>` : ''}
-        <button class="btn btn-ghost btn-sm" onclick="editProspect('${p.id}')"><i class="fa-solid fa-pen"></i></button>
-        <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="deleteProspect('${p.id}')"><i class="fa-solid fa-trash-can"></i></button>
+        ${(hasRole('crm_manager'))?`<button class="btn btn-ghost btn-sm" onclick="editProspect('${p.id}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="deleteProspect('${p.id}')"><i class="fa-solid fa-trash-can"></i></button>`:''}
       </td>
     </tr>`;
   });
@@ -6366,6 +6451,7 @@ window.convertProspectToLead = async (id) => {
 };
 
 window.deleteProspect = async (id) => {
+  if(!requireRoles(['crm_manager','system_admin'],'Access denied: Requires CRM Manager')) return;
   if (!confirm('Delete this prospect?')) return;
   DATA.prospects = DATA.prospects.filter(p => p.id !== id);
   if (supabase) await supabase.from('crm_prospects').delete().eq('id', id).catch(supabaseCatch);
@@ -6514,7 +6600,7 @@ function renderCRMLeads() {
       <td><span class="status-pill status-${(l.status || 'new').toLowerCase().replace(' ', '-')}">${l.status || 'New'}</span></td>
       <td>
         ${!alreadyConverted ? `<button class="btn btn-ghost btn-sm" style="color:var(--success)" onclick="convertLeadToAccount('${l.id}')" title="Convert to Account"><i class="fa-solid fa-arrow-right-to-bracket"></i> Convert</button>` : `<span style="font-size:11px;color:var(--success)"><i class="fa-solid fa-check"></i> Converted</span>`}
-        <button class="btn btn-ghost btn-sm" onclick="deleteLead('${l.id}')"><i class="fa-solid fa-trash-can"></i></button>
+        ${(hasRole('crm_manager'))?`<button class="btn btn-ghost btn-sm" onclick="deleteLead('${l.id}')"><i class="fa-solid fa-trash-can"></i></button>`:''}
       </td>
     </tr>`;
   });
@@ -6581,6 +6667,7 @@ window.convertLeadToAccount = async (id) => {
 };
 
 window.deleteLead = async (id) => {
+  if(!requireRoles(['crm_manager','system_admin'],'Access denied: Requires CRM Manager')) return;
   if (!confirm('Delete this lead?')) return;
   DATA.leads = DATA.leads.filter(l => l.id !== id);
   if (supabase) await supabase.from('crm_leads').delete().eq('id', id).catch(supabaseCatch);
@@ -7229,7 +7316,7 @@ async function submitNewExpense() {
 function renderHRPayroll() {
   let html=`<div class="fade-in"><div class="filter-bar" style="justify-content:space-between">
     <h2>Payroll & Compensation</h2>
-    <button class="btn btn-primary" onclick="openNewSalarySlipModal()">Generate Slip</button>
+    ${hasRole('hr_manager')?`<button class="btn btn-primary" onclick="openNewSalarySlipModal()">Generate Slip</button>`:''}
   </div>
   <table class="table">
     <thead><tr><th>Period</th><th>Employee</th><th>Base Pay</th><th>Net Pay</th><th>Status</th><th>Actions</th></tr></thead>
@@ -7240,7 +7327,7 @@ function renderHRPayroll() {
       <td>${s.employee_id}</td>
       <td>$${parseFloat(s.base_pay).toLocaleString()}</td><td><strong>$${parseFloat(s.net_pay).toLocaleString()}</strong></td>
       <td><span class="status-pill status-${s.status.toLowerCase().replace(' ','-')}">${s.status}</span></td>
-      <td>${s.status==='Draft'?`<button class="btn btn-primary btn-sm" onclick="approveSalarySlip('${s.id}')">Approve</button>`:''}</td>
+      <td>${s.status==='Draft'&&(hasRole('hr_manager'))?`<button class="btn btn-primary btn-sm" onclick="approveSalarySlip('${s.id}')">Approve</button>`:''}</td>
     </tr>`;
   });
   if(DATA.salarySlips.length===0) html+=`<tr><td colspan="5" style="text-align:center">No salary slips found.</td></tr>`;
@@ -7266,6 +7353,7 @@ function openNewSalarySlipModal() {
 }
 
 async function submitNewSalarySlip() {
+  if(!requireRoles(['hr_manager','system_admin'],'Access denied: Requires HR Manager')) return;
   const base=parseFloat($('#ns-base').value)||0, allow=parseFloat($('#ns-allow').value)||0, ded=parseFloat($('#ns-ded').value)||0;
   const newSlip = { id:'SAL-'+Date.now(), employee_id:$('#ns-emp').value, month:parseInt($('#ns-month').value), year:parseInt($('#ns-year').value), base_pay:base, allowances:allow, deductions:ded, net_pay:(base+allow-ded), status:'Draft' };
   
@@ -7278,9 +7366,7 @@ async function submitNewSalarySlip() {
 }
 
 window.approveSalarySlip = async function(id) {
-  if(state.currentUserRole !== 'Manager' && state.currentUserRole !== 'Admin') {
-    return showToast('Access denied: Requires Manager role', 'error');
-  }
+  if(!requireRoles(['hr_manager','system_admin'],'Access denied: Requires HR Manager role')) return;
   const slip = DATA.salarySlips.find(s => s.id === id);
   if(slip) {
     slip.status = 'Approved';
@@ -7303,38 +7389,40 @@ window.approveSalarySlip = async function(id) {
 /* ── FINANCE MODULE ── */
 function renderFinSidebar() {
   const overdueCount = DATA.invoices.filter(i=>i.status==='Overdue').length;
-  const sections=[
+  const allSections=[
     {group:null, items:[
-      {id:'finDashboard',icon:'fa-chart-pie',label:'Dashboard'},
-      {id:'finSales',icon:'fa-file-invoice-dollar',label:'Sales Invoices (A/R)'},
-      {id:'finPurchases',icon:'fa-file-invoice',label:'Purchase Invoices (A/P)'},
-      {id:'finPayments',icon:'fa-money-bill-transfer',label:'Payments'},
+      {id:'finDashboard',icon:'fa-chart-pie',label:'Dashboard',roles:['system_admin','fin_manager','fin_user','employee']},
+      {id:'finSales',icon:'fa-file-invoice-dollar',label:'Sales Invoices (A/R)',roles:['system_admin','fin_manager','fin_user']},
+      {id:'finPurchases',icon:'fa-file-invoice',label:'Purchase Invoices (A/P)',roles:['system_admin','fin_manager','fin_user']},
+      {id:'finPayments',icon:'fa-money-bill-transfer',label:'Payments',roles:['system_admin','fin_manager','fin_user']},
     ]},
     {group:'Reports', items:[
-      {id:'arAging',icon:'fa-clock',label:'AR Aging'},
-      {id:'apAging',icon:'fa-clock',label:'AP Aging'},
-      {id:'finGL',icon:'fa-book',label:'General Ledger'},
-      {id:'finPL',icon:'fa-chart-line',label:'Profit & Loss'},
-      {id:'finBS',icon:'fa-scale-balanced',label:'Balance Sheet'},
+      {id:'arAging',icon:'fa-clock',label:'AR Aging',roles:['system_admin','fin_manager']},
+      {id:'apAging',icon:'fa-clock',label:'AP Aging',roles:['system_admin','fin_manager']},
+      {id:'finGL',icon:'fa-book',label:'General Ledger',roles:['system_admin','fin_manager','fin_user']},
+      {id:'finPL',icon:'fa-chart-line',label:'Profit & Loss',roles:['system_admin','fin_manager','fin_user']},
+      {id:'finBS',icon:'fa-scale-balanced',label:'Balance Sheet',roles:['system_admin','fin_manager','fin_user']},
     ]},
     {group:'Accounting', items:[
-      {id:'finJournalEntries',icon:'fa-book-open',label:'Journal Entries'},
+      {id:'finJournalEntries',icon:'fa-book-open',label:'Journal Entries',roles:['system_admin','fin_manager']},
     ]},
     {group:'Assets', items:[
-      {id:'finFixedAssets',icon:'fa-industry',label:'Fixed Assets'},
+      {id:'finFixedAssets',icon:'fa-industry',label:'Fixed Assets',roles:['system_admin','fin_manager']},
     ]},
     {group:'Dimensions', items:[
-      {id:'finCostCenters',icon:'fa-building-columns',label:'Cost Centers'},
-      {id:'finChartAccounts',icon:'fa-sitemap',label:'Chart of Accounts'},
+      {id:'finCostCenters',icon:'fa-building-columns',label:'Cost Centers',roles:['system_admin','fin_manager']},
+      {id:'finChartAccounts',icon:'fa-sitemap',label:'Chart of Accounts',roles:['system_admin','fin_manager']},
     ]},
     {group:'Admin', items:[
-      {id:'finSettings',icon:'fa-gear',label:'Settings'},
+      {id:'finSettings',icon:'fa-gear',label:'Settings',roles:['system_admin','fin_manager']},
     ]},
   ];
   let html='';
-  sections.forEach(s=>{
+  allSections.forEach(s=>{
+    const filtered=s.items.filter(i=>i.roles.some(r=>hasRole(r)));
+    if(!filtered.length) return;
     if(s.group) html+=`<div class="sidebar-group">${s.group}</div>`;
-    s.items.forEach(i=>{
+    filtered.forEach(i=>{
       html+=`<div class="sidebar-item ${state.section===i.id?'active':''}" onclick="switchSection('${i.id}')">
         <i class="fa-solid ${i.icon}"></i><span style="flex:1">${i.label}</span>
       </div>`;

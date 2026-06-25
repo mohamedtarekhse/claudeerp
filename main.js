@@ -5544,7 +5544,7 @@ async function loadData() {
     // loading progress animation (approximate)
     const total = queries.length; let done = 0;
     const progressInterval = setInterval(() => { done++; updateLoadingProgress(Math.min(done / total * 100, 95)); if (done >= total) clearInterval(progressInterval); }, 30);
-    await Promise.all(queries);
+    await Promise.all(queries.map(q => q.catch(()=>{})));
     clearInterval(progressInterval);
     updateLoadingProgress(100);
     console.log("Supabase data loaded successfully!");

@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js';
+import { animate, stagger, spring } from 'motion';
 
 /* ═══════════════════════════════════════════════
    STATE — GLOBAL ROUTER STATE
@@ -4405,6 +4406,7 @@ function renderSidebar(){
   else if(state.module==='supply') html=renderSCSidebar();
   else if(state.module==='fin') html=renderFinSidebar();
   $('#modSidebar').innerHTML=html;
+  runSidebarAnimations();
 }
 
 function renderFinSettings() {
@@ -4919,6 +4921,7 @@ function renderContent(){
     else html=renderFinDashboard();
   }
   $('#modContent').innerHTML=html;
+  runContentAnimations();
   if(state.module==='certificates'&&!state.section.startsWith('certGantt')&&!state.section.startsWith('certNotification')){
     setTimeout(()=>{
       certLoadColState();
@@ -4954,6 +4957,22 @@ function rerenderSection(){
   }
   renderSidebar();
   renderContent();
+}
+
+/* ── Motion Animations ── */
+function runContentAnimations(){
+  requestAnimationFrame(() => {
+    animate('.kpi-card',{opacity:[0,1],y:[16,0]},{duration:.4,delay:stagger(.06),easing:spring()});
+    animate('.list-item',{opacity:[0,1],y:[12,0]},{duration:.35,delay:stagger(.04),easing:spring()});
+    animate('.sec-card',{opacity:[0,1],y:[8,0]},{duration:.35,delay:stagger(.05),easing:spring()});
+    animate('.data-table tbody tr, .sap-table tbody tr',{opacity:[0,1]},{duration:.3,delay:stagger(.03)});
+    animate('.cert-card',{opacity:[0,1],scale:[.97,1]},{duration:.35,delay:stagger(.04),easing:spring()});
+  });
+}
+function runSidebarAnimations(){
+  requestAnimationFrame(() => {
+    animate('.sidebar-item',{opacity:[0,1],x:[-6,0]},{duration:.25,delay:stagger(.025)});
+  });
 }
 
 /* ═══════════════════════════════════════════════

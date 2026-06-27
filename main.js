@@ -5605,7 +5605,7 @@ async function initializeApp() {
           .from('user_profiles')
           .select('roles, display_name')
           .eq('id', session.user.id)
-          .single();
+          .maybeSingle();
         if (profile?.roles?.length) {
           state.roles = profile.roles;
           const priority = ['system_admin','hr_manager','crm_manager','sc_manager','fin_manager','hr_user','crm_user','sc_user','fin_user','employee'];

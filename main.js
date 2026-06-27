@@ -7283,7 +7283,7 @@ async function submitNewOrgUnit() {
   const id='OU-'+String(DATA.orgUnits.length+1).padStart(3,'0');
   const rec={id,name,head_count:parseInt(document.getElementById('ou-hc')?.value)||0,manager:document.getElementById('ou-mgr')?.value||''};
   DATA.orgUnits.push(rec);
-  if(supabase) await supabase.from('hr_org_units').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
+  if(supabase) await supabase.from('hr_org_units').upsert(rec).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
   window.showToast('Org unit added','success');
   rerenderSection();

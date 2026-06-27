@@ -443,3 +443,6 @@ DO $$ BEGIN
     FOR SELECT USING (auth.uid() = id);
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+-- Fix ID column type for tables created before schema was updated
+ALTER TABLE hr_org_units ALTER COLUMN id TYPE TEXT;

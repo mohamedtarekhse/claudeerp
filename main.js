@@ -829,7 +829,7 @@ function openNewEmployeeModal(){
 async function submitNewEmployee(){
   const fn=$('#ne-fname').value.trim(),ln=$('#ne-lname').value.trim();
   if(!fn||!ln){ window.showToast('First and last name are required','error'); return; }
-  const newId='EMP-'+String(DATA.employees.length+1).padStart(3,'0');
+  const newId=generateId('EMP', DATA.employees);
   
   const newEmp = {
     id:newId,firstName:fn,lastName:ln,name:fn+' '+ln,
@@ -1403,7 +1403,7 @@ function openNewAccountModal(){
 async function submitNewAccount(){
   const name=$('#na-name').value.trim();
   if(!name){window.showToast('Account name is required','error');return;}
-  const newId='ACC-'+String(DATA.accounts.length+1).padStart(3,'0');
+  const newId=generateId('ACC', DATA.accounts);
   
   const newAcc = {id:newId,name,industry:$('#na-type').value,tier:$('#na-region').value,manager_id:$('#na-owner').value,status:'active',revenue:parseInt($('#na-value').value)||0,last_contact:new Date().toISOString().split('T')[0]};
   
@@ -1959,7 +1959,7 @@ function openNewFLModal() {
 async function submitNewFL() {
   const name = document.getElementById('fl-name')?.value?.trim();
   if(!name){window.showToast('Location name required','error');return;}
-  const id='FL-'+String(DATA.functionalLocations.length+1).padStart(3,'0');
+  const id=generateId('FL', DATA.functionalLocations);
   const code = document.getElementById('fl-code')?.value?.trim() || id;
   const rec={id,flId:code,name,type:document.getElementById('fl-type')?.value||'Other',clientId:document.getElementById('fl-client')?.value||null,status:'active'};
   DATA.functionalLocations.push(rec);
@@ -2022,7 +2022,7 @@ async function submitNewInspector() {
   if(!empId){window.showToast('Employee required','error');return;}
   const emp = DATA.employees.find(e=>e.id===empId);
   if(!emp){window.showToast('Employee not found','error');return;}
-  const id='INS-'+String(DATA.inspectors.length+1).padStart(3,'0');
+  const id=generateId('INS', DATA.inspectors);
   const rec={id,inspectorNumber:id,employeeId:empId,name:emp.name,title:document.getElementById('ins-title')?.value?.trim()||emp.position,email:emp.email,phone:emp.phone,status:document.getElementById('ins-status')?.value||'active',color:document.getElementById('ins-color')?.value||'#6a6d70'};
   DATA.inspectors.push(rec);
   closeModal();
@@ -2081,12 +2081,12 @@ function openNewJobModal() {
 async function submitNewJob() {
   const title = document.getElementById('job-title')?.value?.trim();
   if(!title){window.showToast('Job title required','error');return;}
-  const id='JOB-'+String(DATA.jobs.length+1).padStart(3,'0');
+  const id=generateId('JOB', DATA.jobs);
   const checked = [...document.querySelectorAll('.job-insp-chk:checked')].map(cb=>cb.value);
   const job={id,title,clientId:document.getElementById('job-client')?.value||null,flId:document.getElementById('job-fl')?.value||null,status:'open',createdAt:new Date().toISOString().split('T')[0],completedAt:null,closedAt:null,description:document.getElementById('job-desc')?.value?.trim()||''};
   DATA.jobs.push(job);
   checked.forEach(inspectorId=>{
-    const jaId='JA-'+String(DATA.jobAssignments.length+1).padStart(3,'0');
+    const jaId=generateId('JA', DATA.jobAssignments);
     DATA.jobAssignments.push({id:jaId,jobId:id,inspectorId,assignedAt:new Date().toISOString().split('T')[0]});
   });
   closeModal();
@@ -2914,7 +2914,7 @@ async function submitNewCert(){
   const name=$('#nc-name').value.trim(),expiry=$('#nc-expiry').value;
   const fileInput = document.getElementById('nc-file');
   if(!name||!expiry){window.showToast('Equipment name and expiry date are required','error');return;}
-  const newId='CERT-'+String(DATA.certificates.length+1).padStart(3,'0');
+  const newId=generateId('CERT', DATA.certificates);
   const days=Math.round((new Date(expiry)-new Date())/(1000*60*60*24));
   const status=days<0?'expired':days<=30?'expiring':days<=90?'renewal':'valid';
   const certCategory=$('#nc-certCat').value;
@@ -3745,10 +3745,10 @@ async function submitNewSupplier() {
   if(!requireRoles(['sc_manager','system_admin'],'Access denied: Requires SC Manager')) return;
   const name = document.getElementById('sup-name')?.value?.trim();
   if(!name){window.showToast('Supplier name required','error');return;}
-  const id='SUP-'+String(DATA.suppliers.length+1).padStart(3,'0');
+  const id=generateId('SUP', DATA.suppliers);
   const rec={id,name,category:document.getElementById('sup-cat')?.value||'Other',contact_person:document.getElementById('sup-contact')?.value?.trim()||'',email:document.getElementById('sup-email')?.value?.trim()||'',phone:document.getElementById('sup-phone')?.value?.trim()||'',country:document.getElementById('sup-country')?.value?.trim()||'Oman',rating:0,status:'active'};
+  if(supabase) { const { error } = await supabase.from('suppliers').insert(rec); if(error) { supabaseCatch(error); return; } }
   DATA.suppliers.push(rec);
-  if(supabase) await supabase.from('suppliers').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
   window.showToast('Supplier added','success');
   rerenderSection();
@@ -3894,10 +3894,10 @@ function openNewWarehouseModal() {
 async function submitNewWarehouse() {
   const name = document.getElementById('wh-name')?.value?.trim();
   if(!name){window.showToast('Warehouse name required','error');return;}
-  const id='WH-'+String(DATA.warehouses.length+1).padStart(3,'0');
+  const id=generateId('WH', DATA.warehouses);
   const rec={id,name,location:document.getElementById('wh-loc')?.value?.trim()||'',manager_id:document.getElementById('wh-mgr')?.value||'',capacity_used:0,capacity_total:parseInt(document.getElementById('wh-cap')?.value)||1000,status:document.getElementById('wh-status')?.value||'Active'};
+  if(supabase) { const { error } = await supabase.from('warehouses').insert(rec); if(error) { supabaseCatch(error); return; } }
   DATA.warehouses.push(rec);
-  if(supabase) await supabase.from('warehouses').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
   window.showToast('Warehouse added','success');
   rerenderSection();
@@ -4020,11 +4020,11 @@ function openNewInventoryModal() {
   openModal('Add Inventory Item', body, footer);
 }
 
-function submitNewInventory() {
+async function submitNewInventory() {
   const name = $('#ni-name').value.trim();
   if (!name) { window.showToast('Item name required', 'error'); return; }
   const item = {
-    id: 'INV-' + String(DATA.inventory.length + 1).padStart(3, '0'),
+    id: generateId('INV', DATA.inventory),
     name, partNo: $('#ni-part').value.trim() || 'N/A',
     category: $('#ni-cat').value || 'Uncategorized',
     site: $('#ni-site').value.trim() || 'All Sites',
@@ -4042,17 +4042,20 @@ function submitNewInventory() {
     batch_tracking: $('#ni-batch').checked,
     has_variants: false,
   };
+  if (supabase) {
+    const { error } = await supabase.from('inventory').insert({
+      id: item.id, item_name: item.name, category: item.category,
+      part_no: item.partNo, site: item.site, warehouse: item.warehouse,
+      uom: item.uom, qty_on_hand: item.qtyOnHand,
+      reorder_point: item.reorderPoint, max_stock: item.maxStock,
+      unit_cost: item.unitCost, status: item.status,
+      last_received: item.lastReceived, supplier_id: item.supplierId,
+      parent_item: item.parent_item, serial_tracking: item.serial_tracking,
+      batch_tracking: item.batch_tracking, has_variants: item.has_variants
+    });
+    if (error) { supabaseCatch(error); return; }
+  }
   DATA.inventory.push(item);
-  if (supabase) supabase.from('inventory').insert({
-    id: item.id, item_name: item.name, category: item.category,
-    part_no: item.partNo, site: item.site, warehouse: item.warehouse,
-    uom: item.uom, qty_on_hand: item.qtyOnHand,
-    reorder_point: item.reorderPoint, max_stock: item.maxStock,
-    unit_cost: item.unitCost, status: item.status,
-    last_received: item.lastReceived, supplier_id: item.supplierId,
-    parent_item: item.parent_item, serial_tracking: item.serial_tracking,
-    batch_tracking: item.batch_tracking, has_variants: item.has_variants
-  }).then(({error:_})=>_&&supabaseCatch(_));
   closeModal(); window.showToast('Item added', 'success'); rerenderSection();
 }
 
@@ -4122,7 +4125,7 @@ function openNewQIModal(editId) {
   openModal(editId ? 'Edit Quality Inspection' : 'New Quality Inspection', body, footer);
 }
 
-function submitNewQI(editId) {
+async function submitNewQI(editId) {
   const date = $('#nqi-date').value;
   const itemId = $('#nqi-item').value;
   if (!itemId) { window.showToast('Select an item', 'error'); return; }
@@ -4135,7 +4138,7 @@ function submitNewQI(editId) {
   const status = params.length === 0 ? 'Pending' : anyFail ? 'Failed' : 'Passed';
   const inspectionType=$('#nqi-type').value, poRef=$('#nqi-po').value||null;
   const qi = {
-    id: editId || 'QI-' + String(DATA.qualityInspections.length + 1).padStart(3, '0'),
+    id: editId || generateId('QI', DATA.qualityInspections),
     date, itemId, item_id:itemId, itemName: item ? item.name : itemId, item_name: item ? item.name : itemId,
     inspectionType, inspection_type:inspectionType,
     poRef, po_ref:poRef,
@@ -4143,8 +4146,14 @@ function submitNewQI(editId) {
     parameters: params, notes: $('#nqi-notes').value.trim(), status,
   };
   const dbQi={id:qi.id,date:qi.date,item_id:qi.item_id,item_name:qi.item_name,inspection_type:qi.inspection_type,po_ref:qi.po_ref,inspector:qi.inspector,parameters:qi.parameters,notes:qi.notes,status:qi.status};
-  if (!editId) { DATA.qualityInspections.push(qi); if(supabase) supabase.from('quality_inspections').insert(dbQi).then(({error:_})=>_&&supabaseCatch(_)); }
-  else { const idx = DATA.qualityInspections.findIndex(q => q.id === editId); DATA.qualityInspections[idx] = qi; if(supabase) supabase.from('quality_inspections').upsert(dbQi).then(({error:_})=>_&&supabaseCatch(_)); }
+  if (!editId) {
+    if(supabase) { const { error } = await supabase.from('quality_inspections').insert(dbQi); if(error) { supabaseCatch(error); return; } }
+    DATA.qualityInspections.push(qi);
+  } else {
+    if(supabase) { const { error } = await supabase.from('quality_inspections').upsert(dbQi); if(error) { supabaseCatch(error); return; } }
+    const idx = DATA.qualityInspections.findIndex(x => x.id === editId);
+    if(idx > -1) DATA.qualityInspections[idx] = qi;
+  }
   closeModal(); window.showToast(editId ? 'Inspection updated' : 'Inspection created', 'success'); rerenderSection();
 }
 
@@ -4214,7 +4223,7 @@ function openNewLCVModal(editId) {
   openModal(editId ? 'Edit Landed Cost Voucher' : 'New Landed Cost Voucher', body, footer);
 }
 
-function submitNewLCV(editId) {
+async function submitNewLCV(editId) {
   const freight = parseFloat($('#nl-freight').value) || 0;
   const insurance = parseFloat($('#nl-insurance').value) || 0;
   const duty = parseFloat($('#nl-duty').value) || 0;
@@ -4232,14 +4241,20 @@ function submitNewLCV(editId) {
   }));
   const poRef=$('#nl-po').value||null;
   const v = {
-    id: editId || 'LCV-' + String(DATA.landedCostVouchers.length + 1).padStart(3, '0'),
+    id: editId || generateId('LCV', DATA.landedCostVouchers),
     date: $('#nl-date').value, poRef, po_ref:poRef,
     charges: {freight, insurance, duty, handling},
     totalCharges: total, total_charges:total, distribution: $('#nl-dist').value, items: alloc,
   };
   const dbV={id:v.id,date:v.date,po_ref:v.po_ref,charges:v.charges,total_charges:v.total_charges,distribution:v.distribution,items:v.items};
-  if (!editId) { DATA.landedCostVouchers.push(v); if(supabase) supabase.from('landed_cost_vouchers').insert(dbV).then(({error:_})=>_&&supabaseCatch(_)); }
-  else { const idx = DATA.landedCostVouchers.findIndex(x => x.id === editId); DATA.landedCostVouchers[idx] = v; if(supabase) supabase.from('landed_cost_vouchers').upsert(dbV).then(({error:_})=>_&&supabaseCatch(_)); }
+  if (!editId) {
+    if(supabase) { const { error } = await supabase.from('landed_cost_vouchers').insert(dbV); if(error) { supabaseCatch(error); return; } }
+    DATA.landedCostVouchers.push(v);
+  } else {
+    if(supabase) { const { error } = await supabase.from('landed_cost_vouchers').upsert(dbV); if(error) { supabaseCatch(error); return; } }
+    const idx = DATA.landedCostVouchers.findIndex(x => x.id === editId);
+    if(idx > -1) DATA.landedCostVouchers[idx] = v;
+  }
   closeModal(); window.showToast(editId ? 'Voucher updated' : 'Voucher created', 'success'); rerenderSection();
 }
 
@@ -4312,13 +4327,13 @@ function openNewRRModal(editId) {
   openModal(editId ? 'Edit Reorder Rule' : 'New Reorder Rule', body, footer);
 }
 
-function submitNewRR(editId) {
+async function submitNewRR(editId) {
   const itemId = $('#nrr-item').value;
   if (!itemId) { window.showToast('Select an item', 'error'); return; }
   const item = DATA.inventory.find(i => i.id === itemId);
   const supplierId=$('#nrr-supplier').value||null, minQty=parseFloat($('#nrr-min').value)||0, maxQty=parseFloat($('#nrr-max').value)||0, leadTimeDays=parseInt($('#nrr-lead').value)||14, autoCreatePO=$('#nrr-auto').checked;
   const r = {
-    id: editId || 'RR-' + String(DATA.reorderRules.length + 1).padStart(3, '0'),
+    id: editId || generateId('RR', DATA.reorderRules),
     itemId, item_id:itemId, itemName: item ? item.name : itemId, item_name: item ? item.name : itemId,
     supplierId, supplier_id:supplierId,
     minQty, min_qty:minQty, maxQty, max_qty:maxQty,
@@ -4327,8 +4342,14 @@ function submitNewRR(editId) {
     lastTriggered: null, last_triggered:null,
   };
   const dbR={id:r.id,item_id:r.item_id,item_name:r.item_name,supplier_id:r.supplier_id,min_qty:r.min_qty,max_qty:r.max_qty,lead_time_days:r.lead_time_days,auto_create_po:r.auto_create_po,last_triggered:r.last_triggered};
-  if (!editId) { DATA.reorderRules.push(r); if(supabase) supabase.from('reorder_rules').insert(dbR).then(({error:_})=>_&&supabaseCatch(_)); }
-  else { const idx = DATA.reorderRules.findIndex(x => x.id === editId); DATA.reorderRules[idx] = r; if(supabase) supabase.from('reorder_rules').upsert(dbR).then(({error:_})=>_&&supabaseCatch(_)); }
+  if (!editId) {
+    if(supabase) { const { error } = await supabase.from('reorder_rules').insert(dbR); if(error) { supabaseCatch(error); return; } }
+    DATA.reorderRules.push(r);
+  } else {
+    if(supabase) { const { error } = await supabase.from('reorder_rules').upsert(dbR); if(error) { supabaseCatch(error); return; } }
+    const idx = DATA.reorderRules.findIndex(x => x.id === editId);
+    if(idx > -1) DATA.reorderRules[idx] = r;
+  }
   closeModal(); window.showToast(editId ? 'Rule updated' : 'Rule added', 'success'); rerenderSection();
 }
 
@@ -4475,7 +4496,7 @@ function renderFinSettings() {
 function recordStockMovement(itemId, type, qty, uom, refType, refId, unitCost, notes){
   const item = DATA.inventory.find(i=>i.id===itemId);
   if(!item){window.showToast('Item not found','error');return null;}
-  const id='SL-'+String(DATA.stockLedger.length+1).padStart(3,'0');
+  const id=generateId('SL', DATA.stockLedger);
   const entry = {
     id, itemId, itemName:item.name, type, qty, uom:uom||item.uom,
     refType, refId, date:new Date().toISOString().split('T')[0],
@@ -5246,7 +5267,7 @@ Always include confirm_message so the user knows what action will be taken befor
       }
       case 'add_employee': {
         if(!requireRoles(['hr_manager','system_admin'],'AI: Cannot add employee - requires HR Manager')) return;
-        const newId='EMP-'+String(DATA.employees.length+1).padStart(3,'0');
+        const newId=generateId('EMP', DATA.employees);
         DATA.employees.push({
           id:newId, firstName:p.firstName||'', lastName:p.lastName||'',
           name:(p.firstName||'')+' '+(p.lastName||''),
@@ -6021,7 +6042,7 @@ function openNewPartnerModal() {
 function submitNewPartner() {
   const name = document.getElementById('partnerName')?.value?.trim();
   if(!name) { window.showToast('Partner name is required','error'); return; }
-  const id = 'PRT-' + String(DATA.partners.length + 1).padStart(3,'0');
+  const id = generateId('PRT', DATA.partners);
   DATA.partners.push({
     id,
     name,
@@ -7311,7 +7332,7 @@ async function submitNewTraining() {
   const name = document.getElementById('tr-emp')?.value;
   const course = document.getElementById('tr-course')?.value?.trim();
   if(!name||!course){window.showToast('Employee and course required','error');return;}
-  const id='TR-'+String(DATA.hseTraining.length+1).padStart(3,'0');
+  const id=generateId('TR', DATA.hseTraining);
   const rec={id,employee_name:name,course,date:document.getElementById('tr-date')?.value||new Date().toISOString().split('T')[0],status:document.getElementById('tr-status')?.value||'Scheduled'};
   DATA.hseTraining.push(rec);
   if(supabase) await supabase.from('hr_hse_training').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
@@ -7352,7 +7373,7 @@ function openNewOrgUnitModal() {
 async function submitNewOrgUnit() {
   const name = document.getElementById('ou-name')?.value?.trim();
   if(!name){window.showToast('Department name required','error');return;}
-  const id='OU-'+String(DATA.orgUnits.length+1).padStart(3,'0');
+  const id=generateId('OU', DATA.orgUnits);
   const rec={id,name,head_count:parseInt(document.getElementById('ou-hc')?.value)||0,manager:document.getElementById('ou-mgr')?.value||''};
   DATA.orgUnits.push(rec);
   if(supabase) await supabase.from('hr_org_units').upsert(rec).then(({error:_})=>_&&supabaseCatch(_));

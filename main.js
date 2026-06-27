@@ -4338,19 +4338,28 @@ function autoGenerateMR() {
     const item = DATA.inventory.find(i => i.id === r.itemId);
     if (!item || item.qtyOnHand >= r.minQty) return;
     const reorderQty = r.maxQty - item.qtyOnHand;
+    const now = new Date();
+    const today = now.toISOString().slice(0,10);
     const mr = {
       id: 'MR-' + Date.now() + '-' + r.id,
       title: `Auto MR: ${item.name}`,
-      items: [{itemId: r.itemId, itemName: r.itemName || item.name, qty: reorderQty, uom: item.uom}],
+      items: [{name: r.itemName || item.name, qty: reorderQty, uom: item.uom, estUnitCost: 0, spec: ''}],
       status: 'pending',
       priority: item.status === 'critical' ? 'Critical' : item.status === 'out' ? 'Critical' : 'High',
-      department: '', site: item.site || '', requested_by: 'System',
-      required_date: new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0,10),
+      department: '', site: item.site || '',
+      requestedBy: 'System', requestedDate: today,
+      requiredDate: new Date(now.getTime() + 7*24*60*60*1000).toISOString().slice(0,10),
       notes: `Auto-generated — below min qty (${item.qtyOnHand} < ${r.minQty})`,
+      approvedBy: null, approvedDate: null, poRef: null,
     };
     DATA.materialRequests.push(mr);
-    const ts=new Date().toISOString().slice(0,10); r.lastTriggered=ts; r.last_triggered=ts;
-    if (supabase) supabase.from('material_requests').insert(mr).then(({error:_})=>_&&supabaseCatch(_));
+    r.lastTriggered = today; r.last_triggered = today;
+    if (supabase) supabase.from('material_requests').insert({
+      id: mr.id, title: mr.title, status: mr.status,
+      priority: mr.priority, department: mr.department, site: mr.site,
+      requested_by: mr.requestedBy, required_date: mr.requiredDate,
+      notes: mr.notes
+    }).then(({error:_})=>_&&supabaseCatch(_));
     if (supabase) supabase.from('reorder_rules').upsert({id:r.id,item_id:r.item_id||r.itemId,item_name:r.item_name||r.itemName,supplier_id:r.supplier_id||r.supplierId,min_qty:r.min_qty||r.minQty,max_qty:r.max_qty||r.maxQty,lead_time_days:r.lead_time_days||r.leadTimeDays,auto_create_po:r.auto_create_po||r.autoCreatePO,last_triggered:r.last_triggered||r.lastTriggered}).then(({error:_})=>_&&supabaseCatch(_));
     created.push(`${item.name} (${reorderQty} ${item.uom})`);
   });

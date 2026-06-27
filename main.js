@@ -38,7 +38,7 @@ function hasRole(r){return effectiveRoles().includes(r);}
 function requireRoles(requiredRoles,msg){
   const eff = effectiveRoles();
   if(!requiredRoles.some(r=>eff.includes(r))){
-    showToast(msg||'Access denied','error');return false;
+    window.showToast(msg||'Access denied','error');return false;
   }return true;
 }
 function getPrimaryRole(){return state.roles[0]||'employee';}
@@ -398,7 +398,7 @@ const stockCol=s=>s==='low'?'var(--warning)':s==='critical'||s==='out'?'var(--er
 // Export generic HTML table to CSV
 function exportToCSV(filename = 'export.csv') {
   const table = document.querySelector('.data-table') || document.querySelector('.table');
-  if(!table) return showToast('No table found to export', 'error');
+  if(!table) return window.showToast('No table found to export', 'error');
   
   let csv = [];
   const rows = table.querySelectorAll('tr');
@@ -420,7 +420,7 @@ function exportToCSV(filename = 'export.csv') {
   document.body.appendChild(downloadLink);
   downloadLink.click();
   document.body.removeChild(downloadLink);
-  showToast('Export successful', 'success');
+  window.showToast('Export successful', 'success');
 }
 
 function daysFromNow(d){ if(!d) return null; return Math.round((new Date(d+'T00:00:00')-new Date())/(1000*60*60*24)); }
@@ -704,7 +704,7 @@ function renderEmployeeDetail(e){
   <div class="detail-tab-body">`;
 
   if(state.detailTab==='info'){
-    html+=`<div class="sec-card"><div class="sec-card-head">Employment Details ${hasRole('hr_manager')?`<button class="btn btn-ghost btn-sm" onclick="showToast('Editing ${e.name}','info')"><i class="fa-solid fa-pen"></i> ${t('edit')}</button>`:''}</div>
+    html+=`<div class="sec-card"><div class="sec-card-head">Employment Details ${hasRole('hr_manager')?`<button class="btn btn-ghost btn-sm" onclick="window.showToast('Editing ${e.name}','info')"><i class="fa-solid fa-pen"></i> ${t('edit')}</button>`:''}</div>
     <div class="sec-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;">
       ${[['Email',e.email],['Phone',e.phone],['Employment Type',e.empType],['Salary Band',e.salaryBand],['Cost Center',e.costCenter],['Manager',e.manager?DATA.employees.find(x=>x.id===e.manager)?.name||e.manager:'—'],['H2S Level',e.h2sLevel],['Work Permit',e.workPermit],['Visa Expiry',e.visa],['Med. Fitness',e.medFit?'<i class="fa-solid fa-check" style="color:var(--success)"></i> Fit':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i> Unfit'],['Med. Expiry',fmtDate(e.medExpiry)]].map(([k,v])=>`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">${k}</div><div style="font-size:13px;">${v}</div></div>`).join('')}
     </div></div>`;
@@ -747,7 +747,7 @@ function renderEmployeeDetail(e){
   else if(state.detailTab==='docs'){
     const docs=[['Passport / ID','fa-passport','On file'],['Employment Contract','fa-file-contract','Signed '+fmtDate(e.startDate)],['Medical Fitness Cert.','fa-stethoscope','Valid – '+fmtDate(e.medExpiry)],['HSE Training Records','fa-hard-hat','Up to date'],['Visa / Work Permit','fa-id-card',e.visa!=='N/A'?e.visa:'Not Required']];
     html+=`<div class="sec-card"><div class="sec-card-head">Documents</div><div class="sec-card-body">`;
-    docs.forEach(([name,icon,note])=>{ html+=`<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #f0f0f0;"><i class="fa-solid ${icon}" style="width:20px;text-align:center;color:var(--blue);font-size:15px;"></i><div style="flex:1;"><div style="font-size:13px;font-weight:500;">${name}</div><div style="font-size:11px;color:var(--text-sec);">${note}</div></div><button class="btn btn-secondary btn-sm" onclick="showToast('Opening ${name}...','info')"><i class="fa-solid fa-eye"></i></button></div>`; });
+    docs.forEach(([name,icon,note])=>{ html+=`<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #f0f0f0;"><i class="fa-solid ${icon}" style="width:20px;text-align:center;color:var(--blue);font-size:15px;"></i><div style="flex:1;"><div style="font-size:13px;font-weight:500;">${name}</div><div style="font-size:11px;color:var(--text-sec);">${note}</div></div><button class="btn btn-secondary btn-sm" onclick="window.showToast('Opening ${name}...','info')"><i class="fa-solid fa-eye"></i></button></div>`; });
     html+=`</div></div>`;
   }
 
@@ -807,7 +807,7 @@ function openNewEmployeeModal(){
 
 async function submitNewEmployee(){
   const fn=$('#ne-fname').value.trim(),ln=$('#ne-lname').value.trim();
-  if(!fn||!ln){ showToast('First and last name are required','error'); return; }
+  if(!fn||!ln){ window.showToast('First and last name are required','error'); return; }
   const newId='EMP-'+String(DATA.employees.length+1).padStart(3,'0');
   
   const newEmp = {
@@ -831,21 +831,21 @@ async function submitNewEmployee(){
       emp_type: newEmp.empType, site: newEmp.site, start_date: newEmp.startDate,
       salary_band: newEmp.salaryBand, nationality: newEmp.nationality
     });
-    if (error) { showToast('Error saving to DB','error'); return; }
+    if (error) { window.showToast('Error saving to DB','error'); return; }
     
     // Also insert default leave
     for (const [type, bal] of Object.entries(newEmp.leave)) {
       const { error: lbErr } = await supabase.from('employee_leave_balances').insert({
         employee_id: newEmp.id, leave_type: type, used: bal.used, total: bal.total
       });
-      if(lbErr) showToast('Leave balance sync issue: '+lbErr.message,'warning');
+      if(lbErr) window.showToast('Leave balance sync issue: '+lbErr.message,'warning');
     }
   }
 
   DATA.employees.push(newEmp);
   closeModal();
   state.selectedId=newId;
-  showToast(`${fn} ${ln} added successfully`,'success');
+  window.showToast(`${fn} ${ln} added successfully`,'success');
   rerenderSection();
 }
 
@@ -885,13 +885,13 @@ function openNewLeaveModal() {
 
 async function submitLeaveRequest() {
   const from=$('#nl-from').value, to=$('#nl-to').value, empName=$('#nl-emp').value;
-  if(!from||!to) { showToast('Dates required', 'error'); return; }
-  
+  if(!from||!to) { window.showToast('Dates required', 'error'); return; }
+
   // Phase 6.2 Prevent double-booking
   const conflict = DATA.leaveRequests.some(l => l.employeeName === empName && l.status !== 'Rejected' && 
     ((from >= l.startDate && from <= l.endDate) || (to >= l.startDate && to <= l.endDate)));
   if(conflict) {
-    showToast('Date conflict: Employee already has active leave during this period', 'error');
+    window.showToast('Date conflict: Employee already has active leave during this period', 'error');
     return;
   }
   
@@ -901,7 +901,7 @@ async function submitLeaveRequest() {
   
   if(supabase) await supabase.from('leave_requests').insert({ id:newReq.id, employee_name:empName, leave_type:typeVal, start_date:from, end_date:to, days, status:'pending' });
   DATA.leaveRequests.push(newReq);
-  closeModal(); showToast('Leave requested successfully', 'success'); rerenderSection();
+  closeModal(); window.showToast('Leave requested successfully', 'success'); rerenderSection();
 }
 
 window.approveLeave = async function(id) {
@@ -918,7 +918,7 @@ window.approveLeave = async function(id) {
       const newAtt = { id: attId, employee_id: emp.id, date: (req.startDate||req.from), check_in: null, check_out: null, status: 'On Leave' };
       if(supabase) await supabase.from('hr_attendance').insert(newAtt);
       DATA.attendance.push(newAtt);
-      showToast('Leave Approved. Attendance updated.', 'success');
+      window.showToast('Leave Approved. Attendance updated.', 'success');
     }
     rerenderSection();
 }
@@ -1300,7 +1300,7 @@ function renderAccountDetail(a){
   <div class="detail-tab-body">`;
 
   if(state.detailTab==='info'){
-    html+=`<div class="sec-card"><div class="sec-card-head">Account Details <button class="btn btn-ghost btn-sm" onclick="showToast('Editing ${a.name}','info')"><i class="fa-solid fa-pen"></i> Edit</button></div>
+    html+=`<div class="sec-card"><div class="sec-card-head">Account Details <button class="btn btn-ghost btn-sm" onclick="window.showToast('Editing ${a.name}','info')"><i class="fa-solid fa-pen"></i> Edit</button></div>
     <div class="sec-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;">
       ${[['Type',a.type],['Country / Region',a.country+' · '+a.region],['Block / Concession',a.blockRef],['Owner (AMICI)',a.owner],['Contract Value',a.contractValue>0?fmt(a.contractValue):'No active contract'],['Open Opportunities',a.openOpps],['Rating',a.rating],['Status',a.status==='active'?'Active':'Inactive']].map(([k,v])=>`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-sec);margin-bottom:2px;">${k}</div><div style="font-size:13px;">${v}</div></div>`).join('')}
     </div></div>`;
@@ -1381,21 +1381,21 @@ function openNewAccountModal(){
 
 async function submitNewAccount(){
   const name=$('#na-name').value.trim();
-  if(!name){showToast('Account name is required','error');return;}
+  if(!name){window.showToast('Account name is required','error');return;}
   const newId='ACC-'+String(DATA.accounts.length+1).padStart(3,'0');
   
   const newAcc = {id:newId,name,industry:$('#na-type').value,tier:$('#na-region').value,manager_id:$('#na-owner').value,status:'active',revenue:parseInt($('#na-value').value)||0,last_contact:new Date().toISOString().split('T')[0]};
   
   if (supabase) {
     const { error } = await supabase.from('crm_accounts').insert(newAcc);
-    if (error) { showToast('Error saving account','error'); return; }
+    if (error) { window.showToast('Error saving account','error'); return; }
   }
 
   // Fallback to match UI logic
   const uiAcc = {id:newId,name,type:newAcc.industry,country:'',region:newAcc.tier,blockRef:'N/A',owner:newAcc.manager_id,status:newAcc.status,contractValue:newAcc.revenue,rating:'Warm',openOpps:0,contacts:[],opps:[],activities:[{type:'Created',date:newAcc.last_contact,desc:'Account created'}]};
   DATA.accounts.push(uiAcc);
   if(DATA.accounts.flatMap) DATA.allOpps=DATA.accounts.flatMap(a=>a.opps||[]).map(o=>{const acc=DATA.accounts.find(a=>a.opps&&a.opps.some(op=>op.id===o.id));return{...o,accountName:acc?acc.name:'-',accountId:acc?acc.id:'-'};});
-  closeModal();state.selectedId=newId;showToast(name+' added successfully','success');rerenderSection();
+  closeModal();state.selectedId=newId;window.showToast(name+' added successfully','success');rerenderSection();
 }
 
 /* ═══════════════════════════════════════════════
@@ -1436,7 +1436,7 @@ function renderCertSidebar(){
   html+=`
     <div class="sidebar-item ${state.section==='certGantt'?'active':''}" onclick="switchSection('certGantt')"><i class="fa-solid fa-chart-bar"></i><span>Expiry Timeline</span></div>
     <div class="sidebar-item ${state.section==='certNotifications'?'active':''}" onclick="switchSection('certNotifications')"><i class="fa-solid fa-bell"></i><span>Notifications</span></div>
-    <div class="sidebar-item" onclick="showToast('Generating compliance report...','info')"><i class="fa-solid fa-chart-bar"></i><span>${t('complianceReport')}</span></div>`;
+    <div class="sidebar-item" onclick="window.showToast('Generating compliance report...','info')"><i class="fa-solid fa-chart-bar"></i><span>${t('complianceReport')}</span></div>`;
   return html;
 }
 
@@ -1804,7 +1804,7 @@ function renderCertificates(filterFn){
             </button>
           </td>
           <td data-col="fileLink">
-            ${c.fileName||c.pdfUrl?`<button class="cert-file-link" onclick="showToast('Opening ${c.fileName||'certificate'}','info')">
+            ${c.fileName||c.pdfUrl?`<button class="cert-file-link" onclick="window.showToast('Opening ${c.fileName||'certificate'}','info')">
               <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               ${h(c.fileName||'View')}
             </button>`:`<span style="color:var(--text-sec);font-size:11px;">—</span>`}
@@ -1937,13 +1937,13 @@ function openNewFLModal() {
 }
 async function submitNewFL() {
   const name = document.getElementById('fl-name')?.value?.trim();
-  if(!name){showToast('Location name required','error');return;}
+  if(!name){window.showToast('Location name required','error');return;}
   const id='FL-'+String(DATA.functionalLocations.length+1).padStart(3,'0');
   const code = document.getElementById('fl-code')?.value?.trim() || id;
   const rec={id,flId:code,name,type:document.getElementById('fl-type')?.value||'Other',clientId:document.getElementById('fl-client')?.value||null,status:'active'};
   DATA.functionalLocations.push(rec);
   closeModal();
-  showToast('Functional location added','success');
+  window.showToast('Functional location added','success');
   rerenderSection();
 }
 function renderCertFLView(){
@@ -1998,14 +1998,14 @@ function openNewInspectorModal() {
 }
 async function submitNewInspector() {
   const empId = document.getElementById('ins-emp')?.value;
-  if(!empId){showToast('Employee required','error');return;}
+  if(!empId){window.showToast('Employee required','error');return;}
   const emp = DATA.employees.find(e=>e.id===empId);
-  if(!emp){showToast('Employee not found','error');return;}
+  if(!emp){window.showToast('Employee not found','error');return;}
   const id='INS-'+String(DATA.inspectors.length+1).padStart(3,'0');
   const rec={id,inspectorNumber:id,employeeId:empId,name:emp.name,title:document.getElementById('ins-title')?.value?.trim()||emp.position,email:emp.email,phone:emp.phone,status:document.getElementById('ins-status')?.value||'active',color:document.getElementById('ins-color')?.value||'#6a6d70'};
   DATA.inspectors.push(rec);
   closeModal();
-  showToast('Inspector added','success');
+  window.showToast('Inspector added','success');
   rerenderSection();
 }
 function renderCertInspectorsView(){
@@ -2059,7 +2059,7 @@ function openNewJobModal() {
 }
 async function submitNewJob() {
   const title = document.getElementById('job-title')?.value?.trim();
-  if(!title){showToast('Job title required','error');return;}
+  if(!title){window.showToast('Job title required','error');return;}
   const id='JOB-'+String(DATA.jobs.length+1).padStart(3,'0');
   const checked = [...document.querySelectorAll('.job-insp-chk:checked')].map(cb=>cb.value);
   const job={id,title,clientId:document.getElementById('job-client')?.value||null,flId:document.getElementById('job-fl')?.value||null,status:'open',createdAt:new Date().toISOString().split('T')[0],completedAt:null,closedAt:null,description:document.getElementById('job-desc')?.value?.trim()||''};
@@ -2069,7 +2069,7 @@ async function submitNewJob() {
     DATA.jobAssignments.push({id:jaId,jobId:id,inspectorId,assignedAt:new Date().toISOString().split('T')[0]});
   });
   closeModal();
-  showToast('Work order created','success');
+  window.showToast('Work order created','success');
   rerenderSection();
 }
 
@@ -2306,7 +2306,7 @@ function certMassApprove(){
     const c=DATA.certificates.find(x=>x.id===id);
     if(c&&c.approvalStatus==='pending'){c.approvalStatus='approved';}
   });
-  showToast(`Approved ${ids.length} certificate(s)`,'success');
+  window.showToast(`Approved ${ids.length} certificate(s)`,'success');
   certClearSelection();
   rerenderSection();
 }
@@ -2318,7 +2318,7 @@ function certMassDelete(){
     const idx=DATA.certificates.findIndex(x=>x.id===id);
     if(idx>-1)DATA.certificates.splice(idx,1);
   });
-  showToast(`Deleted ${ids.length} certificate(s)`,'success');
+  window.showToast(`Deleted ${ids.length} certificate(s)`,'success');
   certClearSelection();
   rerenderSection();
 }
@@ -2335,7 +2335,7 @@ function certExportCSV(){
   a.download='certificates_export.csv';
   a.click();
   URL.revokeObjectURL(a.href);
-  showToast('CSV exported','success');
+  window.showToast('CSV exported','success');
 }
 
 function certExportPDF(){
@@ -2349,7 +2349,7 @@ function certExportPDF(){
       document.head.appendChild(t);
     };
     document.head.appendChild(s);
-    showToast('Loading PDF library…','info');
+    window.showToast('Loading PDF library…','info');
     return;
   }
   const {jsPDF}=window.jspdf;
@@ -2390,14 +2390,14 @@ function certExportPDF(){
     }
   });
   doc.save('certificates_export.pdf');
-  showToast('PDF exported','success');
+  window.showToast('PDF exported','success');
 }
 
 function deleteCert(id){
   const idx=DATA.certificates.findIndex(x=>x.id===id);
   if(idx>-1)DATA.certificates.splice(idx,1);
   if(supabase) supabase.from('certificates').delete().eq('id',id).then(({error:_})=>_&&supabaseCatch(_));
-  showToast(`Certificate ${id} deleted`,'success');
+  window.showToast(`Certificate ${id} deleted`,'success');
   rerenderSection();
 }
 
@@ -2468,8 +2468,8 @@ function openCertDrawer(id){
     <div class="drawer-section">
       <div class="drawer-section__title"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Actions</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        ${c.fileName||c.pdfUrl?`<button class="btn btn-ghost btn-sm" onclick="showToast('Opening ${c.fileName||'certificate'}','info')"><i class="fa-solid fa-file-pdf"></i> View PDF</button>`:''}
-        <button class="btn btn-primary btn-sm" onclick="showToast('Renewal initiated','success')"><i class="fa-solid fa-rotate"></i> Renew</button>
+        ${c.fileName||c.pdfUrl?`<button class="btn btn-ghost btn-sm" onclick="window.showToast('Opening ${c.fileName||'certificate'}','info')"><i class="fa-solid fa-file-pdf"></i> View PDF</button>`:''}
+        <button class="btn btn-primary btn-sm" onclick="window.showToast('Renewal initiated','success')"><i class="fa-solid fa-rotate"></i> Renew</button>
         ${c.approvalStatus==='pending'?`
           <button class="btn btn-success btn-sm" onclick="approveCert('${c.id}')"><i class="fa-solid fa-check"></i> Approve</button>
           <button class="btn btn-danger btn-sm" onclick="openCertRejectModal('${c.id}')"><i class="fa-solid fa-xmark"></i> Reject</button>
@@ -2490,7 +2490,7 @@ function approveCert(id){
   if(!c)return;
   c.approvalStatus='approved';
   if(supabase) supabase.from('certificates').update({approval_status:'approved'}).eq('id',id).then(({error:_})=>_&&supabaseCatch(_));
-  showToast(`Certificate ${id} approved`,'success');
+  window.showToast(`Certificate ${id} approved`,'success');
   closeCertDrawer();
   rerenderSection();
 }
@@ -2513,11 +2513,11 @@ function closeCertRejectModal(){
 
 function confirmCertReject(){
   const reason=document.getElementById('certRejectReason').value.trim();
-  if(!reason){showToast('Please provide a rejection reason','error');return;}
+  if(!reason){window.showToast('Please provide a rejection reason','error');return;}
   const c=DATA.certificates.find(x=>x.id===certRejectTargetId);
   if(c){c.approvalStatus='rejected';c.rejectionReason=reason;}
   if(supabase) supabase.from('certificates').update({approval_status:'rejected',rejection_reason:reason}).eq('id',certRejectTargetId).then(({error:_})=>_&&supabaseCatch(_));
-  showToast(`Certificate ${certRejectTargetId} rejected`,'warning');
+  window.showToast(`Certificate ${certRejectTargetId} rejected`,'warning');
   closeCertRejectModal();
   closeCertDrawer();
   rerenderSection();
@@ -2543,7 +2543,7 @@ function openEditCertModal(id){
   const c=DATA.certificates.find(x=>x.id===id);
   if(!c)return;
   // For now, reuse the new cert modal with prefilled data
-  showToast('Edit mode: prefilled data coming soon','info');
+  window.showToast('Edit mode: prefilled data coming soon','info');
   openNewCertModal();
 }
 
@@ -2634,15 +2634,15 @@ function togglePushNotif(enabled){
       state._swReg.pushManager.subscribe({userVisibleOnly:true}).then(sub=>{
         state.pushSubscribed = true;
         state.pushEnabled = true;
-        showToast('Push notifications enabled','success');
+        window.showToast('Push notifications enabled','success');
         rerenderSection();
       }).catch(err=>{
-        showToast('Failed to subscribe: '+err.message,'error');
+        window.showToast('Failed to subscribe: '+err.message,'error');
       });
     } else if('Notification' in window && Notification.permission==='default'){
       Notification.requestPermission().then(perm=>{
         if(perm==='granted') togglePushNotif(true);
-        else showToast('Notification permission denied','error');
+        else window.showToast('Notification permission denied','error');
       });
     }
   } else {
@@ -2652,7 +2652,7 @@ function togglePushNotif(enabled){
           sub.unsubscribe().then(()=>{
             state.pushSubscribed = false;
             state.pushEnabled = false;
-            showToast('Push notifications disabled','info');
+            window.showToast('Push notifications disabled','info');
             rerenderSection();
           });
         }
@@ -2675,10 +2675,10 @@ function checkPushHealth(){
         info += `p256dh: ${keyJson.keys?.p256dh?'<i class="fa-solid fa-check" style="color:var(--success)"></i> Set':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i> Missing'}\n`;
         info += `auth: ${keyJson.keys?.auth?'<i class="fa-solid fa-check" style="color:var(--success)"></i> Set':'<i class="fa-solid fa-xmark" style="color:var(--error)"></i> Missing'}\n`;
       }
-      showToast(info.replace(/\n/g,'<br>'),'info');
+      window.showToast(info.replace(/\n/g,'<br>'),'info');
     });
   } else {
-    showToast(info.replace(/\n/g,'<br>'),'info');
+    window.showToast(info.replace(/\n/g,'<br>'),'info');
   }
 }
 
@@ -2686,10 +2686,10 @@ function requestNotifPermission(){
   if('Notification' in window){
     Notification.requestPermission().then(perm=>{
       if(perm==='granted'){
-        showToast('Notification permission granted','success');
+        window.showToast('Notification permission granted','success');
         rerenderSection();
       } else {
-        showToast('Notification permission denied','error');
+        window.showToast('Notification permission denied','error');
       }
     });
   }
@@ -2892,7 +2892,7 @@ function openNewCertModal(jobId){
 async function submitNewCert(){
   const name=$('#nc-name').value.trim(),expiry=$('#nc-expiry').value;
   const fileInput = document.getElementById('nc-file');
-  if(!name||!expiry){showToast('Equipment name and expiry date are required','error');return;}
+  if(!name||!expiry){window.showToast('Equipment name and expiry date are required','error');return;}
   const newId='CERT-'+String(DATA.certificates.length+1).padStart(3,'0');
   const days=Math.round((new Date(expiry)-new Date())/(1000*60*60*24));
   const status=days<0?'expired':days<=30?'expiring':days<=90?'renewal':'valid';
@@ -2904,7 +2904,7 @@ async function submitNewCert(){
   let uploadedPdfUrl = $('#nc-pdf').value;
   if(fileInput && fileInput.files.length > 0) {
     uploadedPdfUrl = URL.createObjectURL(fileInput.files[0]);
-    showToast('File securely uploaded to Supabase Storage Bucket', 'success');
+    window.showToast('File securely uploaded to Supabase Storage Bucket', 'success');
   }
 
   // FK lookups
@@ -2932,10 +2932,10 @@ async function submitNewCert(){
   };
   if(supabase){
     const{error}=await supabase.from('certificates').insert({id:newId,employee_id:null,cert_type:cert.certType,expiry_date:expiry,status,client_id:clientId,fl_id:flId,inspector_id:inspectorId,job_id:jobId});
-    if(error){showToast('Error saving certificate','error');return;}
+    if(error){window.showToast('Error saving certificate','error');return;}
   }
   DATA.certificates.push(cert);
-  closeModal();state.selectedId=newId;state.section='allCerts';showToast(name+' certificate added','success');rerenderSection();
+  closeModal();state.selectedId=newId;state.section='allCerts';window.showToast(name+' certificate added','success');rerenderSection();
 }
 
 /* ═══════════════════════════════════════════════
@@ -2976,9 +2976,9 @@ function renderBulkWizard(){
 
 function bulkWizardNext(){
   if(BULK_STEP===1){
-    if(BULK_CERTS.length===0){ showToast('Add at least one certificate row before proceeding','error'); return; }
+    if(BULK_CERTS.length===0){ window.showToast('Add at least one certificate row before proceeding','error'); return; }
     const missing = BULK_CERTS.filter(r=>!r.equipName||!r.expiryDate);
-    if(missing.length>0){ showToast(`${missing.length} row(s) missing equipment name or expiry — fix first`,'error'); return; }
+    if(missing.length>0){ window.showToast(`${missing.length} row(s) missing equipment name or expiry — fix first`,'error'); return; }
   }
   if(BULK_STEP<3){ BULK_STEP++; renderBulkWizard(); }
 }
@@ -3039,7 +3039,7 @@ function bulkDownloadTemplate(){
   a.download = 'cert_import_template.csv';
   a.click();
   URL.revokeObjectURL(a.href);
-  showToast('Template downloaded','success');
+  window.showToast('Template downloaded','success');
 }
 
 function bulkHandleCSV(input){
@@ -3050,13 +3050,13 @@ function bulkHandleCSV(input){
     try {
       const text = e.target.result;
       const lines = text.split('\n').map(l=>l.trim()).filter(l=>l);
-      if(lines.length<2){ showToast('CSV must have a header row and at least one data row','error'); return; }
+      if(lines.length<2){ window.showToast('CSV must have a header row and at least one data row','error'); return; }
       const headers = lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,''));
       const colMap = {};
       headers.forEach((h,i)=>colMap[h.toLowerCase()]=i);
       const needed = ['assetTag','equipname','issuedate','expirydate'];
       const missing = needed.filter(n=>!colMap[n]&&n!=='expirydate');
-      if(missing.length){ showToast('CSV missing required columns: '+missing.join(', '),'error'); return; }
+      if(missing.length){ window.showToast('CSV missing required columns: '+missing.join(', '),'error'); return; }
       const rows = [];
       for(let i=1; i<lines.length; i++){
         const vals = lines[i].split(',').map(v=>v.trim().replace(/^"|"$/g,''));
@@ -3081,12 +3081,12 @@ function bulkHandleCSV(input){
           remarks: g('remarks') || ''
         });
       }
-      if(!rows.length){ showToast('No valid data rows found in CSV','error'); return; }
+      if(!rows.length){ window.showToast('No valid data rows found in CSV','error'); return; }
       BULK_CERTS = rows;
-      showToast(`${rows.length} row(s) loaded from CSV`,'success');
+      window.showToast(`${rows.length} row(s) loaded from CSV`,'success');
       BULK_STEP = 2;
       renderBulkWizard();
-    } catch(err) { showToast('Error parsing CSV: '+err.message,'error'); }
+    } catch(err) { window.showToast('Error parsing CSV: '+err.message,'error'); }
   };
   reader.readAsText(file);
   input.value = '';
@@ -3220,8 +3220,8 @@ function renderBulkStep3(){
 /* ── Submit Wizard ── */
 function submitBulkWizard(){
   const incomplete = BULK_CERTS.filter(r=>!r.equipName||!r.expiryDate);
-  if(incomplete.length>0){ showToast(`${incomplete.length} row(s) incomplete — fill equipment name and expiry`,'error'); return; }
-  if(BULK_CERTS.length===0){ showToast('No rows to import','error'); return; }
+  if(incomplete.length>0){ window.showToast(`${incomplete.length} row(s) incomplete — fill equipment name and expiry`,'error'); return; }
+  if(BULK_CERTS.length===0){ window.showToast('No rows to import','error'); return; }
   const now = new Date().toISOString();
   const newCerts = BULK_CERTS.map((r,i)=>{
     const newId = 'CERT-'+String(DATA.certificates.length+1+i).padStart(3,'0');
@@ -3245,7 +3245,7 @@ function submitBulkWizard(){
   });
   DATA.certificates.push(...newCerts);
   closeModal();
-  showToast(`${newCerts.length} certificates imported successfully with QR codes`,'success');
+  window.showToast(`${newCerts.length} certificates imported successfully with QR codes`,'success');
   state.section='pendingApproval';
   rerenderSection();
 }
@@ -3643,9 +3643,9 @@ window.approvePO = async function(id){
   if(po){
     if(po.status==='draft'){po.status='approved';po.approvedBy=DATA.employees[0]?.name||'Rania Saleh';}
     else if(po.status==='approved'||po.status==='pending'){po.status='ordered';po.approvedBy=po.approvedBy||DATA.employees[0]?.name||'Rania Saleh';}
-    else return showToast('Cannot approve PO in '+po.status+' status','error');
+    else return window.showToast('Cannot approve PO in '+po.status+' status','error');
     if(supabase) await supabase.from('purchase_orders').update({status:po.status}).eq('id',id);
-    showToast(id+' '+po.status,'success'); rerenderSection();
+    window.showToast(id+' '+po.status,'success'); rerenderSection();
   }
 }
 
@@ -3683,7 +3683,7 @@ window.receivePO = async function(id) {
       }
     });
   }
-  showToast('PO Received. Inventory updated.','success');
+  window.showToast('PO Received. Inventory updated.','success');
   rerenderSection();
 }
 
@@ -3723,13 +3723,13 @@ function openNewSupplierModal() {
 async function submitNewSupplier() {
   if(!requireRoles(['sc_manager','system_admin'],'Access denied: Requires SC Manager')) return;
   const name = document.getElementById('sup-name')?.value?.trim();
-  if(!name){showToast('Supplier name required','error');return;}
+  if(!name){window.showToast('Supplier name required','error');return;}
   const id='SUP-'+String(DATA.suppliers.length+1).padStart(3,'0');
   const rec={id,name,category:document.getElementById('sup-cat')?.value||'Other',contact_person:document.getElementById('sup-contact')?.value?.trim()||'',email:document.getElementById('sup-email')?.value?.trim()||'',phone:document.getElementById('sup-phone')?.value?.trim()||'',country:document.getElementById('sup-country')?.value?.trim()||'Oman',rating:0,status:'active'};
   DATA.suppliers.push(rec);
   if(supabase) await supabase.from('suppliers').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
-  showToast('Supplier added','success');
+  window.showToast('Supplier added','success');
   rerenderSection();
 }
 
@@ -3842,7 +3842,7 @@ function renderSCSettings() {
       <div class="form-group"><label class="form-label">Auto-reorder Threshold (%)</label><input class="form-input" type="number" value="15"></div>
       <div class="form-group"><label class="form-label">Default Warehouse</label>
       <select class="form-input"><option>Central Hub</option><option>Rig Alpha Storage</option></select></div>
-      <button class="btn btn-primary" onclick="showToast('Settings saved','success')">Save Settings</button>
+      <button class="btn btn-primary" onclick="window.showToast('Settings saved','success')">Save Settings</button>
     </div></div>
   </div>`;
 }
@@ -3872,13 +3872,13 @@ function openNewWarehouseModal() {
 }
 async function submitNewWarehouse() {
   const name = document.getElementById('wh-name')?.value?.trim();
-  if(!name){showToast('Warehouse name required','error');return;}
+  if(!name){window.showToast('Warehouse name required','error');return;}
   const id='WH-'+String(DATA.warehouses.length+1).padStart(3,'0');
   const rec={id,name,location:document.getElementById('wh-loc')?.value?.trim()||'',manager_id:document.getElementById('wh-mgr')?.value||'',capacity_used:0,capacity_total:parseInt(document.getElementById('wh-cap')?.value)||1000,status:document.getElementById('wh-status')?.value||'Active'};
   DATA.warehouses.push(rec);
   if(supabase) await supabase.from('warehouses').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
-  showToast('Warehouse added','success');
+  window.showToast('Warehouse added','success');
   rerenderSection();
 }
 
@@ -3930,7 +3930,7 @@ function renderInventory(filterFn=null){
         <option value="all">All Status</option><option value="normal">Normal</option><option value="low">Low</option><option value="critical">Critical</option><option value="out">Out of Stock</option>
       </select>
       <button class="btn btn-primary btn-sm" onclick="openNewInventoryModal()"><i class="fa-solid fa-plus"></i> Add Item</button>
-      <button class="btn btn-sm btn-outline" onclick="showToast('Stock count export started','info')"><i class="fa-solid fa-download"></i> Export</button>
+      <button class="btn btn-sm btn-outline" onclick="window.showToast('Stock count export started','info')"><i class="fa-solid fa-download"></i> Export</button>
     </div>
   </div>
   <div style="overflow-x:auto;"><table class="data-table">
@@ -4001,7 +4001,7 @@ function openNewInventoryModal() {
 
 function submitNewInventory() {
   const name = $('#ni-name').value.trim();
-  if (!name) { showToast('Item name required', 'error'); return; }
+  if (!name) { window.showToast('Item name required', 'error'); return; }
   const item = {
     id: 'INV-' + String(DATA.inventory.length + 1).padStart(3, '0'),
     name, partNo: $('#ni-part').value.trim() || 'N/A',
@@ -4023,7 +4023,7 @@ function submitNewInventory() {
   };
   DATA.inventory.push(item);
   if (supabase) supabase.from('inventory').insert(item).then(({error:_})=>_&&supabaseCatch(_));
-  closeModal(); showToast('Item added', 'success'); rerenderSection();
+  closeModal(); window.showToast('Item added', 'success'); rerenderSection();
 }
 
 /* ── Quality Inspections ── */
@@ -4095,10 +4095,10 @@ function openNewQIModal(editId) {
 function submitNewQI(editId) {
   const date = $('#nqi-date').value;
   const itemId = $('#nqi-item').value;
-  if (!itemId) { showToast('Select an item', 'error'); return; }
+  if (!itemId) { window.showToast('Select an item', 'error'); return; }
   const item = DATA.inventory.find(i => i.id === itemId);
   let params = [];
-  try { params = JSON.parse($('#nqi-params').value || '[]'); } catch(e) { showToast('Invalid JSON parameters', 'error'); return; }
+  try { params = JSON.parse($('#nqi-params').value || '[]'); } catch(e) { window.showToast('Invalid JSON parameters', 'error'); return; }
   params.forEach(p => { if (p.actual === undefined) p.actual = 0; if (p.result === undefined) p.result = p.actual >= p.min && p.actual <= p.max ? 'Pass' : 'Fail'; });
   const allPass = params.every(p => p.result === 'Pass');
   const anyFail = params.some(p => p.result === 'Fail');
@@ -4115,7 +4115,7 @@ function submitNewQI(editId) {
   const dbQi={id:qi.id,date:qi.date,item_id:qi.item_id,item_name:qi.item_name,inspection_type:qi.inspection_type,po_ref:qi.po_ref,inspector:qi.inspector,parameters:qi.parameters,notes:qi.notes,status:qi.status};
   if (!editId) { DATA.qualityInspections.push(qi); if(supabase) supabase.from('quality_inspections').insert(dbQi).then(({error:_})=>_&&supabaseCatch(_)); }
   else { const idx = DATA.qualityInspections.findIndex(q => q.id === editId); DATA.qualityInspections[idx] = qi; if(supabase) supabase.from('quality_inspections').upsert(dbQi).then(({error:_})=>_&&supabaseCatch(_)); }
-  closeModal(); showToast(editId ? 'Inspection updated' : 'Inspection created', 'success'); rerenderSection();
+  closeModal(); window.showToast(editId ? 'Inspection updated' : 'Inspection created', 'success'); rerenderSection();
 }
 
 function showQIParams(id) {
@@ -4191,8 +4191,8 @@ function submitNewLCV(editId) {
   const handling = parseFloat($('#nl-handling').value) || 0;
   const total = freight + insurance + duty + handling;
   let items = [];
-  try { items = JSON.parse($('#nl-items').value || '[]'); } catch(e) { showToast('Invalid items JSON', 'error'); return; }
-  if (!items.length) { showToast('At least one item required', 'error'); return; }
+  try { items = JSON.parse($('#nl-items').value || '[]'); } catch(e) { window.showToast('Invalid items JSON', 'error'); return; }
+  if (!items.length) { window.showToast('At least one item required', 'error'); return; }
   const totalProp = items.reduce((s,i) => s + i.proportion, 0);
   const alloc = items.map(i => ({
     itemId: i.itemId,
@@ -4210,7 +4210,7 @@ function submitNewLCV(editId) {
   const dbV={id:v.id,date:v.date,po_ref:v.po_ref,charges:v.charges,total_charges:v.total_charges,distribution:v.distribution,items:v.items};
   if (!editId) { DATA.landedCostVouchers.push(v); if(supabase) supabase.from('landed_cost_vouchers').insert(dbV).then(({error:_})=>_&&supabaseCatch(_)); }
   else { const idx = DATA.landedCostVouchers.findIndex(x => x.id === editId); DATA.landedCostVouchers[idx] = v; if(supabase) supabase.from('landed_cost_vouchers').upsert(dbV).then(({error:_})=>_&&supabaseCatch(_)); }
-  closeModal(); showToast(editId ? 'Voucher updated' : 'Voucher created', 'success'); rerenderSection();
+  closeModal(); window.showToast(editId ? 'Voucher updated' : 'Voucher created', 'success'); rerenderSection();
 }
 
 function showLCVItems(id) {
@@ -4284,7 +4284,7 @@ function openNewRRModal(editId) {
 
 function submitNewRR(editId) {
   const itemId = $('#nrr-item').value;
-  if (!itemId) { showToast('Select an item', 'error'); return; }
+  if (!itemId) { window.showToast('Select an item', 'error'); return; }
   const item = DATA.inventory.find(i => i.id === itemId);
   const supplierId=$('#nrr-supplier').value||null, minQty=parseFloat($('#nrr-min').value)||0, maxQty=parseFloat($('#nrr-max').value)||0, leadTimeDays=parseInt($('#nrr-lead').value)||14, autoCreatePO=$('#nrr-auto').checked;
   const r = {
@@ -4299,7 +4299,7 @@ function submitNewRR(editId) {
   const dbR={id:r.id,item_id:r.item_id,item_name:r.item_name,supplier_id:r.supplier_id,min_qty:r.min_qty,max_qty:r.max_qty,lead_time_days:r.lead_time_days,auto_create_po:r.auto_create_po,last_triggered:r.last_triggered};
   if (!editId) { DATA.reorderRules.push(r); if(supabase) supabase.from('reorder_rules').insert(dbR).then(({error:_})=>_&&supabaseCatch(_)); }
   else { const idx = DATA.reorderRules.findIndex(x => x.id === editId); DATA.reorderRules[idx] = r; if(supabase) supabase.from('reorder_rules').upsert(dbR).then(({error:_})=>_&&supabaseCatch(_)); }
-  closeModal(); showToast(editId ? 'Rule updated' : 'Rule added', 'success'); rerenderSection();
+  closeModal(); window.showToast(editId ? 'Rule updated' : 'Rule added', 'success'); rerenderSection();
 }
 
 function autoGenerateMR() {
@@ -4322,8 +4322,8 @@ function autoGenerateMR() {
     if (supabase) supabase.from('reorder_rules').upsert({id:r.id,item_id:r.item_id||r.itemId,item_name:r.item_name||r.itemName,supplier_id:r.supplier_id||r.supplierId,min_qty:r.min_qty||r.minQty,max_qty:r.max_qty||r.maxQty,lead_time_days:r.lead_time_days||r.leadTimeDays,auto_create_po:r.auto_create_po||r.autoCreatePO,last_triggered:r.last_triggered||r.lastTriggered}).then(({error:_})=>_&&supabaseCatch(_));
     created.push(`${item.name} (${reorderQty} ${item.uom})`);
   });
-  if (created.length === 0) { showToast('No items below reorder point', 'info'); return; }
-  showToast(`Created ${created.length} MRs: ${created.join(', ')}`, 'success');
+  if (created.length === 0) { window.showToast('No items below reorder point', 'info'); return; }
+  window.showToast(`Created ${created.length} MRs: ${created.join(', ')}`, 'success');
   rerenderSection();
 }
 
@@ -4368,7 +4368,7 @@ function openNewPOModal(){
 async function submitNewPO(){
   const desc=$('#np-desc').value.trim();
   const amt=parseFloat($('#np-amount').value)||0;
-  if(!desc){showToast('Description is required','error');return;}
+  if(!desc){window.showToast('Description is required','error');return;}
   if(amt > 10000) {
     if(!confirm('Warning: PO Amount exceeds $10,000. Do you want to proceed?')) return;
   }
@@ -4389,11 +4389,11 @@ async function submitNewPO(){
   };
   if(supabase){
     const{error}=await supabase.from('purchase_orders').insert({id:newId,supplier_name:poData.supplier,description:desc,total_amount:poData.amount,status:'draft',priority:poData.priority,site:poData.site,requested_by:poData.requestedBy,order_date:poData.createdDate});
-    if(error){showToast('Error saving PO','error');return;}
+    if(error){window.showToast('Error saving PO','error');return;}
   }
   DATA.purchaseOrders.push(poData);
   closeModal();state.selectedId=newId;state.section='allPOs';
-  showToast(newId+' created as Draft','success');rerenderSection();
+  window.showToast(newId+' created as Draft','success');rerenderSection();
 }
 
 /* ═══════════════════════════════════════════════
@@ -4423,7 +4423,7 @@ function renderFinSettings() {
       <select class="form-input"><option>USD</option><option>OMR</option><option>EUR</option></select></div>
       <div class="form-group"><label class="form-label">Fiscal Year Start Month</label>
       <select class="form-input"><option>January</option><option>April</option><option>July</option></select></div>
-      <button class="btn btn-primary" onclick="showToast('Settings saved','success')">Save Settings</button>
+      <button class="btn btn-primary" onclick="window.showToast('Settings saved','success')">Save Settings</button>
     </div></div>
   </div>`;
 }
@@ -4433,7 +4433,7 @@ function renderFinSettings() {
 ═══════════════════════════════════════════════ */
 function recordStockMovement(itemId, type, qty, uom, refType, refId, unitCost, notes){
   const item = DATA.inventory.find(i=>i.id===itemId);
-  if(!item){showToast('Item not found','error');return null;}
+  if(!item){window.showToast('Item not found','error');return null;}
   const id='SL-'+String(DATA.stockLedger.length+1).padStart(3,'0');
   const entry = {
     id, itemId, itemName:item.name, type, qty, uom:uom||item.uom,
@@ -4545,7 +4545,7 @@ function submitMovement(){
   const itemId=$('#mv-item').value;
   const type=$('#mv-type').value;
   const qty=parseInt($('#mv-qty').value)||0;
-  if(!itemId||qty<1){showToast('Select item and enter valid quantity','error');return;}
+  if(!itemId||qty<1){window.showToast('Select item and enter valid quantity','error');return;}
   const uom=$('#mv-uom').value.trim()||'Unit';
   const cost=parseFloat($('#mv-cost').value)||0;
   const refType=$('#mv-reftype').value;
@@ -4554,7 +4554,7 @@ function submitMovement(){
   const entry=recordStockMovement(itemId,type,qty,uom,refType,refId,cost||undefined,notes);
   if(entry){
     closeModal();
-    showToast(`${type==='in'?'Received':'Issued'} ${qty} ${uom}`,'success');
+    window.showToast(`${type==='in'?'Received':'Issued'} ${qty} ${uom}`,'success');
     rerenderSection();
   }
 }
@@ -4739,7 +4739,7 @@ function addMRItemRow(){
 
 async function submitNewMR(){
   const title=$('#nmr-title').value.trim();
-  if(!title){showToast('Title is required','error');return;}
+  if(!title){window.showToast('Title is required','error');return;}
   const now=new Date();
   const newId='MR-'+now.getFullYear()+'-'+String(DATA.materialRequests.length+1).padStart(3,'0');
   const items=[];
@@ -4754,7 +4754,7 @@ async function submitNewMR(){
       spec:''
     });
   }
-  if(!items.length){showToast('Add at least one item','error');return;}
+  if(!items.length){window.showToast('Add at least one item','error');return;}
   const mr={
     id:newId,title,requestedBy: DATA.employees[0]?.name||'Unknown',
     requestedDate:now.toISOString().split('T')[0],
@@ -4774,30 +4774,30 @@ async function submitNewMR(){
   DATA.materialRequests.push(mr);
   mrItemRowCount=1;
   closeModal();state.selectedId=newId;state.section='materialRequests';
-  showToast(newId+' created','success');rerenderSection();
+  window.showToast(newId+' created','success');rerenderSection();
 }
 
 async function approveMR(id){
   const mr=DATA.materialRequests.find(m=>m.id===id);
-  if(!mr) return showToast('Not found','error');
-  if(mr.status!=='draft'&&mr.status!=='pending') return showToast('Can only approve draft/pending requests','error');
+  if(!mr) return window.showToast('Not found','error');
+  if(mr.status!=='draft'&&mr.status!=='pending') return window.showToast('Can only approve draft/pending requests','error');
   mr.status='approved'; mr.approvedBy=DATA.employees[0]?.name||'Manager'; mr.approvedDate=new Date().toISOString().split('T')[0];
   if(supabase) supabase.from('material_requests').update({status:'approved',approved_by:mr.approvedBy,approved_date:mr.approvedDate}).eq('id',id).then(({error:_})=>_&&supabaseCatch(_));
-  showToast(id+' approved','success'); rerenderSection();
+  window.showToast(id+' approved','success'); rerenderSection();
 }
 
 async function rejectMR(id){
   const mr=DATA.materialRequests.find(m=>m.id===id);
-  if(!mr||mr.status!=='pending') return showToast('Can only reject pending requests','error');
+  if(!mr||mr.status!=='pending') return window.showToast('Can only reject pending requests','error');
   mr.status='rejected';
   if(supabase) supabase.from('material_requests').update({status:'rejected'}).eq('id',id).then(({error:_})=>_&&supabaseCatch(_));
-  showToast(id+' rejected','warning'); rerenderSection();
+  window.showToast(id+' rejected','warning'); rerenderSection();
 }
 
 async function convertMRtoPO(id){
   const mr=DATA.materialRequests.find(m=>m.id===id);
-  if(!mr||mr.status!=='approved') return showToast('Only approved MRs can be converted','error');
-  if(mr.poRef) return showToast('PO already created for this MR: '+mr.poRef,'info');
+  if(!mr||mr.status!=='approved') return window.showToast('Only approved MRs can be converted','error');
+  if(mr.poRef) return window.showToast('PO already created for this MR: '+mr.poRef,'info');
   const now=new Date();
   const poId='PO-'+now.getFullYear()+'-'+String(DATA.purchaseOrders.length+1).padStart(3,'0');
   const estTotal=mr.items.reduce((s,it)=>s+it.qty*it.estUnitCost,0);
@@ -4817,7 +4817,7 @@ async function convertMRtoPO(id){
     supabase.from('purchase_orders').insert({id:poId,supplier_name:po.supplier,description:po.description,total_amount:estTotal,status:'draft',priority:mr.priority,site:mr.site,requested_by:mr.requestedBy,order_date:po.createdDate}).then(({error:_})=>_&&supabaseCatch(_));
     supabase.from('material_requests').update({po_ref:poId}).eq('id',id).then(({error:_})=>_&&supabaseCatch(_));
   }
-  showToast(poId+' created from '+mr.id,'success');
+  window.showToast(poId+' created from '+mr.id,'success');
   state.selectedId=poId; state.section='allPOs'; state.detailTab='info';
   rerenderSection();
 }
@@ -5017,8 +5017,8 @@ $('#shellSearch').addEventListener('keydown',e=>{
     const q=e.target.value.trim().toLowerCase();
     if(!q) return;
     const found=DATA.employees.find(em=>em.name.toLowerCase().includes(q)||em.id.toLowerCase()===q);
-    if(found){ state.module='hr';state.section='allEmployees';state.selectedId=found.id;renderAll();showToast('Found: '+found.name,'success'); }
-    else showToast('No results for "'+q+'"','warning');
+    if(found){ state.module='hr';state.section='allEmployees';state.selectedId=found.id;renderAll();window.showToast('Found: '+found.name,'success'); }
+    else window.showToast('No results for "'+q+'"','warning');
     e.target.value='';
   }
 });
@@ -5168,21 +5168,21 @@ Always include confirm_message so the user knows what action will be taken befor
       case 'approve_po': {
         if(!requireRoles(['sc_manager','system_admin'],'AI: Cannot approve PO - requires SC Manager')) return;
         const po = DATA.purchaseOrders.find(x=>x.id===p.po_id);
-        if(po){ po.status='approved'; po.approvedBy='AMICI AI'; showToast(`${p.po_id} approved via AI`,'success'); rerenderSection(); }
-        else showToast('PO not found','error');
+        if(po){ po.status='approved'; po.approvedBy='AMICI AI'; window.showToast(`${p.po_id} approved via AI`,'success'); rerenderSection(); }
+        else window.showToast('PO not found','error');
         break;
       }
       case 'navigate': {
         if(p.module) switchModule(p.module);
         if(p.section) setTimeout(()=>{ state.section=p.section; rerenderSection(); },50);
-        showToast(`Navigated to ${p.section||p.module}`,'info');
+        window.showToast(`Navigated to ${p.section||p.module}`,'info');
         break;
       }
       case 'flag_cert': {
         if(!requireRoles(['inspector','system_admin'],'AI: Cannot flag cert - requires Inspector')) return;
         const cert = DATA.certificates.find(x=>x.id===p.cert_id);
-        if(cert){ cert.remarks=(cert.remarks||'')+'\n<i class="fa-solid fa-triangle-exclamation" style="color:var(--warning)"></i> AI Flag: '+p.note; showToast(`${p.cert_id} flagged`,'warning'); }
-        else showToast('Certificate not found','error');
+        if(cert){ cert.remarks=(cert.remarks||'')+'\n<i class="fa-solid fa-triangle-exclamation" style="color:var(--warning)"></i> AI Flag: '+p.note; window.showToast(`${p.cert_id} flagged`,'warning'); }
+        else window.showToast('Certificate not found','error');
         break;
       }
       case 'create_po_draft': {
@@ -5198,7 +5198,7 @@ Always include confirm_message so the user knows what action will be taken befor
           requiredDate:'', createdDate:now.toISOString().split('T')[0],
           deliveryDate:null, poLines:[{item:p.description||'TBD',qty:1,unit:'Lot',unitPrice:p.amount||0}]
         });
-        showToast(`${newId} created as draft`,'success');
+        window.showToast(`${newId} created as draft`,'success');
         if(state.module==='supply') rerenderSection();
         break;
       }
@@ -5219,11 +5219,11 @@ Always include confirm_message so the user knows what action will be taken befor
           leave:{annual:{used:0,total:15},sick:{used:0,total:10},remote:{used:0,total:5},training:{used:0,total:10}},
           skills:[], hseCerts:[], history:[{date:new Date().toISOString().split('T')[0],event:'Added via AMICI AI'}]
         });
-        showToast(`${p.firstName} ${p.lastName} added as ${newId}`,'success');
+        window.showToast(`${p.firstName} ${p.lastName} added as ${newId}`,'success');
         if(state.module==='hr') rerenderSection();
         break;
       }
-      default: showToast('Unknown action: '+action.action,'warning');
+      default: window.showToast('Unknown action: '+action.action,'warning');
     }
   }
 };
@@ -5253,7 +5253,7 @@ async function fetchFreeModels(){
   } catch(e){
     sel.innerHTML = `<option value="">Failed to load: ${e.message}</option>
       <option value="google/gemini-2.5-flash:free">google/gemini-2.5-flash:free (fallback)</option>`;
-    showToast('Could not fetch model list: '+e.message,'warning');
+    window.showToast('Could not fetch model list: '+e.message,'warning');
   }
 }
 
@@ -5261,7 +5261,7 @@ function selectAIModel(modelId){
   if(!modelId) return;
   AI.model = modelId;
   sessionStorage.setItem('amici_or_model', modelId);
-  showToast(`Model switched to ${modelId}`,'success');
+  window.showToast(`Model switched to ${modelId}`,'success');
 }
 
 /* ── AI PANEL TOGGLE ── */
@@ -5299,13 +5299,13 @@ $('#aiInput').addEventListener('keydown', e=>{
 /* ── API KEY ── */
 function saveAPIKey(){
   const key = $('#aiKeyInput').value.trim();
-  if(!key.startsWith('sk-or-')){ showToast('Key must start with sk-or-','error'); return; }
+  if(!key.startsWith('sk-or-')){ window.showToast('Key must start with sk-or-','error'); return; }
   sessionStorage.setItem('amici_or_key', key);
   $('#aiKeyBar').innerHTML = `<span class="ai-key-saved"><i class="fa-solid fa-check-circle"></i> API key saved for this session</span>
     <button class="ai-key-btn" type="button" style="background:var(--text-sec)" data-action="clear-api-key">Change</button>
     <button class="ai-key-btn" type="button" style="background:var(--danger)" data-action="remove-api-key"><i class="fa-solid fa-trash"></i> Remove</button>`;
   $('#aiModelBar').style.display = 'flex';
-  showToast('OpenRouter key saved','success');
+  window.showToast('OpenRouter key saved','success');
   $('#aiInput').focus();
 }
 
@@ -5419,18 +5419,18 @@ document.addEventListener('click', e=>{
   if(action === 'mark-all-read'){
     closeDropdown();
     $('#notifBadge').style.display='none';
-    return showToast('All notifications cleared','success');
+    return window.showToast('All notifications cleared','success');
   }
   if(action === 'select-role'){
     const roleKey = ROLE_KEY_MAP[role]||'employee';
     state.roles=[roleKey];
     state.currentUserRole=role;
-    showToast(`Role: ${role}`,'success');
+    window.showToast(`Role: ${role}`,'success');
     rerenderSection();
     return closeDropdown();
   }
   if(action === 'sign-out'){
-    showToast('Signed out','success');
+    window.showToast('Signed out','success');
     return closeDropdown();
   }
   if(action === 'clear-api-key') return clearAPIKey();
@@ -5440,7 +5440,7 @@ document.addEventListener('click', e=>{
       <button class="ai-key-btn" type="button" data-action="save-api-key">Save</button>`;
     $('#aiKeyBar').style.display='none';
     $('#aiModelBar').style.display='none';
-    showToast('API key removed','info');
+    window.showToast('API key removed','info');
     return;
   }
   if(action === 'save-api-key') return saveAPIKey();
@@ -5456,7 +5456,7 @@ async function sendAIMessage(){
 
   const key = AI.getKey();
   if(!key){
-    showToast('Please enter your OpenRouter API key first','warning');
+    window.showToast('Please enter your OpenRouter API key first','warning');
     $('#aiKeyBar').style.display='flex';
     return;
   }
@@ -5507,7 +5507,7 @@ async function sendAIMessage(){
   } catch(err){
     const errTime = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     AI.history.push({ role:'assistant', content:`**Error:** ${err.message}\n\nCheck your API key and try again.`, time:errTime });
-    showToast('AI request failed: '+err.message,'error');
+    window.showToast('AI request failed: '+err.message,'error');
   } finally {
     AI.isLoading = false;
     $('#aiSend').disabled = false;
@@ -5576,7 +5576,7 @@ async function loadData() {
     console.log("Supabase data loaded successfully!");
   } catch (err) {
     console.error("Error loading data from Supabase:", err);
-    showToast("Error loading data from server. Using mock data.", "error");
+    window.showToast("Error loading data from server. Using mock data.", "error");
   }
 }
 
@@ -5626,10 +5626,10 @@ async function initializeApp() {
   if (notifBadge) notifBadge.textContent = certAlerts.length + DATA.leaveRequests.filter(l=>l.status==='pending').length;
   
   if (certAlerts.length > 0) {
-    setTimeout(()=> showToast(`Warning: ${certAlerts.length} certificates are expired or expiring soon.`, 'error'), 1500);
+    setTimeout(()=> window.showToast(`Warning: ${certAlerts.length} certificates are expired or expiring soon.`, 'error'), 1500);
   }
   
-  setTimeout(()=> showToast('Welcome to AMICI ERP · All modules live','success'), 700);
+  setTimeout(()=> window.showToast('Welcome to AMICI ERP · All modules live','success'), 700);
 }
 
 // Guard: if bfcache restores the page, ensure loading overlay stays hidden
@@ -5741,15 +5741,15 @@ function openNewLeadModal() {
 
 async function submitNewLead() {
   const name=$('#nl-name').value.trim();
-  if(!name){showToast('Name is required','error');return;}
+  if(!name){window.showToast('Name is required','error');return;}
   const newLead = { id:'LD-'+Date.now(), name, email:$('#nl-email').value, phone:$('#nl-phone').value, source:$('#nl-source').value, status:'New' };
   
   if (supabase) {
     const { error } = await supabase.from('crm_leads').insert(newLead);
-    if (error) { showToast('Error saving','error'); return; }
+    if (error) { window.showToast('Error saving','error'); return; }
   }
   DATA.leads.push(newLead);
-  closeModal(); showToast('Lead saved','success'); rerenderSection();
+  closeModal(); window.showToast('Lead saved','success'); rerenderSection();
 }
 
 /* ── CRM DEALS KANBAN ── */
@@ -5777,7 +5777,7 @@ window.dropDeal = async function(e, stage) {
       DATA.invoices.push(newInv);
       autoPostJE(newInv.id, 'Invoice ' + newInv.id + ' auto-posting', [{account_id:'ACC-AR', debit:deal.value, credit:0},{account_id:'ACC-REV', debit:0, credit:deal.value}]);
       deal.invoice_id = newInv.id;
-      showToast('Deal won! Draft Invoice ' + newInv.id + ' auto-generated.', 'success');
+      window.showToast('Deal won! Draft Invoice ' + newInv.id + ' auto-generated.', 'success');
     }
     rerenderSection();
   }
@@ -5813,15 +5813,15 @@ function openNewDealModal() {
 
 async function submitNewDeal() {
   const title=$('#nd-title').value.trim();
-  if(!title){showToast('Title required','error');return;}
+  if(!title){window.showToast('Title required','error');return;}
   const newDeal = { id:'DL-'+Date.now(), title, value:parseFloat($('#nd-value').value)||0, stage:$('#nd-stage').value, expected_close_date:$('#nd-close').value||new Date().toISOString().split('T')[0], account_id:$('#nd-acct').value||null, lead_id:null, invoice_id:null, sales_person:$('#nd-sp').value||'', territory:$('#nd-terr').value||'', lost_reason:'', notes:$('#nd-notes').value.trim() };
   
   if (supabase) {
     const { error } = await supabase.from('crm_deals').insert(newDeal);
-    if (error) { showToast('Error saving','error'); return; }
+    if (error) { window.showToast('Error saving','error'); return; }
   }
   DATA.deals.push(newDeal);
-  closeModal(); showToast('Deal saved','success'); rerenderSection();
+  closeModal(); window.showToast('Deal saved','success'); rerenderSection();
 }
 
 /* ── CRM TASKS ── */
@@ -5869,15 +5869,15 @@ function openNewTaskModal() {
 
 async function submitNewTask() {
   const desc=$('#nt-desc').value.trim();
-  if(!desc){showToast('Description required','error');return;}
+  if(!desc){window.showToast('Description required','error');return;}
   const newTask = { id:'TSK-'+Date.now(), description:desc, due_date:$('#nt-due').value||null, status:'pending' };
   
   if (supabase) {
     const { error } = await supabase.from('crm_tasks').insert(newTask);
-    if (error) { showToast('Error saving','error'); return; }
+    if (error) { window.showToast('Error saving','error'); return; }
   }
   DATA.tasks.push(newTask);
-  closeModal(); showToast('Task added','success'); rerenderSection();
+  closeModal(); window.showToast('Task added','success'); rerenderSection();
 }
 
 /* ── CRM FIELD SERVICE LOGS ── */
@@ -5916,7 +5916,7 @@ function openNewFSLModal() {
 
 async function submitNewFSL() {
   const customer = $('#fsl-customer').value.trim();
-  if(!customer) { showToast('Customer is required','error'); return; }
+  if(!customer) { window.showToast('Customer is required','error'); return; }
   const log = {
     id:'FSL-'+Date.now(),
     date: $('#fsl-date').value || new Date().toISOString().split('T')[0],
@@ -5928,7 +5928,7 @@ async function submitNewFSL() {
   if(!DATA.fieldServiceLogs) DATA.fieldServiceLogs = [];
   if(supabase) await supabase.from('crm_field_service_logs').insert(log).then(({error:_})=>_&&supabaseCatch(_));
   DATA.fieldServiceLogs.push(log);
-  closeModal(); showToast('Log created','success'); rerenderSection();
+  closeModal(); window.showToast('Log created','success'); rerenderSection();
 }
 
 /* ── CRM PARTNERS / JVs ── */
@@ -5972,7 +5972,7 @@ function openNewPartnerModal() {
 }
 function submitNewPartner() {
   const name = document.getElementById('partnerName')?.value?.trim();
-  if(!name) { showToast('Partner name is required','error'); return; }
+  if(!name) { window.showToast('Partner name is required','error'); return; }
   const id = 'PRT-' + String(DATA.partners.length + 1).padStart(3,'0');
   DATA.partners.push({
     id,
@@ -5987,7 +5987,7 @@ function submitNewPartner() {
     createdDate: new Date().toISOString().split('T')[0]
   });
   closeModal();
-  showToast('Partner added','success');
+  window.showToast('Partner added','success');
   rerenderSection();
 }
 function renderCRMPartners() {
@@ -6107,7 +6107,7 @@ async function submitContact() {
   const editId = $('#con-edit-id').value;
   const first = $('#con-first').value.trim();
   const last = $('#con-last').value.trim();
-  if (!first || !last) { showToast('First and last name are required', 'error'); return; }
+  if (!first || !last) { window.showToast('First and last name are required', 'error'); return; }
   const obj = {
     account_id: $('#con-acct').value || null,
     salutation: $('#con-sal').value,
@@ -6125,12 +6125,12 @@ async function submitContact() {
   if (editId) {
     Object.assign(DATA.contacts.find(x => x.id === editId), obj);
     if (supabase) await supabase.from('crm_contacts').update(obj).eq('id', editId).then(({error:_})=>_&&supabaseCatch(_));
-    showToast('Contact updated', 'success');
+    window.showToast('Contact updated', 'success');
   } else {
     obj.id = 'CON-' + Date.now();
     DATA.contacts.push(obj);
     if (supabase) await supabase.from('crm_contacts').insert(obj).then(({error:_})=>_&&supabaseCatch(_));
-    showToast('Contact saved', 'success');
+    window.showToast('Contact saved', 'success');
   }
   closeModal();
   rerenderSection();
@@ -6141,7 +6141,7 @@ async function deleteContact(id) {
   if (!confirm('Delete this contact?')) return;
   DATA.contacts = DATA.contacts.filter(c => c.id !== id);
   if (supabase) await supabase.from('crm_contacts').delete().eq('id', id).then(({error:_})=>_&&supabaseCatch(_));
-  showToast('Contact deleted', 'success');
+  window.showToast('Contact deleted', 'success');
   rerenderSection();
 }
 
@@ -6277,7 +6277,7 @@ window.recalcQtnTotals = () => {
 async function submitQuotation() {
   const editId = $('#qtn-edit-id').value;
   const acctId = $('#qtn-acct').value;
-  if (!acctId) { showToast('Account is required', 'error'); return; }
+  if (!acctId) { window.showToast('Account is required', 'error'); return; }
   const acct = DATA.accounts.find(a => a.id === acctId);
   const container = $('#qtn-items-container');
   const items = [];
@@ -6288,7 +6288,7 @@ async function submitQuotation() {
     const rate = parseFloat($('#qtn-item-' + i + '-rate')?.value) || 0;
     items.push({ item, description: ($('#qtn-item-' + i + '-desc')?.value || '').trim(), qty, rate, amount: qty * rate });
   });
-  if (!items.length) { showToast('At least one line item is required', 'error'); return; }
+  if (!items.length) { window.showToast('At least one line item is required', 'error'); return; }
   const subtotal = items.reduce((s, i) => s + i.amount, 0);
   const taxRate = parseFloat($('#qtn-tax')?.value) || 0;
   const discPct = parseFloat($('#qtn-disc-pct')?.value) || 0;
@@ -6313,12 +6313,12 @@ async function submitQuotation() {
   if (editId) {
     Object.assign(DATA.quotations.find(x => x.id === editId), obj);
     if (supabase) await supabase.from('crm_quotations').update(obj).eq('id', editId).then(({error:_})=>_&&supabaseCatch(_));
-    showToast('Quotation updated', 'success');
+    window.showToast('Quotation updated', 'success');
   } else {
     obj.id = 'QTN-' + Date.now();
     DATA.quotations.push(obj);
     if (supabase) await supabase.from('crm_quotations').insert(obj).then(({error:_})=>_&&supabaseCatch(_));
-    showToast('Quotation created', 'success');
+    window.showToast('Quotation created', 'success');
   }
   closeModal();
   rerenderSection();
@@ -6355,7 +6355,7 @@ window.viewQuotation = (id) => {
 
 window.sendQuotation = async (id) => {
   const q = DATA.quotations.find(x => x.id === id);
-  if (q) { q.status = 'Sent'; if (supabase) await supabase.from('crm_quotations').update({ status: 'Sent' }).eq('id', id).then(({error:_})=>_&&supabaseCatch(_)); showToast('Quotation marked as Sent', 'success'); rerenderSection(); }
+  if (q) { q.status = 'Sent'; if (supabase) await supabase.from('crm_quotations').update({ status: 'Sent' }).eq('id', id).then(({error:_})=>_&&supabaseCatch(_)); window.showToast('Quotation marked as Sent', 'success'); rerenderSection(); }
 };
 
 window.convertQuotationToInvoice = async (id) => {
@@ -6371,7 +6371,7 @@ window.convertQuotationToInvoice = async (id) => {
   };
   DATA.invoices.push(newInv);
   if (supabase) await supabase.from('fin_invoices').insert(newInv).then(({error:_})=>_&&supabaseCatch(_));
-  showToast('Invoice ' + newInv.id + ' created from ' + q.id, 'success');
+  window.showToast('Invoice ' + newInv.id + ' created from ' + q.id, 'success');
   rerenderSection();
 };
 
@@ -6380,7 +6380,7 @@ window.deleteQuotation = async (id) => {
   if (!confirm('Delete this quotation?')) return;
   DATA.quotations = DATA.quotations.filter(q => q.id !== id);
   if (supabase) await supabase.from('crm_quotations').delete().eq('id', id).then(({error:_})=>_&&supabaseCatch(_));
-  showToast('Quotation deleted', 'success');
+  window.showToast('Quotation deleted', 'success');
   rerenderSection();
 };
 
@@ -6456,7 +6456,7 @@ window.editProspect = (id) => openNewProspectModal(id);
 async function submitProspect() {
   const editId = $('#pro-edit-id').value;
   const company = $('#pro-company').value.trim();
-  if (!company) { showToast('Company name is required', 'error'); return; }
+  if (!company) { window.showToast('Company name is required', 'error'); return; }
   const obj = {
     company_name: company,
     industry: $('#pro-industry').value.trim(),
@@ -6472,12 +6472,12 @@ async function submitProspect() {
   if (editId) {
     Object.assign(DATA.prospects.find(x => x.id === editId), obj);
     if (supabase) await supabase.from('crm_prospects').update(obj).eq('id', editId).then(({error:_})=>_&&supabaseCatch(_));
-    showToast('Prospect updated', 'success');
+    window.showToast('Prospect updated', 'success');
   } else {
     obj.id = 'PRO-' + Date.now();
     DATA.prospects.push(obj);
     if (supabase) await supabase.from('crm_prospects').insert(obj).then(({error:_})=>_&&supabaseCatch(_));
-    showToast('Prospect saved', 'success');
+    window.showToast('Prospect saved', 'success');
   }
   closeModal();
   rerenderSection();
@@ -6493,7 +6493,7 @@ window.convertProspectToLead = async (id) => {
     await supabase.from('crm_leads').insert(newLead).then(({error:_})=>_&&supabaseCatch(_));
     await supabase.from('crm_prospects').update({ status: 'Converted' }).eq('id', id).then(({error:_})=>_&&supabaseCatch(_));
   }
-  showToast('Prospect converted to Lead: ' + newLead.id, 'success');
+  window.showToast('Prospect converted to Lead: ' + newLead.id, 'success');
   rerenderSection();
 };
 
@@ -6502,7 +6502,7 @@ window.deleteProspect = async (id) => {
   if (!confirm('Delete this prospect?')) return;
   DATA.prospects = DATA.prospects.filter(p => p.id !== id);
   if (supabase) await supabase.from('crm_prospects').delete().eq('id', id).then(({error:_})=>_&&supabaseCatch(_));
-  showToast('Prospect deleted', 'success');
+  window.showToast('Prospect deleted', 'success');
   rerenderSection();
 };
 
@@ -6617,11 +6617,11 @@ async function submitComm() {
     sender: $('#comm-sender').value.trim() || 'Current User',
     recipients: $('#comm-recipients').value.trim(),
   };
-  if (!obj.subject && !obj.content) { showToast('Subject or content required', 'error'); return; }
+  if (!obj.subject && !obj.content) { window.showToast('Subject or content required', 'error'); return; }
   DATA.communications.push(obj);
   if (supabase) await supabase.from('crm_communications').insert(obj).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
-  showToast('Communication logged', 'success');
+  window.showToast('Communication logged', 'success');
   rerenderSection();
 }
 
@@ -6658,7 +6658,7 @@ function renderCRMLeads() {
 window.convertLeadToAccount = async (id) => {
   const lead = DATA.leads.find(x => x.id === id);
   if (!lead) return;
-  if (DATA.accounts.find(a => a.name === lead.name)) { showToast('Account with this name already exists', 'warning'); return; }
+  if (DATA.accounts.find(a => a.name === lead.name)) { window.showToast('Account with this name already exists', 'warning'); return; }
   const newAcct = {
     id: 'ACC-' + Date.now(),
     name: lead.name,
@@ -6709,7 +6709,7 @@ window.convertLeadToAccount = async (id) => {
     await supabase.from('crm_contacts').insert(newContact).then(({error:_})=>_&&supabaseCatch(_));
     await supabase.from('crm_deals').insert(newDeal).then(({error:_})=>_&&supabaseCatch(_));
   }
-  showToast('Lead converted: Account ' + newAcct.id + ', Contact, and Deal created', 'success');
+  window.showToast('Lead converted: Account ' + newAcct.id + ', Contact, and Deal created', 'success');
   rerenderSection();
 };
 
@@ -6718,7 +6718,7 @@ window.deleteLead = async (id) => {
   if (!confirm('Delete this lead?')) return;
   DATA.leads = DATA.leads.filter(l => l.id !== id);
   if (supabase) await supabase.from('crm_leads').delete().eq('id', id).then(({error:_})=>_&&supabaseCatch(_));
-  showToast('Lead deleted', 'success');
+  window.showToast('Lead deleted', 'success');
   rerenderSection();
 };
 
@@ -7038,10 +7038,10 @@ async function hrCheckIn() {
   
   if (supabase) {
     const { error } = await supabase.from('hr_attendance').insert(rec);
-    if (error) { showToast('Error saving','error'); return; }
+    if (error) { window.showToast('Error saving','error'); return; }
   }
   DATA.attendance.push(rec);
-  showToast('Checked in successfully!','success'); rerenderSection();
+  window.showToast('Checked in successfully!','success'); rerenderSection();
 }
 
 async function hrCheckOut() {
@@ -7053,7 +7053,7 @@ async function hrCheckOut() {
   if(myAtt) {
     myAtt.check_out_time = time;
     if(supabase) await supabase.from('hr_attendance').update({check_out_time:time}).eq('id', myAtt.id);
-    showToast('Checked out successfully!','success'); rerenderSection();
+    window.showToast('Checked out successfully!','success'); rerenderSection();
   }
 }
 
@@ -7080,13 +7080,13 @@ function openNewAbsenceModal() {
 async function submitNewAbsence() {
   const empId = document.getElementById('abs-emp')?.value;
   const date = document.getElementById('abs-date')?.value;
-  if(!empId||!date){showToast('Employee and date required','error');return;}
+  if(!empId||!date){window.showToast('Employee and date required','error');return;}
   const id='ABS-'+Date.now();
   const rec={id,employee_id:empId,date,status:document.getElementById('abs-type')?.value||'Absent',check_in_time:null,check_out_time:null};
   DATA.attendance.push(rec);
   if(supabase) await supabase.from('hr_attendance').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
-  showToast('Absence recorded','success');
+  window.showToast('Absence recorded','success');
   rerenderSection();
 }
 
@@ -7156,14 +7156,14 @@ function openNewPositionModal() {
 
 async function submitNewPosition() {
   const title=$('#nop-title').value.trim();
-  if(!title){showToast('Title required','error');return;}
+  if(!title){window.showToast('Title required','error');return;}
   const newPos = { id:'OP-'+Date.now(), title, department:$('#nop-dept').value, status:'Open', posted_date:new Date().toISOString().split('T')[0] };
   if(supabase) {
     const {error} = await supabase.from('hr_open_positions').insert(newPos);
-    if(error){showToast('Error saving','error'); return;}
+    if(error){window.showToast('Error saving','error'); return;}
   }
   DATA.openPositions.push(newPos);
-  closeModal(); showToast('Position posted','success'); rerenderSection();
+  closeModal(); window.showToast('Position posted','success'); rerenderSection();
 }
 
 function renderHRPerformanceCycle() {
@@ -7204,14 +7204,14 @@ function openNewReviewModal() {
 
 async function submitNewReview() {
   const period=$('#nr-period').value.trim();
-  if(!period){showToast('Period required','error');return;}
+  if(!period){window.showToast('Period required','error');return;}
   const newRev = { id:'PR-'+Date.now(), employee_name:$('#nr-emp').value, period, rating:$('#nr-rating').value, status:'Completed' };
   if(supabase) {
     const {error} = await supabase.from('hr_performance_reviews').insert(newRev);
-    if(error){showToast('Error saving','error'); return;}
+    if(error){window.showToast('Error saving','error'); return;}
   }
   DATA.performanceReviews.push(newRev);
-  closeModal(); showToast('Review saved','success'); rerenderSection();
+  closeModal(); window.showToast('Review saved','success'); rerenderSection();
 }
 
 /* ── HR: HSE TRAINING ── */
@@ -7238,13 +7238,13 @@ function openNewTrainingModal() {
 async function submitNewTraining() {
   const name = document.getElementById('tr-emp')?.value;
   const course = document.getElementById('tr-course')?.value?.trim();
-  if(!name||!course){showToast('Employee and course required','error');return;}
+  if(!name||!course){window.showToast('Employee and course required','error');return;}
   const id='TR-'+String(DATA.hseTraining.length+1).padStart(3,'0');
   const rec={id,employee_name:name,course,date:document.getElementById('tr-date')?.value||new Date().toISOString().split('T')[0],status:document.getElementById('tr-status')?.value||'Scheduled'};
   DATA.hseTraining.push(rec);
   if(supabase) await supabase.from('hr_hse_training').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
-  showToast('Training record added','success');
+  window.showToast('Training record added','success');
   rerenderSection();
 }
 
@@ -7279,13 +7279,13 @@ function openNewOrgUnitModal() {
 }
 async function submitNewOrgUnit() {
   const name = document.getElementById('ou-name')?.value?.trim();
-  if(!name){showToast('Department name required','error');return;}
+  if(!name){window.showToast('Department name required','error');return;}
   const id='OU-'+String(DATA.orgUnits.length+1).padStart(3,'0');
   const rec={id,name,head_count:parseInt(document.getElementById('ou-hc')?.value)||0,manager:document.getElementById('ou-mgr')?.value||''};
   DATA.orgUnits.push(rec);
   if(supabase) await supabase.from('hr_org_units').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
-  showToast('Org unit added','success');
+  window.showToast('Org unit added','success');
   rerenderSection();
 }
 
@@ -7309,7 +7309,7 @@ function renderHRSettings() {
     <div class="sec-card" style="margin-top:20px"><div class="sec-card-body">
       <div class="form-group"><label class="form-label">Default Probation Period (Days)</label><input class="form-input" type="number" value="90"></div>
       <div class="form-group"><label class="form-label">Auto-Approve Leaves Under (Days)</label><input class="form-input" type="number" value="3"></div>
-      <button class="btn btn-primary" onclick="showToast('Settings saved','success')">Save Settings</button>
+      <button class="btn btn-primary" onclick="window.showToast('Settings saved','success')">Save Settings</button>
     </div></div>
   </div>`;
 }
@@ -7348,15 +7348,15 @@ function openNewExpenseModal() {
 
 async function submitNewExpense() {
   const amt=parseFloat($('#nx-amt').value);
-  if(isNaN(amt)||amt<0){showToast('Valid amount required','error');return;}
+  if(isNaN(amt)||amt<0){window.showToast('Valid amount required','error');return;}
   const newExp = { id:'EXP-'+Date.now(), employee_id:DATA.employees[0]?.id||'EMP-001', date:$('#nx-date').value||new Date().toISOString().split('T')[0], amount:amt, category:$('#nx-cat').value, description:$('#nx-desc').value, status:'Pending' };
   
   if (supabase) {
     const { error } = await supabase.from('hr_expense_claims').insert(newExp);
-    if (error) { showToast('Error saving','error'); return; }
+    if (error) { window.showToast('Error saving','error'); return; }
   }
   DATA.expenses.push(newExp);
-  closeModal(); showToast('Expense submitted','success'); rerenderSection();
+  closeModal(); window.showToast('Expense submitted','success'); rerenderSection();
 }
 
 /* ── HR PAYROLL ── */
@@ -7406,10 +7406,10 @@ async function submitNewSalarySlip() {
   
   if (supabase) {
     const { error } = await supabase.from('hr_salary_slips').insert(newSlip);
-    if (error) { showToast('Error saving','error'); return; }
+    if (error) { window.showToast('Error saving','error'); return; }
   }
   DATA.salarySlips.push(newSlip);
-  closeModal(); showToast('Salary Slip generated','success'); rerenderSection();
+  closeModal(); window.showToast('Salary Slip generated','success'); rerenderSection();
 }
 
 window.approveSalarySlip = async function(id) {
@@ -7427,7 +7427,7 @@ window.approveSalarySlip = async function(id) {
     slip.payment_id = newPay.id;
     if (supabase) await supabase.from('fin_payments').insert(newPay);
     DATA.payments.push(newPay);
-    showToast('Payroll Approved. Payment recorded in Finance.', 'success');
+    window.showToast('Payroll Approved. Payment recorded in Finance.', 'success');
     
     rerenderSection();
   }
@@ -7703,7 +7703,7 @@ function calcInvoiceTotal() {
 
 async function submitNewInvoice(type) {
   const party = $('#ni-party').value.trim();
-  if (!party) { showToast('Please select a party', 'error'); return; }
+  if (!party) { window.showToast('Please select a party', 'error'); return; }
 
   const itemRows = document.querySelectorAll('.ni-item-row');
   const items = [];
@@ -7716,7 +7716,7 @@ async function submitNewInvoice(type) {
     const amt = qty * rate;
     if (item && qty > 0) { items.push({ item, description: '', qty, rate, amount: amt }); subTotal += amt; }
   });
-  if (items.length === 0) { showToast('Add at least one line item', 'error'); return; }
+  if (items.length === 0) { window.showToast('Add at least one line item', 'error'); return; }
 
   const taxSel = document.getElementById('ni-tax');
   const taxId = taxSel ? taxSel.value : '';
@@ -7733,13 +7733,13 @@ async function submitNewInvoice(type) {
 
   if (supabase) {
     const { error } = await supabase.from('fin_invoices').insert(newInv);
-    if (error) { showToast('Error saving', 'error'); return; }
+    if (error) { window.showToast('Error saving', 'error'); return; }
   }
   DATA.invoices.push(newInv);
   const drAccount = newInv.type === 'Sales' ? 'ACC-AR' : 'ACC-OPEX';
   const crAccount = newInv.type === 'Sales' ? 'ACC-REV' : 'ACC-AP';
   autoPostJE(newInv.id, 'Invoice ' + newInv.id + ' auto-posting', [{account_id:drAccount, debit:newInv.total_amount, credit:0},{account_id:crAccount, debit:0, credit:newInv.total_amount}]);
-  closeModal(); showToast('Invoice saved', 'success'); rerenderSection();
+  closeModal(); window.showToast('Invoice saved', 'success'); rerenderSection();
 }
 
 /* ── Aging Reports ── */
@@ -7907,14 +7907,14 @@ function openNewCostCenterModal() {
 }
 async function submitNewCostCenter() {
   const name = document.getElementById('cc-name')?.value?.trim();
-  if(!name){showToast('Cost center name required','error');return;}
+  if(!name){window.showToast('Cost center name required','error');return;}
   const id='CC-'+name.toUpperCase().replace(/[^A-Z]/g,'').slice(0,3)+'-'+String(DATA.costCenters.length+1).padStart(3,'0');
   const rec={id,name,description:document.getElementById('cc-dept')?.value?.trim()||'',manager:'',budget:parseFloat(document.getElementById('cc-budget')?.value)||0};
   const dataRec={id,name,dept:rec.description};
   DATA.costCenters.push(dataRec);
   if(supabase) await supabase.from('fin_cost_centers').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
-  showToast('Cost center added','success');
+  window.showToast('Cost center added','success');
   rerenderSection();
 }
 
@@ -7996,12 +7996,12 @@ async function submitNewChartAccount() {
   const type = $('#nca-type').value;
   const isGroup = $('#nca-group').checked;
   const parentId = $('#nca-parent').value || null;
-  if (!name || !id) { showToast('Name and Code required', 'error'); return; }
-  if (DATA.chartAccounts.find(a => a.id === id)) { showToast('Account code already exists', 'error'); return; }
+  if (!name || !id) { window.showToast('Name and Code required', 'error'); return; }
+  if (DATA.chartAccounts.find(a => a.id === id)) { window.showToast('Account code already exists', 'error'); return; }
   const acc = { id, name, type, parent_id: parentId, is_group: isGroup, balance: 0 };
   if (supabase) supabase.from('fin_chart_accounts').insert(acc).then(({error:_})=>_&&supabaseCatch(_));
   DATA.chartAccounts.push(acc);
-  closeModal(); showToast('Account created', 'success'); rerenderSection();
+  closeModal(); window.showToast('Account created', 'success'); rerenderSection();
 }
 
 /* ── Journal Entries ── */
@@ -8096,7 +8096,7 @@ function calcJETotal() {
 async function submitNewJournalEntry() {
   const date = $('#nje-date').value;
   const desc = $('#nje-desc').value.trim();
-  if (!date || !desc) { showToast('Date and Description required', 'error'); return; }
+  if (!date || !desc) { window.showToast('Date and Description required', 'error'); return; }
 
   const lines = document.querySelectorAll('.je-line');
   const entries = [];
@@ -8111,14 +8111,14 @@ async function submitNewJournalEntry() {
       totalDr += dr; totalCr += cr;
     }
   });
-  if (entries.length === 0) { showToast('Add at least one line', 'error'); return; }
-  if (Math.abs(totalDr - totalCr) > 0.01) { showToast('Debit and Credit must balance', 'error'); return; }
+  if (entries.length === 0) { window.showToast('Add at least one line', 'error'); return; }
+  if (Math.abs(totalDr - totalCr) > 0.01) { window.showToast('Debit and Credit must balance', 'error'); return; }
 
   const ref = $('#nje-ref').value.trim();
   const je = { id: 'JE-' + Date.now(), date, reference: ref || null, description: desc, entries };
   if (supabase) supabase.from('fin_journal_entries').insert(je).then(({error:_})=>_&&supabaseCatch(_));
   DATA.journalEntries.push(je);
-  closeModal(); showToast('Journal entry posted', 'success'); rerenderSection();
+  closeModal(); window.showToast('Journal entry posted', 'success'); rerenderSection();
 }
 
 /* ── Auto-posting: create Journal Entry when invoice or payment is created ── */
@@ -8188,7 +8188,7 @@ function openNewFixedAssetModal(editId) {
 
 async function submitNewFixedAsset(editId) {
   const name = $('#nfa-name').value.trim();
-  if (!name) { showToast('Asset name required', 'error'); return; }
+  if (!name) { window.showToast('Asset name required', 'error'); return; }
   const asset = {
     id: editId || 'FA-' + Date.now(), name, type: $('#nfa-type').value,
     purchase_date: $('#nfa-pdate').value, cost: parseFloat($('#nfa-cost').value) || 0,
@@ -8205,7 +8205,7 @@ async function submitNewFixedAsset(editId) {
     if (idx >= 0) DATA.fixedAssets[idx] = asset;
     if (supabase) supabase.from('fin_fixed_assets').upsert(asset).then(({error:_})=>_&&supabaseCatch(_));
   }
-  closeModal(); showToast(editId ? 'Asset updated' : 'Asset added', 'success'); rerenderSection();
+  closeModal(); window.showToast(editId ? 'Asset updated' : 'Asset added', 'success'); rerenderSection();
 }
 
 function renderFinPayments() {
@@ -8238,7 +8238,7 @@ function openNewPaymentListModal() {
     const paid = DATA.payments.filter(p=>p.invoice_id===i.id).reduce((s,p)=>s+parseFloat(p.amount),0);
     return paid < parseFloat(i.total_amount);
   });
-  if(unpaidInvs.length===0){showToast('No unpaid invoices available','info');return;}
+  if(unpaidInvs.length===0){window.showToast('No unpaid invoices available','info');return;}
   const opts = unpaidInvs.map(i => {
     const bal = parseFloat(i.total_amount) - DATA.payments.filter(p=>p.invoice_id===i.id).reduce((s,p)=>s+parseFloat(p.amount),0);
     return `<option value="${i.id}">${i.id} — ${i.party_name} ($${bal.toLocaleString()} due)</option>`;
@@ -8269,13 +8269,13 @@ function openNewPaymentModal(invoiceId) {
 
 async function submitNewPayment(invoiceId) {
   const amt=parseFloat($('#np-amt').value);
-  if(!amt){showToast('Amount required','error');return;}
+  if(!amt){window.showToast('Amount required','error');return;}
   
   const newPay = { id:'PAY-'+Date.now(), invoice_id:invoiceId, date:new Date().toISOString().split('T')[0], amount:amt, payment_method:$('#np-method').value };
   
   if (supabase) {
     const { error } = await supabase.from('fin_payments').insert(newPay);
-    if (error) { showToast('Error saving payment','error'); return; }
+    if (error) { window.showToast('Error saving payment','error'); return; }
   }
   DATA.payments.push(newPay);
 
@@ -8296,7 +8296,7 @@ async function submitNewPayment(invoiceId) {
     }
   }
 
-  closeModal(); showToast('Payment logged','success'); rerenderSection();
+  closeModal(); window.showToast('Payment logged','success'); rerenderSection();
 }
 
 /* ── EXPOSE TO GLOBAL SCOPE FOR INLINE ONCLICK ── */
@@ -8351,7 +8351,13 @@ window.switchModule = switchModule;
 window.switchSection = switchSection;
 window.sortBy = sortBy;
 window.closeModal = closeModal;
+window.showToast = showToast;
 window.closeDropdown = closeDropdown;
+window.fmt = fmt;
+window.fmtDate = fmtDate;
+window.t = t;
+window.statusPill = statusPill;
+window.supabaseCatch = supabaseCatch;
 window.selectEmployee = selectEmployee;
 window.openNewEmployeeModal = openNewEmployeeModal;
 window.submitNewEmployee = submitNewEmployee;
@@ -8377,6 +8383,12 @@ window.certSetFilter = certSetFilter;
 window.certLoginInspector = certLoginInspector;
 window.certLogoutInspector = certLogoutInspector;
 window.cycleJobStatus = cycleJobStatus;
+window.state = state;
+window.DATA = DATA;
+window.hasRole = hasRole;
+window.requireRoles = requireRoles;
+window.effectiveRoles = effectiveRoles;
+window.getPrimaryRole = getPrimaryRole;
 window.rerenderSection = rerenderSection;
 window.setCertSavedView = setCertSavedView;
 window.certSortTable = certSortTable;
@@ -8429,7 +8441,6 @@ window.openNewQuotationModal = openNewQuotationModal;
 window.submitQuotation = submitQuotation;
 window.openNewProspectModal = openNewProspectModal;
 window.submitProspect = submitProspect;
-window.deleteProspect = deleteProspect;
 window.openNewCommModal = openNewCommModal;
 window.submitComm = submitComm;
 window.openNewPartnerModal = openNewPartnerModal;

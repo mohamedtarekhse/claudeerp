@@ -896,9 +896,10 @@ async function submitLeaveRequest() {
   }
   
   const days = Math.round((new Date(to) - new Date(from))/(1000*60*60*24)) + 1;
-  const newReq = { id:'LR-'+Date.now(), employeeName:empName, type:$('#nl-type').value, startDate:from, endDate:to, days, status:'pending' };
+  const typeVal=$('#nl-type').value;
+  const newReq = { id:'LR-'+Date.now(), employeeName:empName, employee_name:empName, type:typeVal, leave_type:typeVal, startDate:from, start_date:from, endDate:to, end_date:to, days, status:'pending' };
   
-  if(supabase) await supabase.from('leave_requests').insert(newReq);
+  if(supabase) await supabase.from('leave_requests').insert({ id:newReq.id, employee_name:empName, leave_type:typeVal, start_date:from, end_date:to, days, status:'pending' });
   DATA.leaveRequests.push(newReq);
   closeModal(); showToast('Leave requested successfully', 'success'); rerenderSection();
 }
@@ -4102,16 +4103,18 @@ function submitNewQI(editId) {
   const allPass = params.every(p => p.result === 'Pass');
   const anyFail = params.some(p => p.result === 'Fail');
   const status = params.length === 0 ? 'Pending' : anyFail ? 'Failed' : 'Passed';
+  const inspectionType=$('#nqi-type').value, poRef=$('#nqi-po').value||null;
   const qi = {
     id: editId || 'QI-' + String(DATA.qualityInspections.length + 1).padStart(3, '0'),
-    date, itemId, itemName: item ? item.name : itemId,
-    inspectionType: $('#nqi-type').value,
-    poRef: $('#nqi-po').value || null,
+    date, itemId, item_id:itemId, itemName: item ? item.name : itemId, item_name: item ? item.name : itemId,
+    inspectionType, inspection_type:inspectionType,
+    poRef, po_ref:poRef,
     inspector: $('#nqi-inspector').value || 'N/A',
     parameters: params, notes: $('#nqi-notes').value.trim(), status,
   };
-  if (!editId) { DATA.qualityInspections.push(qi); if(supabase) supabase.from('quality_inspections').insert(qi).catch(supabaseCatch); }
-  else { const idx = DATA.qualityInspections.findIndex(q => q.id === editId); DATA.qualityInspections[idx] = qi; if(supabase) supabase.from('quality_inspections').upsert(qi).catch(supabaseCatch); }
+  const dbQi={id:qi.id,date:qi.date,item_id:qi.item_id,item_name:qi.item_name,inspection_type:qi.inspection_type,po_ref:qi.po_ref,inspector:qi.inspector,parameters:qi.parameters,notes:qi.notes,status:qi.status};
+  if (!editId) { DATA.qualityInspections.push(qi); if(supabase) supabase.from('quality_inspections').insert(dbQi).catch(supabaseCatch); }
+  else { const idx = DATA.qualityInspections.findIndex(q => q.id === editId); DATA.qualityInspections[idx] = qi; if(supabase) supabase.from('quality_inspections').upsert(dbQi).catch(supabaseCatch); }
   closeModal(); showToast(editId ? 'Inspection updated' : 'Inspection created', 'success'); rerenderSection();
 }
 
@@ -4197,14 +4200,16 @@ function submitNewLCV(editId) {
     proportion: i.proportion,
     allocated: Math.round((i.proportion / totalProp) * total * 100) / 100,
   }));
+  const poRef=$('#nl-po').value||null;
   const v = {
     id: editId || 'LCV-' + String(DATA.landedCostVouchers.length + 1).padStart(3, '0'),
-    date: $('#nl-date').value, poRef: $('#nl-po').value || null,
+    date: $('#nl-date').value, poRef, po_ref:poRef,
     charges: {freight, insurance, duty, handling},
-    totalCharges: total, distribution: $('#nl-dist').value, items: alloc,
+    totalCharges: total, total_charges:total, distribution: $('#nl-dist').value, items: alloc,
   };
-  if (!editId) { DATA.landedCostVouchers.push(v); if(supabase) supabase.from('landed_cost_vouchers').insert(v).catch(supabaseCatch); }
-  else { const idx = DATA.landedCostVouchers.findIndex(x => x.id === editId); DATA.landedCostVouchers[idx] = v; if(supabase) supabase.from('landed_cost_vouchers').upsert(v).catch(supabaseCatch); }
+  const dbV={id:v.id,date:v.date,po_ref:v.po_ref,charges:v.charges,total_charges:v.total_charges,distribution:v.distribution,items:v.items};
+  if (!editId) { DATA.landedCostVouchers.push(v); if(supabase) supabase.from('landed_cost_vouchers').insert(dbV).catch(supabaseCatch); }
+  else { const idx = DATA.landedCostVouchers.findIndex(x => x.id === editId); DATA.landedCostVouchers[idx] = v; if(supabase) supabase.from('landed_cost_vouchers').upsert(dbV).catch(supabaseCatch); }
   closeModal(); showToast(editId ? 'Voucher updated' : 'Voucher created', 'success'); rerenderSection();
 }
 
@@ -4281,18 +4286,19 @@ function submitNewRR(editId) {
   const itemId = $('#nrr-item').value;
   if (!itemId) { showToast('Select an item', 'error'); return; }
   const item = DATA.inventory.find(i => i.id === itemId);
+  const supplierId=$('#nrr-supplier').value||null, minQty=parseFloat($('#nrr-min').value)||0, maxQty=parseFloat($('#nrr-max').value)||0, leadTimeDays=parseInt($('#nrr-lead').value)||14, autoCreatePO=$('#nrr-auto').checked;
   const r = {
     id: editId || 'RR-' + String(DATA.reorderRules.length + 1).padStart(3, '0'),
-    itemId, itemName: item ? item.name : itemId,
-    supplierId: $('#nrr-supplier').value || null,
-    minQty: parseFloat($('#nrr-min').value) || 0,
-    maxQty: parseFloat($('#nrr-max').value) || 0,
-    leadTimeDays: parseInt($('#nrr-lead').value) || 14,
-    autoCreatePO: $('#nrr-auto').checked,
-    lastTriggered: null,
+    itemId, item_id:itemId, itemName: item ? item.name : itemId, item_name: item ? item.name : itemId,
+    supplierId, supplier_id:supplierId,
+    minQty, min_qty:minQty, maxQty, max_qty:maxQty,
+    leadTimeDays, lead_time_days:leadTimeDays,
+    autoCreatePO, auto_create_po:autoCreatePO,
+    lastTriggered: null, last_triggered:null,
   };
-  if (!editId) { DATA.reorderRules.push(r); if(supabase) supabase.from('reorder_rules').insert(r).catch(supabaseCatch); }
-  else { const idx = DATA.reorderRules.findIndex(x => x.id === editId); DATA.reorderRules[idx] = r; if(supabase) supabase.from('reorder_rules').upsert(r).catch(supabaseCatch); }
+  const dbR={id:r.id,item_id:r.item_id,item_name:r.item_name,supplier_id:r.supplier_id,min_qty:r.min_qty,max_qty:r.max_qty,lead_time_days:r.lead_time_days,auto_create_po:r.auto_create_po,last_triggered:r.last_triggered};
+  if (!editId) { DATA.reorderRules.push(r); if(supabase) supabase.from('reorder_rules').insert(dbR).catch(supabaseCatch); }
+  else { const idx = DATA.reorderRules.findIndex(x => x.id === editId); DATA.reorderRules[idx] = r; if(supabase) supabase.from('reorder_rules').upsert(dbR).catch(supabaseCatch); }
   closeModal(); showToast(editId ? 'Rule updated' : 'Rule added', 'success'); rerenderSection();
 }
 
@@ -4311,9 +4317,9 @@ function autoGenerateMR() {
       notes: `Auto-generated — below min qty (${item.qtyOnHand} < ${r.minQty})`,
     };
     DATA.materialRequests.push(mr);
-    r.lastTriggered = new Date().toISOString().slice(0,10);
+    const ts=new Date().toISOString().slice(0,10); r.lastTriggered=ts; r.last_triggered=ts;
     if (supabase) supabase.from('material_requests').insert(mr).catch(supabaseCatch);
-    if (supabase) supabase.from('reorder_rules').upsert(r).catch(supabaseCatch);
+    if (supabase) supabase.from('reorder_rules').upsert({id:r.id,item_id:r.item_id||r.itemId,item_name:r.item_name||r.itemName,supplier_id:r.supplier_id||r.supplierId,min_qty:r.min_qty||r.minQty,max_qty:r.max_qty||r.maxQty,lead_time_days:r.lead_time_days||r.leadTimeDays,auto_create_po:r.auto_create_po||r.autoCreatePO,last_triggered:r.last_triggered||r.lastTriggered}).catch(supabaseCatch);
     created.push(`${item.name} (${reorderQty} ${item.uom})`);
   });
   if (created.length === 0) { showToast('No items below reorder point', 'info'); return; }
@@ -5589,6 +5595,27 @@ function hideLoading() { document.getElementById('loadingOverlay').classList.add
 async function initializeApp() {
   if (_appInitialized) { hideLoading(); return; }
   _appInitialized = true;
+
+  // Load user roles from database on login
+  if (supabase) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('roles, display_name')
+          .eq('id', session.user.id)
+          .single();
+        if (profile?.roles?.length) {
+          state.roles = profile.roles;
+          const priority = ['system_admin','hr_manager','crm_manager','sc_manager','fin_manager','hr_user','crm_user','sc_user','fin_user','employee'];
+          const sorted = [...state.roles].sort((a,b)=>priority.indexOf(a)-priority.indexOf(b));
+          state.currentUserRole = Object.keys(ROLE_KEY_MAP).find(k=>ROLE_KEY_MAP[k]===sorted[0])||'Employee';
+        }
+      }
+    } catch(e) { console.warn('Could not load user profile:', e); }
+  }
+
   document.getElementById('loadingOverlay').classList.remove('hidden');
   document.getElementById('authOverlay').classList.add('hidden');
   await loadData();

@@ -2396,7 +2396,7 @@ function certExportPDF(){
 function deleteCert(id){
   const idx=DATA.certificates.findIndex(x=>x.id===id);
   if(idx>-1)DATA.certificates.splice(idx,1);
-  if(supabase) supabase.from('certificates').delete().eq('id',id).catch(supabaseCatch);
+  if(supabase) supabase.from('certificates').delete().eq('id',id).then(({error:_})=>_&&supabaseCatch(_));
   showToast(`Certificate ${id} deleted`,'success');
   rerenderSection();
 }
@@ -2489,7 +2489,7 @@ function approveCert(id){
   const c=DATA.certificates.find(x=>x.id===id);
   if(!c)return;
   c.approvalStatus='approved';
-  if(supabase) supabase.from('certificates').update({approval_status:'approved'}).eq('id',id).catch(supabaseCatch);
+  if(supabase) supabase.from('certificates').update({approval_status:'approved'}).eq('id',id).then(({error:_})=>_&&supabaseCatch(_));
   showToast(`Certificate ${id} approved`,'success');
   closeCertDrawer();
   rerenderSection();
@@ -2516,7 +2516,7 @@ function confirmCertReject(){
   if(!reason){showToast('Please provide a rejection reason','error');return;}
   const c=DATA.certificates.find(x=>x.id===certRejectTargetId);
   if(c){c.approvalStatus='rejected';c.rejectionReason=reason;}
-  if(supabase) supabase.from('certificates').update({approval_status:'rejected',rejection_reason:reason}).eq('id',certRejectTargetId).catch(supabaseCatch);
+  if(supabase) supabase.from('certificates').update({approval_status:'rejected',rejection_reason:reason}).eq('id',certRejectTargetId).then(({error:_})=>_&&supabaseCatch(_));
   showToast(`Certificate ${certRejectTargetId} rejected`,'warning');
   closeCertRejectModal();
   closeCertDrawer();
@@ -3727,7 +3727,7 @@ async function submitNewSupplier() {
   const id='SUP-'+String(DATA.suppliers.length+1).padStart(3,'0');
   const rec={id,name,category:document.getElementById('sup-cat')?.value||'Other',contact_person:document.getElementById('sup-contact')?.value?.trim()||'',email:document.getElementById('sup-email')?.value?.trim()||'',phone:document.getElementById('sup-phone')?.value?.trim()||'',country:document.getElementById('sup-country')?.value?.trim()||'Oman',rating:0,status:'active'};
   DATA.suppliers.push(rec);
-  if(supabase) await supabase.from('suppliers').insert(rec).catch(supabaseCatch);
+  if(supabase) await supabase.from('suppliers').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
   showToast('Supplier added','success');
   rerenderSection();
@@ -3876,7 +3876,7 @@ async function submitNewWarehouse() {
   const id='WH-'+String(DATA.warehouses.length+1).padStart(3,'0');
   const rec={id,name,location:document.getElementById('wh-loc')?.value?.trim()||'',manager_id:document.getElementById('wh-mgr')?.value||'',capacity_used:0,capacity_total:parseInt(document.getElementById('wh-cap')?.value)||1000,status:document.getElementById('wh-status')?.value||'Active'};
   DATA.warehouses.push(rec);
-  if(supabase) await supabase.from('warehouses').insert(rec).catch(supabaseCatch);
+  if(supabase) await supabase.from('warehouses').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
   showToast('Warehouse added','success');
   rerenderSection();
@@ -4022,7 +4022,7 @@ function submitNewInventory() {
     has_variants: false,
   };
   DATA.inventory.push(item);
-  if (supabase) supabase.from('inventory').insert(item).catch(supabaseCatch);
+  if (supabase) supabase.from('inventory').insert(item).then(({error:_})=>_&&supabaseCatch(_));
   closeModal(); showToast('Item added', 'success'); rerenderSection();
 }
 
@@ -4113,8 +4113,8 @@ function submitNewQI(editId) {
     parameters: params, notes: $('#nqi-notes').value.trim(), status,
   };
   const dbQi={id:qi.id,date:qi.date,item_id:qi.item_id,item_name:qi.item_name,inspection_type:qi.inspection_type,po_ref:qi.po_ref,inspector:qi.inspector,parameters:qi.parameters,notes:qi.notes,status:qi.status};
-  if (!editId) { DATA.qualityInspections.push(qi); if(supabase) supabase.from('quality_inspections').insert(dbQi).catch(supabaseCatch); }
-  else { const idx = DATA.qualityInspections.findIndex(q => q.id === editId); DATA.qualityInspections[idx] = qi; if(supabase) supabase.from('quality_inspections').upsert(dbQi).catch(supabaseCatch); }
+  if (!editId) { DATA.qualityInspections.push(qi); if(supabase) supabase.from('quality_inspections').insert(dbQi).then(({error:_})=>_&&supabaseCatch(_)); }
+  else { const idx = DATA.qualityInspections.findIndex(q => q.id === editId); DATA.qualityInspections[idx] = qi; if(supabase) supabase.from('quality_inspections').upsert(dbQi).then(({error:_})=>_&&supabaseCatch(_)); }
   closeModal(); showToast(editId ? 'Inspection updated' : 'Inspection created', 'success'); rerenderSection();
 }
 
@@ -4208,8 +4208,8 @@ function submitNewLCV(editId) {
     totalCharges: total, total_charges:total, distribution: $('#nl-dist').value, items: alloc,
   };
   const dbV={id:v.id,date:v.date,po_ref:v.po_ref,charges:v.charges,total_charges:v.total_charges,distribution:v.distribution,items:v.items};
-  if (!editId) { DATA.landedCostVouchers.push(v); if(supabase) supabase.from('landed_cost_vouchers').insert(dbV).catch(supabaseCatch); }
-  else { const idx = DATA.landedCostVouchers.findIndex(x => x.id === editId); DATA.landedCostVouchers[idx] = v; if(supabase) supabase.from('landed_cost_vouchers').upsert(dbV).catch(supabaseCatch); }
+  if (!editId) { DATA.landedCostVouchers.push(v); if(supabase) supabase.from('landed_cost_vouchers').insert(dbV).then(({error:_})=>_&&supabaseCatch(_)); }
+  else { const idx = DATA.landedCostVouchers.findIndex(x => x.id === editId); DATA.landedCostVouchers[idx] = v; if(supabase) supabase.from('landed_cost_vouchers').upsert(dbV).then(({error:_})=>_&&supabaseCatch(_)); }
   closeModal(); showToast(editId ? 'Voucher updated' : 'Voucher created', 'success'); rerenderSection();
 }
 
@@ -4297,8 +4297,8 @@ function submitNewRR(editId) {
     lastTriggered: null, last_triggered:null,
   };
   const dbR={id:r.id,item_id:r.item_id,item_name:r.item_name,supplier_id:r.supplier_id,min_qty:r.min_qty,max_qty:r.max_qty,lead_time_days:r.lead_time_days,auto_create_po:r.auto_create_po,last_triggered:r.last_triggered};
-  if (!editId) { DATA.reorderRules.push(r); if(supabase) supabase.from('reorder_rules').insert(dbR).catch(supabaseCatch); }
-  else { const idx = DATA.reorderRules.findIndex(x => x.id === editId); DATA.reorderRules[idx] = r; if(supabase) supabase.from('reorder_rules').upsert(dbR).catch(supabaseCatch); }
+  if (!editId) { DATA.reorderRules.push(r); if(supabase) supabase.from('reorder_rules').insert(dbR).then(({error:_})=>_&&supabaseCatch(_)); }
+  else { const idx = DATA.reorderRules.findIndex(x => x.id === editId); DATA.reorderRules[idx] = r; if(supabase) supabase.from('reorder_rules').upsert(dbR).then(({error:_})=>_&&supabaseCatch(_)); }
   closeModal(); showToast(editId ? 'Rule updated' : 'Rule added', 'success'); rerenderSection();
 }
 
@@ -4318,8 +4318,8 @@ function autoGenerateMR() {
     };
     DATA.materialRequests.push(mr);
     const ts=new Date().toISOString().slice(0,10); r.lastTriggered=ts; r.last_triggered=ts;
-    if (supabase) supabase.from('material_requests').insert(mr).catch(supabaseCatch);
-    if (supabase) supabase.from('reorder_rules').upsert({id:r.id,item_id:r.item_id||r.itemId,item_name:r.item_name||r.itemName,supplier_id:r.supplier_id||r.supplierId,min_qty:r.min_qty||r.minQty,max_qty:r.max_qty||r.maxQty,lead_time_days:r.lead_time_days||r.leadTimeDays,auto_create_po:r.auto_create_po||r.autoCreatePO,last_triggered:r.last_triggered||r.lastTriggered}).catch(supabaseCatch);
+    if (supabase) supabase.from('material_requests').insert(mr).then(({error:_})=>_&&supabaseCatch(_));
+    if (supabase) supabase.from('reorder_rules').upsert({id:r.id,item_id:r.item_id||r.itemId,item_name:r.item_name||r.itemName,supplier_id:r.supplier_id||r.supplierId,min_qty:r.min_qty||r.minQty,max_qty:r.max_qty||r.maxQty,lead_time_days:r.lead_time_days||r.leadTimeDays,auto_create_po:r.auto_create_po||r.autoCreatePO,last_triggered:r.last_triggered||r.lastTriggered}).then(({error:_})=>_&&supabaseCatch(_));
     created.push(`${item.name} (${reorderQty} ${item.uom})`);
   });
   if (created.length === 0) { showToast('No items below reorder point', 'info'); return; }
@@ -4449,8 +4449,8 @@ function recordStockMovement(itemId, type, qty, uom, refType, refId, unitCost, n
     supabase.from('stock_ledger').insert({
       id:entry.id, item_id:itemId, movement_type:type, quantity:qty, uom:entry.uom,
       ref_type:refType, ref_id:refId, date:entry.date, unit_cost:unitCost, notes
-    }).catch(supabaseCatch);
-    supabase.from('inventory').update({stock_level:item.qtyOnHand,last_received:item.lastReceived,status:item.status}).eq('id',itemId).catch(supabaseCatch);
+    }).then(({error:_})=>_&&supabaseCatch(_));
+    supabase.from('inventory').update({stock_level:item.qtyOnHand,last_received:item.lastReceived,status:item.status}).eq('id',itemId).then(({error:_})=>_&&supabaseCatch(_));
   }
   return entry;
 }
@@ -4769,7 +4769,7 @@ async function submitNewMR(){
     const{error}=await supabase.from('material_requests').insert({
       id:newId,title,status:'draft',priority:mr.priority,
       department:mr.department,site:mr.site,requested_by:mr.requestedBy,required_date:mr.requiredDate,notes:mr.notes
-    }).catch(supabaseCatch);
+    }).then(({error:_})=>_&&supabaseCatch(_));
   }
   DATA.materialRequests.push(mr);
   mrItemRowCount=1;
@@ -4782,7 +4782,7 @@ async function approveMR(id){
   if(!mr) return showToast('Not found','error');
   if(mr.status!=='draft'&&mr.status!=='pending') return showToast('Can only approve draft/pending requests','error');
   mr.status='approved'; mr.approvedBy=DATA.employees[0]?.name||'Manager'; mr.approvedDate=new Date().toISOString().split('T')[0];
-  if(supabase) supabase.from('material_requests').update({status:'approved',approved_by:mr.approvedBy,approved_date:mr.approvedDate}).eq('id',id).catch(supabaseCatch);
+  if(supabase) supabase.from('material_requests').update({status:'approved',approved_by:mr.approvedBy,approved_date:mr.approvedDate}).eq('id',id).then(({error:_})=>_&&supabaseCatch(_));
   showToast(id+' approved','success'); rerenderSection();
 }
 
@@ -4790,7 +4790,7 @@ async function rejectMR(id){
   const mr=DATA.materialRequests.find(m=>m.id===id);
   if(!mr||mr.status!=='pending') return showToast('Can only reject pending requests','error');
   mr.status='rejected';
-  if(supabase) supabase.from('material_requests').update({status:'rejected'}).eq('id',id).catch(supabaseCatch);
+  if(supabase) supabase.from('material_requests').update({status:'rejected'}).eq('id',id).then(({error:_})=>_&&supabaseCatch(_));
   showToast(id+' rejected','warning'); rerenderSection();
 }
 
@@ -4814,8 +4814,8 @@ async function convertMRtoPO(id){
   DATA.purchaseOrders.push(po);
   mr.poRef=poId;
   if(supabase){
-    supabase.from('purchase_orders').insert({id:poId,supplier_name:po.supplier,description:po.description,total_amount:estTotal,status:'draft',priority:mr.priority,site:mr.site,requested_by:mr.requestedBy,order_date:po.createdDate}).catch(supabaseCatch);
-    supabase.from('material_requests').update({po_ref:poId}).eq('id',id).catch(supabaseCatch);
+    supabase.from('purchase_orders').insert({id:poId,supplier_name:po.supplier,description:po.description,total_amount:estTotal,status:'draft',priority:mr.priority,site:mr.site,requested_by:mr.requestedBy,order_date:po.createdDate}).then(({error:_})=>_&&supabaseCatch(_));
+    supabase.from('material_requests').update({po_ref:poId}).eq('id',id).then(({error:_})=>_&&supabaseCatch(_));
   }
   showToast(poId+' created from '+mr.id,'success');
   state.selectedId=poId; state.section='allPOs'; state.detailTab='info';
@@ -5926,7 +5926,7 @@ async function submitNewFSL() {
     status: $('#fsl-status').value
   };
   if(!DATA.fieldServiceLogs) DATA.fieldServiceLogs = [];
-  if(supabase) await supabase.from('crm_field_service_logs').insert(log).catch(supabaseCatch);
+  if(supabase) await supabase.from('crm_field_service_logs').insert(log).then(({error:_})=>_&&supabaseCatch(_));
   DATA.fieldServiceLogs.push(log);
   closeModal(); showToast('Log created','success'); rerenderSection();
 }
@@ -6124,12 +6124,12 @@ async function submitContact() {
   };
   if (editId) {
     Object.assign(DATA.contacts.find(x => x.id === editId), obj);
-    if (supabase) await supabase.from('crm_contacts').update(obj).eq('id', editId).catch(supabaseCatch);
+    if (supabase) await supabase.from('crm_contacts').update(obj).eq('id', editId).then(({error:_})=>_&&supabaseCatch(_));
     showToast('Contact updated', 'success');
   } else {
     obj.id = 'CON-' + Date.now();
     DATA.contacts.push(obj);
-    if (supabase) await supabase.from('crm_contacts').insert(obj).catch(supabaseCatch);
+    if (supabase) await supabase.from('crm_contacts').insert(obj).then(({error:_})=>_&&supabaseCatch(_));
     showToast('Contact saved', 'success');
   }
   closeModal();
@@ -6140,7 +6140,7 @@ async function deleteContact(id) {
   if(!requireRoles(['crm_manager','system_admin'],'Access denied: Requires CRM Manager')) return;
   if (!confirm('Delete this contact?')) return;
   DATA.contacts = DATA.contacts.filter(c => c.id !== id);
-  if (supabase) await supabase.from('crm_contacts').delete().eq('id', id).catch(supabaseCatch);
+  if (supabase) await supabase.from('crm_contacts').delete().eq('id', id).then(({error:_})=>_&&supabaseCatch(_));
   showToast('Contact deleted', 'success');
   rerenderSection();
 }
@@ -6312,12 +6312,12 @@ async function submitQuotation() {
   };
   if (editId) {
     Object.assign(DATA.quotations.find(x => x.id === editId), obj);
-    if (supabase) await supabase.from('crm_quotations').update(obj).eq('id', editId).catch(supabaseCatch);
+    if (supabase) await supabase.from('crm_quotations').update(obj).eq('id', editId).then(({error:_})=>_&&supabaseCatch(_));
     showToast('Quotation updated', 'success');
   } else {
     obj.id = 'QTN-' + Date.now();
     DATA.quotations.push(obj);
-    if (supabase) await supabase.from('crm_quotations').insert(obj).catch(supabaseCatch);
+    if (supabase) await supabase.from('crm_quotations').insert(obj).then(({error:_})=>_&&supabaseCatch(_));
     showToast('Quotation created', 'success');
   }
   closeModal();
@@ -6355,7 +6355,7 @@ window.viewQuotation = (id) => {
 
 window.sendQuotation = async (id) => {
   const q = DATA.quotations.find(x => x.id === id);
-  if (q) { q.status = 'Sent'; if (supabase) await supabase.from('crm_quotations').update({ status: 'Sent' }).eq('id', id).catch(supabaseCatch); showToast('Quotation marked as Sent', 'success'); rerenderSection(); }
+  if (q) { q.status = 'Sent'; if (supabase) await supabase.from('crm_quotations').update({ status: 'Sent' }).eq('id', id).then(({error:_})=>_&&supabaseCatch(_)); showToast('Quotation marked as Sent', 'success'); rerenderSection(); }
 };
 
 window.convertQuotationToInvoice = async (id) => {
@@ -6370,7 +6370,7 @@ window.convertQuotationToInvoice = async (id) => {
     items: q.items.map(it => ({ ...it }))
   };
   DATA.invoices.push(newInv);
-  if (supabase) await supabase.from('fin_invoices').insert(newInv).catch(supabaseCatch);
+  if (supabase) await supabase.from('fin_invoices').insert(newInv).then(({error:_})=>_&&supabaseCatch(_));
   showToast('Invoice ' + newInv.id + ' created from ' + q.id, 'success');
   rerenderSection();
 };
@@ -6379,7 +6379,7 @@ window.deleteQuotation = async (id) => {
   if(!requireRoles(['crm_manager','system_admin'],'Access denied: Requires CRM Manager')) return;
   if (!confirm('Delete this quotation?')) return;
   DATA.quotations = DATA.quotations.filter(q => q.id !== id);
-  if (supabase) await supabase.from('crm_quotations').delete().eq('id', id).catch(supabaseCatch);
+  if (supabase) await supabase.from('crm_quotations').delete().eq('id', id).then(({error:_})=>_&&supabaseCatch(_));
   showToast('Quotation deleted', 'success');
   rerenderSection();
 };
@@ -6471,12 +6471,12 @@ async function submitProspect() {
   };
   if (editId) {
     Object.assign(DATA.prospects.find(x => x.id === editId), obj);
-    if (supabase) await supabase.from('crm_prospects').update(obj).eq('id', editId).catch(supabaseCatch);
+    if (supabase) await supabase.from('crm_prospects').update(obj).eq('id', editId).then(({error:_})=>_&&supabaseCatch(_));
     showToast('Prospect updated', 'success');
   } else {
     obj.id = 'PRO-' + Date.now();
     DATA.prospects.push(obj);
-    if (supabase) await supabase.from('crm_prospects').insert(obj).catch(supabaseCatch);
+    if (supabase) await supabase.from('crm_prospects').insert(obj).then(({error:_})=>_&&supabaseCatch(_));
     showToast('Prospect saved', 'success');
   }
   closeModal();
@@ -6490,8 +6490,8 @@ window.convertProspectToLead = async (id) => {
   DATA.leads.push(newLead);
   p.status = 'Converted';
   if (supabase) {
-    await supabase.from('crm_leads').insert(newLead).catch(supabaseCatch);
-    await supabase.from('crm_prospects').update({ status: 'Converted' }).eq('id', id).catch(supabaseCatch);
+    await supabase.from('crm_leads').insert(newLead).then(({error:_})=>_&&supabaseCatch(_));
+    await supabase.from('crm_prospects').update({ status: 'Converted' }).eq('id', id).then(({error:_})=>_&&supabaseCatch(_));
   }
   showToast('Prospect converted to Lead: ' + newLead.id, 'success');
   rerenderSection();
@@ -6501,7 +6501,7 @@ window.deleteProspect = async (id) => {
   if(!requireRoles(['crm_manager','system_admin'],'Access denied: Requires CRM Manager')) return;
   if (!confirm('Delete this prospect?')) return;
   DATA.prospects = DATA.prospects.filter(p => p.id !== id);
-  if (supabase) await supabase.from('crm_prospects').delete().eq('id', id).catch(supabaseCatch);
+  if (supabase) await supabase.from('crm_prospects').delete().eq('id', id).then(({error:_})=>_&&supabaseCatch(_));
   showToast('Prospect deleted', 'success');
   rerenderSection();
 };
@@ -6619,7 +6619,7 @@ async function submitComm() {
   };
   if (!obj.subject && !obj.content) { showToast('Subject or content required', 'error'); return; }
   DATA.communications.push(obj);
-  if (supabase) await supabase.from('crm_communications').insert(obj).catch(supabaseCatch);
+  if (supabase) await supabase.from('crm_communications').insert(obj).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
   showToast('Communication logged', 'success');
   rerenderSection();
@@ -6705,9 +6705,9 @@ window.convertLeadToAccount = async (id) => {
   };
   DATA.deals.push(newDeal);
   if (supabase) {
-    await supabase.from('crm_accounts').insert(newAcct).catch(supabaseCatch);
-    await supabase.from('crm_contacts').insert(newContact).catch(supabaseCatch);
-    await supabase.from('crm_deals').insert(newDeal).catch(supabaseCatch);
+    await supabase.from('crm_accounts').insert(newAcct).then(({error:_})=>_&&supabaseCatch(_));
+    await supabase.from('crm_contacts').insert(newContact).then(({error:_})=>_&&supabaseCatch(_));
+    await supabase.from('crm_deals').insert(newDeal).then(({error:_})=>_&&supabaseCatch(_));
   }
   showToast('Lead converted: Account ' + newAcct.id + ', Contact, and Deal created', 'success');
   rerenderSection();
@@ -6717,7 +6717,7 @@ window.deleteLead = async (id) => {
   if(!requireRoles(['crm_manager','system_admin'],'Access denied: Requires CRM Manager')) return;
   if (!confirm('Delete this lead?')) return;
   DATA.leads = DATA.leads.filter(l => l.id !== id);
-  if (supabase) await supabase.from('crm_leads').delete().eq('id', id).catch(supabaseCatch);
+  if (supabase) await supabase.from('crm_leads').delete().eq('id', id).then(({error:_})=>_&&supabaseCatch(_));
   showToast('Lead deleted', 'success');
   rerenderSection();
 };
@@ -7084,7 +7084,7 @@ async function submitNewAbsence() {
   const id='ABS-'+Date.now();
   const rec={id,employee_id:empId,date,status:document.getElementById('abs-type')?.value||'Absent',check_in_time:null,check_out_time:null};
   DATA.attendance.push(rec);
-  if(supabase) await supabase.from('hr_attendance').insert(rec).catch(supabaseCatch);
+  if(supabase) await supabase.from('hr_attendance').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
   showToast('Absence recorded','success');
   rerenderSection();
@@ -7242,7 +7242,7 @@ async function submitNewTraining() {
   const id='TR-'+String(DATA.hseTraining.length+1).padStart(3,'0');
   const rec={id,employee_name:name,course,date:document.getElementById('tr-date')?.value||new Date().toISOString().split('T')[0],status:document.getElementById('tr-status')?.value||'Scheduled'};
   DATA.hseTraining.push(rec);
-  if(supabase) await supabase.from('hr_hse_training').insert(rec).catch(supabaseCatch);
+  if(supabase) await supabase.from('hr_hse_training').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
   showToast('Training record added','success');
   rerenderSection();
@@ -7283,7 +7283,7 @@ async function submitNewOrgUnit() {
   const id='OU-'+String(DATA.orgUnits.length+1).padStart(3,'0');
   const rec={id,name,head_count:parseInt(document.getElementById('ou-hc')?.value)||0,manager:document.getElementById('ou-mgr')?.value||''};
   DATA.orgUnits.push(rec);
-  if(supabase) await supabase.from('hr_org_units').insert(rec).catch(supabaseCatch);
+  if(supabase) await supabase.from('hr_org_units').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
   showToast('Org unit added','success');
   rerenderSection();
@@ -7912,7 +7912,7 @@ async function submitNewCostCenter() {
   const rec={id,name,description:document.getElementById('cc-dept')?.value?.trim()||'',manager:'',budget:parseFloat(document.getElementById('cc-budget')?.value)||0};
   const dataRec={id,name,dept:rec.description};
   DATA.costCenters.push(dataRec);
-  if(supabase) await supabase.from('fin_cost_centers').insert(rec).catch(supabaseCatch);
+  if(supabase) await supabase.from('fin_cost_centers').insert(rec).then(({error:_})=>_&&supabaseCatch(_));
   closeModal();
   showToast('Cost center added','success');
   rerenderSection();
@@ -7999,7 +7999,7 @@ async function submitNewChartAccount() {
   if (!name || !id) { showToast('Name and Code required', 'error'); return; }
   if (DATA.chartAccounts.find(a => a.id === id)) { showToast('Account code already exists', 'error'); return; }
   const acc = { id, name, type, parent_id: parentId, is_group: isGroup, balance: 0 };
-  if (supabase) supabase.from('fin_chart_accounts').insert(acc).catch(supabaseCatch);
+  if (supabase) supabase.from('fin_chart_accounts').insert(acc).then(({error:_})=>_&&supabaseCatch(_));
   DATA.chartAccounts.push(acc);
   closeModal(); showToast('Account created', 'success'); rerenderSection();
 }
@@ -8116,7 +8116,7 @@ async function submitNewJournalEntry() {
 
   const ref = $('#nje-ref').value.trim();
   const je = { id: 'JE-' + Date.now(), date, reference: ref || null, description: desc, entries };
-  if (supabase) supabase.from('fin_journal_entries').insert(je).catch(supabaseCatch);
+  if (supabase) supabase.from('fin_journal_entries').insert(je).then(({error:_})=>_&&supabaseCatch(_));
   DATA.journalEntries.push(je);
   closeModal(); showToast('Journal entry posted', 'success'); rerenderSection();
 }
@@ -8125,7 +8125,7 @@ async function submitNewJournalEntry() {
 function autoPostJE(reference, description, entries) {
   const je = { id: 'JE-' + Date.now(), date: new Date().toISOString().split('T')[0], reference, description, entries };
   DATA.journalEntries.push(je);
-  if (supabase) supabase.from('fin_journal_entries').insert(je).catch(supabaseCatch);
+  if (supabase) supabase.from('fin_journal_entries').insert(je).then(({error:_})=>_&&supabaseCatch(_));
 }
 
 /* ── Fixed Assets ── */
@@ -8197,13 +8197,13 @@ async function submitNewFixedAsset(editId) {
     status: $('#nfa-status').value, supplier_id: $('#nfa-supplier').value || null
   };
   if (!editId) {
-    if (supabase) supabase.from('fin_fixed_assets').insert(asset).catch(supabaseCatch);
+    if (supabase) supabase.from('fin_fixed_assets').insert(asset).then(({error:_})=>_&&supabaseCatch(_));
     DATA.fixedAssets.push(asset);
     autoPostJE(asset.id, 'Fixed Asset ' + name + ' acquired', [{account_id:'ACC-FA', debit:asset.cost, credit:0},{account_id:'ACC-AP', debit:0, credit:asset.cost}]);
   } else {
     const idx = DATA.fixedAssets.findIndex(a => a.id === editId);
     if (idx >= 0) DATA.fixedAssets[idx] = asset;
-    if (supabase) supabase.from('fin_fixed_assets').upsert(asset).catch(supabaseCatch);
+    if (supabase) supabase.from('fin_fixed_assets').upsert(asset).then(({error:_})=>_&&supabaseCatch(_));
   }
   closeModal(); showToast(editId ? 'Asset updated' : 'Asset added', 'success'); rerenderSection();
 }

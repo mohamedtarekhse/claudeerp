@@ -236,7 +236,7 @@ When you want to execute an action, include this exact JSON block in your respon
 
 Action schemas:
 - approve_po: { "po_id": "PO-2025-XXX" }
-- navigate: { "module": "hr"|"crm"|"certificates"|"supply", "section": "allEmployees"|"allPOs"|"allCerts"|"allAccounts"|"scDashboard"|"inventoryItems"|"lowStockAlerts"|"expiredCerts"|"expiringSoon"|"leaveRequests"|"crmLeads"|"crmDeals"|"crmContacts"|"crmQuotations"|"crmProspects"|"crmCommunications"|"crmWinLoss"|"crmTerritory" }
+- navigate: { "module": "hr"|"crm"|"certificates"|"supply"|"fin", "section": "allEmployees"|"allPOs"|"allCerts"|"allAccounts"|"scDashboard"|"inventoryItems"|"lowStockAlerts"|"expiredCerts"|"expiringSoon"|"leaveRequests"|"crmLeads"|"crmDeals"|"crmContacts"|"crmQuotations"|"crmProspects"|"crmCommunications"|"crmWinLoss"|"crmTerritory"|"finDashboard"|"finSales"|"finPurchases"|"finPayments"|"finGL"|"finPL"|"finBS"|"finJournalEntries"|"finFixedAssets"|"finCostCenters"|"finChartAccounts" }
 - flag_cert: { "cert_id": "CERT-XXX", "note": "reason" }
 - create_po_draft: { "supplier": "...", "description": "...", "amount": 0, "priority": "Normal"|"High"|"Critical", "site": "..." }
 - add_employee: { "firstName": "...", "lastName": "...", "dept": "...", "position": "...", "site": "...", "empType": "Full-time"|"Contract" }

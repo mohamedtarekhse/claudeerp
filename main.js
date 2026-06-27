@@ -80,9 +80,9 @@ const i18n = {
   en: {
     appName:'AMICI ERP', search:'Search...', notifications:'Notifications',
     // Modules
-    hr:'Human Resources', crm:'Customer Relations', certificates:'Certificates', supplyChain:'Supply Chain',
+    hr:'Human Resources', crm:'Customer Relations', certificates:'Certificates', supplyChain:'Supply Chain', finance:'Finance',
     // HR Sidebar
-    allEmployees:'All Employees', newHires:'New Hires', offboarding:'Offboarding',
+    allEmployees:'All Employees', newHires:'New Hires', offboarding:'Offboarding', expenseClaims:'Expense Claims',
     onProbation:'On Probation', leaveRequests:'Leave Requests', timesheets:'Timesheets',
     absenceCalendar:'Absence Calendar', openPositions:'Open Positions', performanceCycle:'Performance Cycle',
     trainingHSE:'Training & HSE', compensation:'Compensation', orgUnits:'Org Units', hrSettings:'HR Settings',
@@ -104,6 +104,16 @@ const i18n = {
     siteLocation:'Site / Location', managerDrop:'Manager', salaryBand:'Salary Band',
     costCenter:'Cost Center', crewType:'Crew Type', rotationSchedule:'Rotation Schedule',
     nationality:'Nationality', notes:'Notes / Remarks',
+    // Supply Chain Sidebar
+    qualityInspections:'Quality Inspections', landedCost:'Landed Cost', reorderRules:'Auto Reorder',
+    // Finance Sidebar
+    finDashboard:'Dashboard', finSales:'Sales Invoices (A/R)', finPurchases:'Purchase Invoices (A/P)',
+    finPayments:'Payments', arAging:'AR Aging', apAging:'AP Aging',
+    finGL:'General Ledger', finPL:'Profit & Loss', finBS:'Balance Sheet',
+    finJournalEntries:'Journal Entries', finFixedAssets:'Fixed Assets',
+    finCostCenters:'Cost Centers', finChartAccounts:'Chart of Accounts',
+    finReports:'Reports', finAccounting:'Accounting', finAssets:'Assets',
+    finDimensions:'Dimensions', finAdmin:'Admin', finSettings:'Finance Settings',
   },
   ar: {
     appName:'نظام أميتشي', search:'بحث...', notifications:'الإشعارات',
@@ -124,6 +134,16 @@ const i18n = {
     siteLocation:'الموقع', managerDrop:'المدير', salaryBand:'الفئة الراتبية',
     costCenter:'مركز التكلفة', crewType:'نوع الطاقم', rotationSchedule:'جدول الدوران',
     nationality:'الجنسية', notes:'ملاحظات',
+    // Supply Chain Sidebar
+    qualityInspections:'فحص الجودة', landedCost:'التكلفة الإجمالية', reorderRules:'إعادة الطلب التلقائي',
+    // Finance Sidebar
+    finDashboard:'لوحة القيادة', finSales:'فواتير المبيعات (ذمم مدينة)', finPurchases:'فواتير المشتريات (ذمم دائنة)',
+    finPayments:'المدفوعات', arAging:'تقادم الذمم المدينة', apAging:'تقادم الذمم الدائنة',
+    finGL:'دفتر الأستاذ العام', finPL:'الأرباح والخسائر', finBS:'الميزانية العمومية',
+    finJournalEntries:'قيود اليومية', finFixedAssets:'الأصول الثابتة',
+    finCostCenters:'مراكز التكلفة', finChartAccounts:'دليل الحسابات',
+    finReports:'التقارير', finAccounting:'المحاسبة', finAssets:'الأصول',
+    finDimensions:'الأبعاد', finAdmin:'الإدارة', finSettings:'إعدادات المالية',
   }
 };
 
@@ -549,7 +569,8 @@ function renderHRSidebar(){
       {id:'performanceCycle',icon:'fa-chart-line',label:t('performanceCycle'),roles:['system_admin','hr_manager']},
       {id:'trainingHSE',icon:'fa-hard-hat',label:t('trainingHSE'),roles:['system_admin','hr_manager']},
       {id:'compensation',icon:'fa-money-bill-wave',label:t('compensation'),roles:['system_admin','hr_manager']},
-      {id:'expenseClaims',icon:'fa-file-invoice-dollar',label:'Expense Claims',roles:['system_admin','hr_manager','hr_user','employee']},
+      {id:'expenseClaims',icon:'fa-file-invoice-dollar',label:t('expenseClaims'),roles:['system_admin','hr_manager','hr_user','employee']},
+      {id:'offboarding',icon:'fa-door-open',label:t('offboarding'),roles:['system_admin','hr_manager','hr_user']},
       {id:'orgUnits',icon:'fa-sitemap',label:t('orgUnits'),roles:['system_admin','hr_manager','hr_user']},
     ]},
     {group:'Admin', items:[
@@ -3381,7 +3402,7 @@ function renderSCSidebar(){
       {id:'scDashboard',icon:'fa-gauge-high',label:t('scDashboard'),roles:['system_admin','sc_manager','sc_user','employee']},
       {id:'materialRequests',icon:'fa-clipboard-list',label:t('materialRequests'),badge:pendingMRs,roles:['system_admin','sc_manager','sc_user']},
       {id:'allPOs',icon:'fa-file-invoice',label:t('allPOs'),roles:['system_admin','sc_manager','sc_user']},
-      {id:'qualityInspections',icon:'fa-flask',label:'Quality Inspections',roles:['system_admin','sc_manager','sc_user']},
+      {id:'qualityInspections',icon:'fa-flask',label:t('qualityInspections'),roles:['system_admin','sc_manager','sc_user']},
       {id:'pendingApprovalPO',icon:'fa-clock',label:t('pendingApprovalPO'),badge:pendingPOs,roles:['system_admin','sc_manager']},
       {id:'orderedItems',icon:'fa-truck-fast',label:t('orderedItems'),badge:DATA.purchaseOrders.filter(p=>p.status==='ordered').length,badgeCls:'blue',roles:['system_admin','sc_manager','sc_user']},
       {id:'receivedItems',icon:'fa-box-archive',label:t('receivedItems'),roles:['system_admin','sc_manager','sc_user']},
@@ -3395,8 +3416,8 @@ function renderSCSidebar(){
       {id:'lowStockAlerts',icon:'fa-triangle-exclamation',label:t('lowStockAlerts'),badge:lowStock,roles:['system_admin','sc_manager','sc_user']},
       {id:'stockLedger',icon:'fa-book',label:t('stockLedger'),roles:['system_admin','sc_manager','sc_user']},
       {id:'warehouses',icon:'fa-warehouse',label:t('warehouses'),roles:['system_admin','sc_manager','sc_user']},
-      {id:'landedCost',icon:'fa-ship',label:'Landed Cost',roles:['system_admin','sc_manager']},
-      {id:'reorderRules',icon:'fa-cart-arrow-down',label:'Auto Reorder',roles:['system_admin','sc_manager']},
+      {id:'landedCost',icon:'fa-ship',label:t('landedCost'),roles:['system_admin','sc_manager']},
+      {id:'reorderRules',icon:'fa-cart-arrow-down',label:t('reorderRules'),roles:['system_admin','sc_manager']},
     ]},
     {group:'Admin',items:[
       {id:'scSettings',icon:'fa-gear',label:t('scSettings'),roles:['system_admin','sc_manager']},
@@ -4846,6 +4867,7 @@ function renderContent(){
     else if(state.section==='performanceCycle') html=renderHRPerformanceCycle();
     else if(state.section==='trainingHSE') html=renderHRTraining();
     else if(state.section==='orgUnits') html=renderHROrgUnits();
+    else if(state.section==='offboarding') html=renderHRStub('Offboarding');
     else if(state.section==='hrSettings') html=renderHRSettings();
     else if(state.section==='leaveRequests') html=renderLeaveRequests();
     else if(state.section==='timesheets') html=renderHRAttendance();
@@ -5140,7 +5162,7 @@ When you want to execute an action, include this exact JSON block in your respon
 
 Action schemas:
 - approve_po: { "po_id": "PO-2025-XXX" }
-- navigate: { "module": "hr"|"crm"|"certificates"|"supply", "section": "allEmployees"|"allPOs"|"allCerts"|"allAccounts"|"scDashboard"|"inventoryItems"|"lowStockAlerts"|"expiredCerts"|"expiringSoon"|"leaveRequests" }
+- navigate: { "module": "hr"|"crm"|"certificates"|"supply"|"fin", "section": "allEmployees"|"allPOs"|"allCerts"|"allAccounts"|"scDashboard"|"inventoryItems"|"lowStockAlerts"|"expiredCerts"|"expiringSoon"|"leaveRequests"|"finDashboard"|"finSales"|"finPurchases"|"finPayments"|"finGL"|"finPL"|"finBS"|"finJournalEntries"|"finFixedAssets"|"finCostCenters"|"finChartAccounts" }
 - flag_cert: { "cert_id": "CERT-XXX", "note": "reason" }
 - create_po_draft: { "supplier": "...", "description": "...", "amount": 0, "priority": "Normal"|"High"|"Critical", "site": "..." }
 - add_employee: { "firstName": "...", "lastName": "...", "dept": "...", "position": "...", "site": "...", "empType": "Full-time"|"Contract" }
@@ -6012,8 +6034,24 @@ function renderCRMPartners() {
 
 /* ── CRM SETTINGS ── */
 function renderCRMSettings() {
-  return `<div class="fade-in"><h2>CRM Settings</h2>
-    <div class="empty-state" style="margin-top:40px"><i class="fa-solid fa-gear"></i><p>CRM configuration coming soon</p></div>
+  return `<div class="fade-in" style="max-width:600px">
+    <h2>CRM Settings</h2>
+    <div class="sec-card" style="margin-top:20px"><div class="sec-card-body">
+      <div class="form-group"><label class="form-label">Default Lead Status</label>
+      <select class="form-input"><option selected>New</option><option>Contacted</option><option>Qualified</option><option>Converted</option></select></div>
+      <div class="form-group"><label class="form-label">Default Deal Pipeline Stages</label>
+      <textarea class="form-input" rows="4">Prospecting, Qualification, Proposal, Negotiation, Closed Won, Closed Lost</textarea></div>
+      <div class="form-group"><label class="form-label">Auto-Assign Leads</label>
+      <select class="form-input"><option>Round Robin</option><option>Manual</option></select></div>
+      <div class="form-group"><label class="form-label">Win Probability Defaults</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <span style="font-size:12px;color:var(--text-sec);align-self:center">Prospecting:</span><input class="form-input" type="number" value="10" />
+        <span style="font-size:12px;color:var(--text-sec);align-self:center">Qualification:</span><input class="form-input" type="number" value="25" />
+        <span style="font-size:12px;color:var(--text-sec);align-self:center">Proposal:</span><input class="form-input" type="number" value="50" />
+        <span style="font-size:12px;color:var(--text-sec);align-self:center">Negotiation:</span><input class="form-input" type="number" value="75" />
+      </div></div>
+      <button class="btn btn-primary" onclick="window.showToast('Settings saved','success')">Save Settings</button>
+    </div></div>
   </div>`;
 }
 
@@ -7438,30 +7476,30 @@ function renderFinSidebar() {
   const overdueCount = DATA.invoices.filter(i=>i.status==='Overdue').length;
   const allSections=[
     {group:null, items:[
-      {id:'finDashboard',icon:'fa-chart-pie',label:'Dashboard',roles:['system_admin','fin_manager','fin_user','employee']},
-      {id:'finSales',icon:'fa-file-invoice-dollar',label:'Sales Invoices (A/R)',roles:['system_admin','fin_manager','fin_user']},
-      {id:'finPurchases',icon:'fa-file-invoice',label:'Purchase Invoices (A/P)',roles:['system_admin','fin_manager','fin_user']},
-      {id:'finPayments',icon:'fa-money-bill-transfer',label:'Payments',roles:['system_admin','fin_manager','fin_user']},
+      {id:'finDashboard',icon:'fa-chart-pie',label:t('finDashboard'),roles:['system_admin','fin_manager','fin_user','employee']},
+      {id:'finSales',icon:'fa-file-invoice-dollar',label:t('finSales'),roles:['system_admin','fin_manager','fin_user']},
+      {id:'finPurchases',icon:'fa-file-invoice',label:t('finPurchases'),roles:['system_admin','fin_manager','fin_user']},
+      {id:'finPayments',icon:'fa-money-bill-transfer',label:t('finPayments'),roles:['system_admin','fin_manager','fin_user']},
     ]},
-    {group:'Reports', items:[
-      {id:'arAging',icon:'fa-clock',label:'AR Aging',roles:['system_admin','fin_manager']},
-      {id:'apAging',icon:'fa-clock',label:'AP Aging',roles:['system_admin','fin_manager']},
-      {id:'finGL',icon:'fa-book',label:'General Ledger',roles:['system_admin','fin_manager','fin_user']},
-      {id:'finPL',icon:'fa-chart-line',label:'Profit & Loss',roles:['system_admin','fin_manager','fin_user']},
-      {id:'finBS',icon:'fa-scale-balanced',label:'Balance Sheet',roles:['system_admin','fin_manager','fin_user']},
+    {group:t('finReports'), items:[
+      {id:'arAging',icon:'fa-clock',label:t('arAging'),roles:['system_admin','fin_manager']},
+      {id:'apAging',icon:'fa-clock',label:t('apAging'),roles:['system_admin','fin_manager']},
+      {id:'finGL',icon:'fa-book',label:t('finGL'),roles:['system_admin','fin_manager','fin_user']},
+      {id:'finPL',icon:'fa-chart-line',label:t('finPL'),roles:['system_admin','fin_manager','fin_user']},
+      {id:'finBS',icon:'fa-scale-balanced',label:t('finBS'),roles:['system_admin','fin_manager','fin_user']},
     ]},
-    {group:'Accounting', items:[
-      {id:'finJournalEntries',icon:'fa-book-open',label:'Journal Entries',roles:['system_admin','fin_manager']},
+    {group:t('finAccounting'), items:[
+      {id:'finJournalEntries',icon:'fa-book-open',label:t('finJournalEntries'),roles:['system_admin','fin_manager']},
     ]},
-    {group:'Assets', items:[
-      {id:'finFixedAssets',icon:'fa-industry',label:'Fixed Assets',roles:['system_admin','fin_manager']},
+    {group:t('finAssets'), items:[
+      {id:'finFixedAssets',icon:'fa-industry',label:t('finFixedAssets'),roles:['system_admin','fin_manager']},
     ]},
-    {group:'Dimensions', items:[
-      {id:'finCostCenters',icon:'fa-building-columns',label:'Cost Centers',roles:['system_admin','fin_manager']},
-      {id:'finChartAccounts',icon:'fa-sitemap',label:'Chart of Accounts',roles:['system_admin','fin_manager']},
+    {group:t('finDimensions'), items:[
+      {id:'finCostCenters',icon:'fa-building-columns',label:t('finCostCenters'),roles:['system_admin','fin_manager']},
+      {id:'finChartAccounts',icon:'fa-sitemap',label:t('finChartAccounts'),roles:['system_admin','fin_manager']},
     ]},
-    {group:'Admin', items:[
-      {id:'finSettings',icon:'fa-gear',label:'Settings',roles:['system_admin','fin_manager']},
+    {group:t('finAdmin'), items:[
+      {id:'finSettings',icon:'fa-gear',label:t('finSettings'),roles:['system_admin','fin_manager']},
     ]},
   ];
   let html='';
@@ -7478,12 +7516,6 @@ function renderFinSidebar() {
   return html;
 }
 
-function renderFinStub(name) {
-  return `<div class="fade-in" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-sec);font-size:18px;">
-    <i class="fa-solid fa-person-digging" style="margin-right:10px"></i> ${name} Module under construction
-  </div>`;
-}
-
 function renderFinDashboard() {
   recomputeInvoiceStatuses();
   const totalReceivables = DATA.invoices.filter(i=>i.type==='Sales' && (i.status==='Unpaid'||i.status==='Overdue')).reduce((sum,i)=>sum+parseFloat(i.total_amount),0);
@@ -7491,9 +7523,29 @@ function renderFinDashboard() {
   const totalCashIn = DATA.payments.filter(p=>DATA.invoices.find(i=>i.id===p.invoice_id)?.type==='Sales').reduce((sum,p)=>sum+parseFloat(p.amount),0);
   const totalCashOut = DATA.payments.filter(p=>DATA.invoices.find(i=>i.id===p.invoice_id)?.type==='Purchase').reduce((sum,p)=>sum+parseFloat(p.amount),0);
 
-  return `<div class="fade-in">
+  // Invoice status counts for chart
+  const statusCounts = { Paid:0, Unpaid:0, Overdue:0 };
+  DATA.invoices.forEach(i => { const s = i.status === 'Paid' ? 'Paid' : i.status === 'Overdue' ? 'Overdue' : 'Unpaid'; statusCounts[s]++; });
+
+  // Monthly net income for last 6 months
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(); d.setMonth(d.getMonth() - i);
+    const m = d.toISOString().slice(0, 7);
+    const label = d.toLocaleString('default', { month:'short' }) + ' ' + d.getFullYear();
+    const sales = DATA.invoices.filter(inv => inv.type === 'Sales' && inv.date && inv.date.startsWith(m)).reduce((s, inv) => s + parseFloat(inv.total_amount), 0);
+    const purchases = DATA.invoices.filter(inv => inv.type === 'Purchase' && inv.date && inv.date.startsWith(m)).reduce((s, inv) => s + parseFloat(inv.total_amount), 0);
+    months.push({ label, sales, purchases, net: sales - purchases });
+  }
+
+  // Recent invoices
+  const recent = [...DATA.invoices].sort((a, b) => b.date?.localeCompare(a.date) || 0).slice(0, 5);
+
+  const invBadge = s => s === 'Paid' ? '<span class="pill pill-valid">Paid</span>' : s === 'Overdue' ? '<span class="pill pill-expired">Overdue</span>' : '<span class="pill pill-draft">Unpaid</span>';
+
+  let html = `<div class="fade-in">
     <h2>Finance Dashboard</h2>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:16px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin:16px 0">
       <div class="kpi-card" style="border-left:4px solid var(--primary)">
         <div class="kpi-title">Total Receivables (A/R)</div>
         <div class="kpi-value">$${totalReceivables.toLocaleString()}</div>
@@ -7511,7 +7563,67 @@ function renderFinDashboard() {
         <div class="kpi-value">$${totalCashOut.toLocaleString()}</div>
       </div>
     </div>
+
+    <div class="quick-actions" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="switchSection('finSales');setTimeout(openNewInvoiceModal,80,'Sales')"><i class="fa-solid fa-plus"></i> New Sales Invoice</button>
+      <button class="btn btn-primary btn-sm" onclick="switchSection('finPurchases');setTimeout(openNewInvoiceModal,80,'Purchase')"><i class="fa-solid fa-plus"></i> New Purchase Invoice</button>
+      <button class="btn btn-outline btn-sm" onclick="switchSection('finPayments')"><i class="fa-solid fa-money-bill-transfer"></i> Record Payment</button>
+      <button class="btn btn-outline btn-sm" onclick="switchSection('arAging')"><i class="fa-solid fa-clock"></i> AR Aging</button>
+    </div>
+
+    <div class="chart-grid" style="margin-bottom:12px;">
+      <div class="chart-card"><h3>Invoice Status</h3><canvas id="finStatusChart" height="180"></canvas></div>
+      <div class="chart-card"><h3>Monthly Net Income</h3><canvas id="finTrendChart" height="180"></canvas></div>
+    </div>
+
+    <div class="sec-card" style="margin-bottom:12px;"><div class="sec-card-head">Recent Transactions <button class="btn btn-ghost btn-sm" onclick="switchSection('finSales')">View All</button></div>
+    <div style="overflow-x:auto;"><table class="data-table">
+      <thead><tr><th>Invoice</th><th>Party</th><th>Date</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead><tbody>`;
+  recent.forEach(inv => {
+    const typeLabel = inv.type === 'Sales' ? '<span style="color:var(--success)">Sales</span>' : '<span style="color:var(--orange)">Purchase</span>';
+    html += `<tr onclick="state.section='${inv.type === 'Sales' ? 'finSales' : 'finPurchases'}';state.selectedId='${inv.id}';state.detailTab='info';rerenderSection()" style="cursor:pointer">
+      <td style="font-weight:600;color:var(--blue)">${inv.id}</td><td>${inv.party_name}</td>
+      <td style="font-size:12px">${fmtDate(inv.date)}</td><td>${typeLabel}</td>
+      <td style="font-weight:600">$${parseFloat(inv.total_amount).toLocaleString()}</td><td>${invBadge(inv.status)}</td></tr>`;
+  });
+  html += `</tbody></table></div></div>
   </div>`;
+
+  // Charts
+  setTimeout(() => {
+    const statusCtx = document.getElementById('finStatusChart');
+    const trendCtx = document.getElementById('finTrendChart');
+    if (statusCtx) {
+      const ch = new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(statusCounts),
+          datasets: [{ data: Object.values(statusCounts), backgroundColor: ['#188918', '#6a6d70', '#bb0000'], borderWidth: 2 }]
+        },
+        options: { plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8 } } }, cutout: '62%' }
+      });
+      state.charts.push(ch);
+    }
+    if (trendCtx) {
+      const ch = new Chart(trendCtx, {
+        type: 'bar',
+        data: {
+          labels: months.map(m => m.label),
+          datasets: [
+            { label: 'Revenue', data: months.map(m => m.sales), backgroundColor: '#188918', borderRadius: 4 },
+            { label: 'Expenses', data: months.map(m => m.purchases), backgroundColor: '#bb0000', borderRadius: 4 }
+          ]
+        },
+        options: {
+          plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8 } } },
+          scales: { x: { ticks: { font: { size: 10 } } }, y: { ticks: { callback: v => '$' + Math.round(v / 1000) + 'K', font: { size: 10 } } } }
+        }
+      });
+      state.charts.push(ch);
+    }
+  }, 80);
+
+  return html;
 }
 
 /* ── Invoice Status / Aging ── */

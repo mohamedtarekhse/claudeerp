@@ -2952,7 +2952,7 @@ async function submitNewCert(){
     jobNumber:$('#nc-job').value,remarks:$('#nc-remarks').value
   };
   if(supabase){
-    const{error}=await supabase.from('certificates').insert({id:newId,employee_id:null,cert_type:cert.certType,expiry_date:expiry,status,client_id:clientId,fl_id:flId,inspector_id:inspectorId,job_id:jobId});
+    const{error}=await supabase.from('certificates').insert({id:newId,employee_id:null,cert_type:cert.certType,expiry_date:expiry,status,job_id:jobId});
     if(error){window.showToast('Error saving certificate','error');return;}
   }
   DATA.certificates.push(cert);
@@ -4043,7 +4043,16 @@ function submitNewInventory() {
     has_variants: false,
   };
   DATA.inventory.push(item);
-  if (supabase) supabase.from('inventory').insert(item).then(({error:_})=>_&&supabaseCatch(_));
+  if (supabase) supabase.from('inventory').insert({
+    id: item.id, item_name: item.name, category: item.category,
+    part_no: item.partNo, site: item.site, warehouse: item.warehouse,
+    uom: item.uom, qty_on_hand: item.qtyOnHand,
+    reorder_point: item.reorderPoint, max_stock: item.maxStock,
+    unit_cost: item.unitCost, status: item.status,
+    last_received: item.lastReceived, supplier_id: item.supplierId,
+    parent_item: item.parent_item, serial_tracking: item.serial_tracking,
+    batch_tracking: item.batch_tracking, has_variants: item.has_variants
+  }).then(({error:_})=>_&&supabaseCatch(_));
   closeModal(); window.showToast('Item added', 'success'); rerenderSection();
 }
 
@@ -4331,10 +4340,12 @@ function autoGenerateMR() {
     const reorderQty = r.maxQty - item.qtyOnHand;
     const mr = {
       id: 'MR-' + Date.now() + '-' + r.id,
-      date: new Date().toISOString().slice(0,10),
+      title: `Auto MR: ${item.name}`,
       items: [{itemId: r.itemId, itemName: r.itemName || item.name, qty: reorderQty, uom: item.uom}],
       status: 'pending',
       priority: item.status === 'critical' ? 'Critical' : item.status === 'out' ? 'Critical' : 'High',
+      department: '', site: item.site || '', requested_by: 'System',
+      required_date: new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0,10),
       notes: `Auto-generated — below min qty (${item.qtyOnHand} < ${r.minQty})`,
     };
     DATA.materialRequests.push(mr);
@@ -5563,8 +5574,8 @@ async function loadData() {
       supabase.from('suppliers').select('*').then(r => { if (r.data && r.data.length > 0) DATA.suppliers = r.data.map(s => ({ id: s.id, name: s.name, category: s.category, contact_person: s.contact_person, email: s.email, phone: s.phone, rating: s.rating, country: s.country, status: s.status })); }),
       supabase.from('warehouses').select('*').then(r => { if (r.data && r.data.length > 0) DATA.warehouses = r.data.map(w => ({ id: w.id, name: w.name, site: w.location || w.site, manager: w.manager || w.manager_id, capacity: w.capacity_total || 0, utilisation: w.capacity_used ? Math.round(w.capacity_used / w.capacity_total * 100) : 0, items: 0 })); }),
       supabase.from('purchase_orders').select('*, po_line_items(*)').then(r => { if (!r.error && r.data && r.data.length > 0) DATA.purchaseOrders = r.data.map(po => ({ id: po.id, supplier: po.supplier_name, description: po.description, amount: po.total_amount, status: po.status, priority: po.priority, site: po.site, requestedBy: po.requested_by, createdDate: po.order_date, deliveryDate: po.delivery_date, poLines: (po.po_line_items || []).map(l => ({ item: l.item_desc, qty: l.quantity, unit: l.unit, unitPrice: l.unit_price })) })); }),
-      supabase.from('crm_accounts').select('*').then(r => { if (!r.error && r.data && r.data.length > 0) DATA.accounts = r.data.map(a => ({ id: a.id, name: a.name, industry: a.industry, status: a.status, tier: a.tier, managerId: a.manager_id, revenue: a.revenue, lastContact: a.last_contact, nextAction: a.next_action })); }),
-      supabase.from('crm_field_service_logs').select('*').then(r => { if (r.data && r.data.length > 0) DATA.fieldServiceLogs = r.data.map(l => ({ id: l.id, client_name: l.client_name, engineer_name: l.engineer_name, date: l.date, job_description: l.job_description, status: l.status })); }),
+      supabase.from('crm_accounts').select('*').then(r => { if (!r.error && r.data && r.data.length > 0) DATA.accounts = r.data.map(a => ({ id: a.id, name: a.name, type: a.industry || '', status: a.status, region: a.tier || '', owner: a.manager_id || '', contractValue: a.revenue || 0, rating: 'Warm', country: '', blockRef: 'N/A', openOpps: 0, contacts: [], opps: [], activities: [], territory: '' })); }),
+      supabase.from('crm_field_service_logs').select('*').then(r => { if (r.data && r.data.length > 0) DATA.fieldServiceLogs = r.data.map(l => ({ id: l.id, customer: l.client_name || '', equipment: l.job_description || '', technician: l.engineer_name || '', date: l.date, status: l.status })); }),
       supabase.from('leave_requests').select('*').then(r => { if (r.data && r.data.length > 0) DATA.leaveRequests = r.data.map(lr => ({ id: lr.id, empId: lr.employee_id, employeeName: lr.employee_name, type: lr.leave_type, start: lr.start_date || lr.start, end: lr.end_date || lr.end, startDate: lr.start_date || lr.start, endDate: lr.end_date || lr.end, days: lr.days, status: lr.status, approver: lr.approver })); }),
       supabase.from('certificates').select('*').then(r => { if (r.data && r.data.length > 0) DATA.certificates = r.data.map(c => ({ id: c.id, empId: c.employee_id, empName: c.employee_name, type: c.cert_type, issued_by: c.issued_by, issued_date: c.issued_date, expiry: c.expiry_date, status: c.status, notes: c.notes, alertDays: c.alert_days ?? 30, template: c.template, description: c.description, category: c.category })); }),
       supabase.from('crm_leads').select('*').then(r => { if (r.data && r.data.length > 0) DATA.leads = r.data.map(l => ({ id: l.id, name: l.name, email: l.email, phone: l.phone, status: l.status, source: l.source })); }),
@@ -5948,7 +5959,13 @@ async function submitNewFSL() {
     status: $('#fsl-status').value
   };
   if(!DATA.fieldServiceLogs) DATA.fieldServiceLogs = [];
-  if(supabase) await supabase.from('crm_field_service_logs').insert(log).then(({error:_})=>_&&supabaseCatch(_));
+  if(supabase) await supabase.from('crm_field_service_logs').insert({
+    id: log.id, date: log.date,
+    client_name: log.customer,
+    job_description: log.equipment,
+    engineer_name: log.technician,
+    status: log.status
+  }).then(({error:_})=>_&&supabaseCatch(_));
   DATA.fieldServiceLogs.push(log);
   closeModal(); window.showToast('Log created','success'); rerenderSection();
 }
@@ -6743,7 +6760,15 @@ window.convertLeadToAccount = async (id) => {
   };
   DATA.deals.push(newDeal);
   if (supabase) {
-    await supabase.from('crm_accounts').insert(newAcct).then(({error:_})=>_&&supabaseCatch(_));
+    await supabase.from('crm_accounts').insert({
+      id: newAcct.id, name: newAcct.name,
+      industry: newAcct.type || '',
+      tier: newAcct.rating || '',
+      manager_id: newAcct.owner || '',
+      status: newAcct.status,
+      revenue: newAcct.contractValue || 0,
+      last_contact: new Date().toISOString().slice(0,10)
+    }).then(({error:_})=>_&&supabaseCatch(_));
     await supabase.from('crm_contacts').insert(newContact).then(({error:_})=>_&&supabaseCatch(_));
     await supabase.from('crm_deals').insert(newDeal).then(({error:_})=>_&&supabaseCatch(_));
   }

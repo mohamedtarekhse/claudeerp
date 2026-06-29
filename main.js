@@ -1,6 +1,8 @@
 import { supabase } from './supabase.js';
 import { animate, stagger, spring } from 'motion';
 
+const generateId = (prefix, collection) => prefix + '-' + String(collection.length + 1).padStart(3, '0') + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+
 /* ═══════════════════════════════════════════════
    STATE — GLOBAL ROUTER STATE
 ═══════════════════════════════════════════════ */
